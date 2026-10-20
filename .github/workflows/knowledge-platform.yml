@@ -1,0 +1,75 @@
+name: Knowledge Platform Isolated Verification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  isolated:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: projects/growth
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.33.0'
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: |
+          uv sync --frozen --group dev --extra wechat --extra captions --python 3.13
+          if ($LASTEXITCODE -ne 0) { throw 'Python install failed' }
+          pnpm --dir viewer install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Viewer install failed' }
+          pnpm --dir viewer exec playwright install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Browser install failed' }
+      - name: Verify supported SQLite runtime
+        run: uv run python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
+      - name: Verify backend and isolated journeys
+        run: |
+          $env:PYTHONPATH = "$(Get-Location)/src$([IO.Path]::PathSeparator)$(Get-Location)"
+          uv run python -m pytest tests/unit tests/knowledge_platform ../../tests/e2e ../../tests/repository --junitxml=../../backend-isolated.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Backend verification failed' }
+          uv run python benchmarks/graphify/bench_graphify.py
+          if ($LASTEXITCODE -ne 0) { throw 'Graphify performance gate failed' }
+      - name: Verify viewer
+        run: |
+          pnpm --dir viewer typecheck
+          if ($LASTEXITCODE -ne 0) { throw 'TypeScript verification failed' }
+          pnpm --dir viewer test
+          if ($LASTEXITCODE -ne 0) { throw 'Viewer tests failed' }
+          pnpm --dir viewer build
+          if ($LASTEXITCODE -ne 0) { throw 'Viewer build failed' }
+      - name: Verify Pi extension
+        working-directory: integrations/pi-zhizhi
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Pi install failed' }
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { throw 'Pi typecheck failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Pi tests failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-test-report-not-live-acceptance
+          path: backend-isolated.xml
+          retention-days: 7

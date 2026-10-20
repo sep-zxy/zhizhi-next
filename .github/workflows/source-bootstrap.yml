@@ -1,0 +1,78 @@
+name: Audited source bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      transport_commit:
+        description: Exact commit of reviewed source-bootstrap transport branch
+        required: true
+        type: string
+      transport_sha256:
+        description: Reviewed SHA-256 of transport.json
+        required: true
+        type: string
+      expected_main:
+        description: Exact approved main commit containing identical workflows
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audited-source-main-write
+  cancel-in-progress: false
+
+jobs:
+  restore-source:
+    if: github.repository == 'sep-zxy/zhizhi-platform' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out approved controller
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - name: Validate immutable dispatch inputs
+        shell: bash
+        env:
+          TRANSPORT_COMMIT: ${{ inputs.transport_commit }}
+          TRANSPORT_SHA256: ${{ inputs.transport_sha256 }}
+          EXPECTED_MAIN: ${{ inputs.expected_main }}
+        run: |
+          set -euo pipefail
+          [[ "$TRANSPORT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRANSPORT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_MAIN" == "$GITHUB_SHA" ]]
+      - name: Check out immutable transport bytes
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.transport_commit }}
+          path: transport
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - name: Verify exact source tree and fast-forward main
+        shell: bash
+        env:
+          TRANSPORT_SHA256: ${{ inputs.transport_sha256 }}
+          EXPECTED_MAIN: ${{ inputs.expected_main }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          uv run --no-project python controller/deploy/git-sync/source_bootstrap.py restore \
+            --transport transport --transport-sha256 "$TRANSPORT_SHA256" \
+            --output restored --publish-repo controller --expected-main "$EXPECTED_MAIN" \
+            --receipt "$RUNNER_TEMP/source-bootstrap-receipt.json"
+      - name: Record publication evidence, not build or E2E acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-bootstrap-receipt
+          path: ${{ runner.temp }}/source-bootstrap-receipt.json
+          if-no-files-found: warn
+          retention-days: 14
