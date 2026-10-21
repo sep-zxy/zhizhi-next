@@ -412,9 +412,8 @@ def test_provider_failure_has_controlled_diagnostic_not_raw_message(
     assert result.failure.stage == "execution"
     assert result.failure.kind == kind and result.failure.summary == summary
     assert result.failure.event_type == event_type
-    # A live process is killed when the failure arrives. Do not fabricate a
-    # natural exit code from that cleanup termination.
-    assert result.failure.exit_code in {None, 1}
+    # The collector now observes natural EOF/exit before provider acceptance.
+    assert result.failure.exit_code == 1
     audit = result_metadata(result)
     assert audit["failure"] == asdict(result.failure)
     encoded = json.dumps(audit, default=str)
@@ -424,7 +423,7 @@ def test_provider_failure_has_controlled_diagnostic_not_raw_message(
 
 @pytest.mark.parametrize(
     "scenario",
-    ["provider_failure_item", "notification_warning", "notification_reroute"],
+    ["notification_warning", "notification_reroute"],
 )
 def test_nonfatal_cli_notifications_still_fail_closed_without_mislabeling_provider_failure(
     tmp_path, scenario
@@ -439,6 +438,17 @@ def test_nonfatal_cli_notifications_still_fail_closed_without_mislabeling_provid
     assert result.failure.event_type == "item.error" and result.output is None
     encoded = json.dumps(result_metadata(result), default=str)
     assert "never-log-me" not in encoded and "fallback-model" not in encoded
+
+
+def test_item_notice_does_not_hide_natural_nonzero_exit(tmp_path):
+    model = runner(tmp_path, "provider_failure_item")
+    model._collect_process_diagnostics = True
+    result = asyncio.run(model.run(task()))
+    assert result.status == "failed" and result.error_code == "CODEX_PROCESS_FAILED"
+    assert result.output is None and result.failure.exit_code == 1
+    process = model.process_diagnostics[-1]
+    assert process["notification_policy"] == "requires_review"
+    assert process["provider_turn_state"] == "incomplete"
 
 
 @pytest.mark.parametrize(

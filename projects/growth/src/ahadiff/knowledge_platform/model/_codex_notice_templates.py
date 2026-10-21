@@ -1,4 +1,4 @@
-"""Exact public notification texts, never permission to accept an error item.
+"""Exact public notification texts; diagnostic matches are not acceptance policy.
 
 Source/provenance: deploy/windows-portable/codex-notification-review.json.
 Only fixed public expansions for the already configured model are enumerated.

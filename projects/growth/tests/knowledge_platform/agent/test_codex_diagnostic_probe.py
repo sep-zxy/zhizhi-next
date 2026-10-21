@@ -134,7 +134,9 @@ def test_probe_separates_nonfatal_notification_rejection_from_provider_terminal_
     assert report["failure"]["summary"] == "cli_notification_requires_review"
     execute = report["processes"][-1]
     assert execute["event_counts"]["item.error"] == 1
-    assert execute["terminal_event"] is None
+    assert execute["terminal_event"] == "turn.completed"
+    assert execute["provider_turn_state"] == "completed" and execute["exit_code"] == 0
+    assert execute["notification_policy"] == "requires_review"
     assert "never-log-me" not in json.dumps(report)
 
 
@@ -197,7 +199,9 @@ def test_fixed_smoke_notification_hints_do_not_accept_later_valid_answer(tmp_pat
         "upstream_kind": "not_preserved_by_exec_jsonl",
         "message_present": True, "truncated": False,
     }
-    assert process["terminal_event"] is None
+    assert process["terminal_event"] == "turn.completed"
+    assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
+    assert process["notification_policy"] == "requires_review"
     assert process["steps"][-1]["name"] == "cleanup_complete"
     calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
     assert sum("exec" in call["args"] for call in calls) == 1
@@ -238,13 +242,12 @@ def test_notification_classifier_has_no_provider_text_or_dynamic_code(message, c
 def test_notification_classifier_is_bounded_and_parser_collection_default_off():
     from ahadiff.knowledge_platform.model.codex_runner import _ExecEvents
     from ahadiff.knowledge_platform.model.diagnostics import notification_diagnostic
-    from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
     observed = notification_diagnostic("x" * 8192 + " is deprecated")
     assert observed["code"] == "unknown_notification" and observed["truncated"] is True
     events = _ExecEvents(4096)
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.accept(b'{"type":"item.completed","item":{"type":"error","message":"secret"}}')
+    events.accept(b'{"type":"item.completed","item":{"type":"error","message":"secret"}}')
     assert events.notification is None and events.completed is False
+    complete_then_reject(events)
 
 
 @pytest.mark.parametrize("message", [
@@ -256,13 +259,11 @@ def test_notification_classifier_is_bounded_and_parser_collection_default_off():
 ])
 def test_malicious_text_and_byte_bound_cannot_authorize_a_turn(message):
     from ahadiff.knowledge_platform.model.codex_runner import _ExecEvents
-    from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
     events = _ExecEvents(4096, notification_details=True)
     raw = json.dumps(
         {"type": "item.completed", "item": {"type": "error", "message": message}}
     ).encode()
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.accept(raw)
+    events.accept(raw)
     notice = events.notification
     assert notice is not None
     assert notice["input_utf8_bytes"] == len(message.encode())
@@ -273,13 +274,30 @@ def test_malicious_text_and_byte_bound_cannot_authorize_a_turn(message):
     assert set(notice) == {"classifier_version", "rule_id", "code", "evidence", "upstream_kind",
                            "message_present", "input_utf8_bytes",
                            "inspected_utf8_bytes", "truncated"}
+    complete_then_reject(events)
 
 
-def test_first_of_multiple_notifications_still_stops_smoke(tmp_path):
+def test_first_notification_diagnostic_does_not_hide_rest_of_stream(tmp_path):
     report = asyncio.run(probe_codex(config(tmp_path, "notification_multiple"), model_smoke=True))
     process = report["processes"][-1]
     assert report["model"]["status"] == "blocked"
     assert process["notification"]["code"] == "unknown_notification"
-    assert process["event_counts"]["item.error"] == 1
-    assert process["terminal_event"] is None
+    assert process["event_counts"]["item.error"] == 2
+    assert process["terminal_event"] == "turn.completed"
+    assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
+    assert process["notification_policy"] == "requires_review"
     assert report["model"]["answer_matches_fixed_schema"] is False
+
+
+def complete_then_reject(events):
+    for item in [
+        {"type": "thread.started", "thread_id": "synthetic-thread"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "isolated"}},
+        {"type": "turn.completed", "usage": {"output_tokens": 1}},
+    ]:
+        events.accept(json.dumps(item).encode())
+    from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
+    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
+        events.finish(0)
+    assert events.provider_turn_state == "completed"

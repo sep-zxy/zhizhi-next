@@ -33,6 +33,7 @@ from ._codex_notice_projection import (
     project_notice,
     projection_result,
 )
+from ._codex_notice_templates import EXACT_NOTIFICATION_TEMPLATES
 from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
 from .diagnostics import (
     ModelFailure,
@@ -73,6 +74,14 @@ DISABLED_FEATURES = (
     "computer_use",
     "tool_suggest",
 )
+
+# Acceptance is separate from diagnostic pattern hints. These complete public
+# messages affect display/accuracy only, not identity, route or permissions.
+_INFORMATIONAL_NOTICES = frozenset(
+    text for text, code in EXACT_NOTIFICATION_TEMPLATES.items()
+    if code in {"transcript_v2_deprecation", "compaction_accuracy_notice"}
+)
+_MAX_NOTIFICATIONS = 16
 
 
 class _CodexFailure(RpcFailure):
@@ -139,11 +148,16 @@ class _ExecEvents:
 
     def __init__(
         self, max_output_tokens: int, *, notification_details: bool = False,
-        notice_projection: bool = False,
+        notice_projection: bool = False, cli_version: str | None = None,
     ) -> None:
         self.notification_details = notification_details
         self.notice_projection = notification_details and notice_projection
         self.notification: dict[str, Any] | None = None
+        self.cli_version = cli_version
+        self.notification_policy = "not_observed"
+        self.provider_turn_state = "not_observed"
+        self.stream_error: _CodexFailure | None = None
+        self.turn_failure: _CodexFailure | None = None
         self.max_output_tokens = max_output_tokens
         self.started = False
         self.turn_started = False
@@ -170,21 +184,34 @@ class _ExecEvents:
         }
         label = kind if kind in known_events else "unknown"
         self.event_counts[label] = self.event_counts.get(label, 0) + 1
-        if kind in {"turn.completed", "turn.failed", "error"}:
-            self.terminal_event = kind
-        if self.completed:
+        if self.terminal_event is not None:
             raise RpcFailure("CODEX_EVENT_AFTER_COMPLETION")
+        if kind in {"turn.completed", "turn.failed"}:
+            self.terminal_event = kind
         if kind == "item.completed":
             notification = event.get("item")
             if (
                 isinstance(notification, dict)
                 and cast("dict[str, Any]", notification).get("type") == "error"
             ):
-                # Pinned CLI emits warnings, deprecations AND model rerouting as
-                # non-fatal error items. Do not mislabel these PROVIDER_FAILURE,
-                # but do not ignore them: security/model policy may have changed.
+                # Official exec keeps running for these non-fatal items. Collect
+                # the natural terminal result before deciding whether to release
+                # output; startup warnings may precede thread.started.
                 self.event_counts["item.error"] = self.event_counts.get("item.error", 0) + 1
-                if self.notification_details:
+                if self.event_counts["item.error"] > _MAX_NOTIFICATIONS:
+                    raise RpcFailure("CODEX_NOTIFICATION_LIMIT", "blocked")
+                message = cast("dict[str, Any]", notification).get("message")
+                if not isinstance(message, str):
+                    raise RpcFailure("CODEX_INVALID_EVENT")
+                informational = (
+                    self.cli_version == "0.163.0-alpha.11"
+                    and message in _INFORMATIONAL_NOTICES
+                )
+                if not informational:
+                    self.notification_policy = "requires_review"
+                elif self.notification_policy == "not_observed":
+                    self.notification_policy = "informational"
+                if self.notification_details and self.notification is None:
                     self.notification = notification_diagnostic(
                         cast("dict[str, Any]", notification).get("message")
                     )
@@ -198,17 +225,12 @@ class _ExecEvents:
                             # primary notification rejection with projector failure.
                             projection = projection_result(evidence="projection_failed")
                         self.notification["projection"] = projection
-                raise _CodexFailure(
-                    "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
-                    failure=ModelFailure(
-                        stage="execution", kind="policy",
-                        summary="cli_notification_requires_review", event_type="item.error",
-                    ),
-                )
+                return
         if kind == "thread.started" and not self.started:
             self.started = True
         elif kind == "turn.started" and self.started and not self.turn_started:
             self.turn_started = True
+            self.provider_turn_state = "in_progress"
         elif kind in {"item.started", "item.updated", "item.completed"} and self.turn_started:
             item = event.get("item")
             if not isinstance(item, dict):
@@ -243,19 +265,67 @@ class _ExecEvents:
             if self.usage["output"] > self.max_output_tokens:
                 raise RpcFailure("MODEL_OUTPUT_TOKEN_LIMIT", "invalid_output")
             self.completed = True
-        elif kind in {"turn.failed", "error"}:
+            self.provider_turn_state = "completed"
+        elif kind == "error" or (kind == "turn.failed" and self.turn_started):
+            if self.event_counts.get("error", 0) > _MAX_NOTIFICATIONS:
+                raise RpcFailure("CODEX_NOTIFICATION_LIMIT", "blocked")
             error = event.get("error", event)
             message = (
                 cast("dict[str, Any]", error).get("message", "")
                 if isinstance(error, dict) else ""
             )
-            status, code = classify_provider_error(str(message))
-            raise _CodexFailure(
-                code, status,
-                failure=provider_failure_diagnostic(str(message), event_type=kind),
+            if not isinstance(message, str):
+                raise RpcFailure("CODEX_INVALID_EVENT")
+            # Classify only in memory. No classification authorizes stopping the
+            # stream, retrying, or interpreting a recovered turn as auth failure.
+            status, code = classify_provider_error(message)
+            failure = _CodexFailure(
+                code, status, failure=provider_failure_diagnostic(message, event_type=kind),
             )
+            if kind == "turn.failed":
+                self.provider_turn_state = "failed"
+                self.turn_failure = failure
+            elif self.stream_error is None:
+                self.stream_error = failure
         else:
             raise RpcFailure("CODEX_UNEXPECTED_EVENT", "blocked")
+
+    def finish(self, exit_code: int) -> None:
+        """Natural EOF/exit precedes acceptance; never release quarantined text."""
+        if self.provider_turn_state not in {"completed", "failed"}:
+            self.provider_turn_state = "incomplete"
+        failure = self.turn_failure or (self.stream_error if exit_code else None)
+        if failure is not None:
+            failure.failure = replace(failure.failure, exit_code=exit_code)
+            raise failure
+        if exit_code:
+            raise _CodexFailure(
+                "CODEX_PROCESS_FAILED", failure=coded_failure_diagnostic(
+                    "CODEX_PROCESS_FAILED", stage="execution", exit_code=exit_code,
+                ),
+            )
+        if not self.completed:
+            raise RpcFailure("CODEX_INCOMPLETE_TURN", "invalid_output")
+        if self.stream_error is not None:
+            # Exec drops willRetry. Preserve completed, but do not silently
+            # accept a contradictory error/completed combination in this policy.
+            raise _CodexFailure(
+                "CODEX_STREAM_ERROR_REQUIRES_REVIEW", "blocked",
+                failure=ModelFailure(
+                    stage="execution", kind="policy",
+                    summary="cli_stream_error_requires_review", event_type="error",
+                    exit_code=exit_code,
+                ),
+            )
+        if self.notification_policy == "requires_review":
+            raise _CodexFailure(
+                "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
+                failure=ModelFailure(
+                    stage="execution", kind="policy",
+                    summary="cli_notification_requires_review", event_type="item.error",
+                    exit_code=exit_code,
+                ),
+            )
 
 
 async def _stop(process: asyncio.subprocess.Process, job: CodexOwnedJob | None = None) -> None:
@@ -403,6 +473,9 @@ class CodexModelRunner:
             "stderr_bytes": 0,
             "event_counts": {},
             "terminal_event": None,
+            "provider_turn_state": "not_observed",
+            "notification_policy": "not_observed",
+            "stream_error_observed": False,
         }
         if self._collect_process_diagnostics and len(self.process_diagnostics) < 32:
             self.process_diagnostics.append(observation)
@@ -566,9 +639,15 @@ class CodexModelRunner:
             code = await process.wait()
             observation["exit_code"] = code
             step("process_exited")
+            if events is not None:
+                events.finish(code)
             return code, captured.decode("utf-8", errors="strict").strip()
         except BaseException as exc:
             primary = exc
+            if events is not None and events.provider_turn_state not in {"completed", "failed"}:
+                events.provider_turn_state = (
+                    "interrupted" if isinstance(exc, asyncio.CancelledError) else "incomplete"
+                )
             failure(exc)
             # Cleanup may kill a still-running CLI. That synthetic exit must not
             # be reported as the provider's actual exit code.
@@ -585,6 +664,9 @@ class CodexModelRunner:
                 if events is not None:
                     observation["event_counts"] = dict(events.event_counts)
                     observation["terminal_event"] = events.terminal_event
+                    observation["provider_turn_state"] = events.provider_turn_state
+                    observation["notification_policy"] = events.notification_policy
+                    observation["stream_error_observed"] = events.stream_error is not None
                     if events.notification is not None:
                         observation["notification"] = dict(events.notification)
 
@@ -854,6 +936,7 @@ class CodexModelRunner:
                 task.max_output_tokens,
                 notification_details=self._collect_notification_diagnostics,
                 notice_projection=self._collect_notice_projection,
+                cli_version=self.config.expected_version,
             )
             execution.stage = "execution"
             code, _ = await self._process(args, cwd, payload=prompt, events=events)

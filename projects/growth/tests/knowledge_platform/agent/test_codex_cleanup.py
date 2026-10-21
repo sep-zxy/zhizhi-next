@@ -300,8 +300,19 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
     """Fully synthetic process: cancellation must not permit workspace deletion."""
     runner = CodexModelRunner(settings(tmp_path), collect_process_diagnostics=True,
                               collect_notification_diagnostics=True)
-    line = b'{"type":"item.completed","item":{"type":"error","message":"synthetic warning"}}\n'
-    lines = iter((line, b"") if primary_notice else (b"",))
+    protocol = [
+        {"type": "thread.started", "thread_id": "synthetic-thread"},
+        {"type": "turn.started"},
+    ]
+    if primary_notice:
+        protocol.append({"type": "item.completed", "item": {
+            "type": "error", "message": "synthetic warning",
+        }})
+    protocol.extend([
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "isolated"}},
+        {"type": "turn.completed", "usage": {"output_tokens": 1}},
+    ])
+    lines = iter([json.dumps(item).encode() + b"\n" for item in protocol] + [b""])
     stopped = []
 
     async def readline():
@@ -369,7 +380,11 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
         assert process_report["event_counts"]["item.error"] == 1
         assert process_report["notification"]["code"] == "unknown_notification"
     else:
-        assert not process_report["event_counts"]
+        assert process_report["event_counts"] == {
+            "thread.started": 1, "turn.started": 1, "item.completed": 1, "turn.completed": 1,
+        }
+    assert process_report["provider_turn_state"] == "completed"
+    assert process_report["terminal_event"] == "turn.completed"
     errors = process_report["cleanup"]["errors"]
     assert errors[0]["operation"] == "reader_join"
     assert errors[0]["failure_type"] == join_error

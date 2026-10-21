@@ -1,4 +1,4 @@
-"""Exact public templates are diagnostics only, never notification permission."""
+"""Diagnostic matches do not authorize unverified versions or mutated templates."""
 import json
 from pathlib import Path
 
@@ -11,6 +11,19 @@ from ahadiff.knowledge_platform.model._codex_notice_templates import (
 from ahadiff.knowledge_platform.model.codex_runner import _ExecEvents
 from ahadiff.knowledge_platform.model.diagnostics import notification_diagnostic
 from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
+
+
+def complete_then_reject(events):
+    for item in [
+        {"type": "thread.started", "thread_id": "synthetic-thread"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "isolated"}},
+        {"type": "turn.completed", "usage": {"output_tokens": 1}},
+    ]:
+        events.accept(json.dumps(item).encode())
+    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
+        events.finish(0)
+    assert events.provider_turn_state == "completed"
 
 
 def test_exact_templates_match_reviewed_official_source_record():
@@ -39,12 +52,12 @@ def test_exact_public_template_remains_blocked_without_text_or_actual_model(mess
     assert diagnostic['input_utf8_bytes'] == len(message.encode())
     assert message not in json.dumps(diagnostic)
     events = _ExecEvents(20, notification_details=True)
-    with pytest.raises(RpcFailure, match='CODEX_NOTIFICATION_REQUIRES_REVIEW'):
-        events.accept(json.dumps({'type': 'item.completed', 'item': {
-            'type': 'error', 'message': message,
-        }}).encode())
+    events.accept(json.dumps({'type': 'item.completed', 'item': {
+        'type': 'error', 'message': message,
+    }}).encode())
     assert events.completed is False and events.text is None
     assert events.notification == diagnostic
+    complete_then_reject(events)
 
 
 @pytest.mark.parametrize('change', [
@@ -64,11 +77,11 @@ def test_mutations_and_multiple_notices_cannot_claim_exact_template(message, cha
     assert diagnostic['code'] not in EXACT_NOTIFICATION_TEMPLATES.values()
     assert 'never-log' not in json.dumps(diagnostic)
     events = _ExecEvents(20, notification_details=True)
-    with pytest.raises(RpcFailure, match='CODEX_NOTIFICATION_REQUIRES_REVIEW'):
-        events.accept(json.dumps({'type': 'item.completed', 'item': {
-            'type': 'error', 'message': changed,
-        }}).encode())
+    events.accept(json.dumps({'type': 'item.completed', 'item': {
+        'type': 'error', 'message': changed,
+    }}).encode())
     assert events.completed is False and events.text is None
+    complete_then_reject(events)
 
 
 def test_byte_count_never_classifies_unknown_notice():

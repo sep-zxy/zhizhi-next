@@ -122,25 +122,26 @@ def test_official_fixed_hints_must_correspond_to_key(key, hint):
 
 
 @pytest.mark.parametrize("message", list(EXACT_NOTIFICATION_TEMPLATES))
-def test_existing_exact_templates_stay_exact_and_blocked(message):
+def test_projection_does_not_authorize_unverified_cli_version(message):
     result = project_notice(message)
     assert result["template_id"] == EXACT_NOTIFICATION_TEMPLATES[message]
     assert result["evidence"] == "exact_public_template_text"
     events = _ExecEvents(20, notification_details=True, notice_projection=True)
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.accept(
-            json.dumps(
-                {
-                    "type": "item.completed",
-                    "item": {
-                        "type": "error",
-                        "message": message,
-                    },
-                }
-            ).encode()
-        )
+    events.accept(json.dumps({
+        "type": "item.completed", "item": {"type": "error", "message": message},
+    }).encode())
     assert events.text is None and not events.completed
     assert events.notification["projection"] == result
+    for item in [
+        {"type": "thread.started", "thread_id": "synthetic-thread"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "isolated"}},
+        {"type": "turn.completed", "usage": {"output_tokens": 1}},
+    ]:
+        events.accept(json.dumps(item).encode())
+    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
+        events.finish(0)
+    assert events.provider_turn_state == "completed"
 
 
 @pytest.mark.parametrize(
@@ -579,7 +580,11 @@ def test_opt_in_fixed_probe_once_blocked_cleaned_and_redacted(
     process = report["processes"][-1]
     projection = process["notification"]["projection"]
     assert projection["template_id"] == template and projection["family"] == family
-    assert process["event_counts"]["item.error"] == 1
+    expected_count = 2 if scenario == "notification_multiple" else 1
+    assert process["event_counts"]["item.error"] == expected_count
+    assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
+    assert process["terminal_event"] == "turn.completed"
+    assert process["notification_policy"] == "requires_review"
     assert process["cleanup"]["status"] == "completed"
     assert all(item["status"] == "completed" for item in report["cleanup"])
     assert "never-log-me" not in json.dumps(report)

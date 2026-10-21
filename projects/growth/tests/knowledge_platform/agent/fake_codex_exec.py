@@ -86,12 +86,28 @@ if scenario.startswith("notification_"):
         "notification_transport_notice": (
             "Falling back from WebSockets to HTTPS transport. never-log-me"
         ),
-    }.get(scenario, message)
+        "notification_informational": (
+            "`[features].transcript_v2` is deprecated and ignored. (Use "
+            "`[tui].fullscreen_transcript` in config.toml instead.)"
+        ),
+    }.get("notification_informational" if scenario.startswith("notification_informational")
+          else scenario, message)
     emit({"type": "item.completed", "item": {"type": "error", "message": message}})
     if scenario == "notification_multiple":
         emit({"type": "item.completed", "item": {"type": "error",
               "message": "model rerouted: requested -> private-never-log-me"}})
     # A later valid answer must not bypass a rejected configuration/reroute notification.
+    if scenario == "notification_timeout":
+        time.sleep(30)
+    if scenario == "notification_tool":
+        emit({"type": "item.started", "item": {"type": "command_execution"}})
+        time.sleep(30)
+    if scenario in {"notification_failed", "notification_informational_failed"}:
+        emit({"type": "turn.failed", "error": {"message": "synthetic failure"}})
+        Path(calls_path + ".finished").write_text("natural fixture termination")
+        raise SystemExit(1)
+if scenario == "stream_error_recovered":
+    emit({"type": "error", "message": "401 unknown synthetic error; never-log-me"})
 if scenario.startswith("provider_failure_"):
     messages = {
         "transport": "stream disconnected before completion; password=never-log-me",
@@ -157,7 +173,7 @@ if scenario == "claimed_model":
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": outer}})
 if scenario == "duplicate_message":
     emit({"type": "item.completed", "item": {"type": "agent_message", "text": outer}})
-if scenario == "early_exit":
+if scenario in {"early_exit", "notification_incomplete"}:
     raise SystemExit(0)
 emit(
     {
@@ -170,7 +186,9 @@ emit(
         },
     }
 )
-if scenario == "nonzero_exit":
+if scenario.startswith("notification_") or scenario == "stream_error_recovered":
+    Path(calls_path + ".finished").write_text("natural fixture termination")
+if scenario in {"nonzero_exit", "notification_nonzero", "notification_informational_nonzero"}:
     raise SystemExit(3)
 if scenario == "after_completion":
     emit({"type": "turn.started"})

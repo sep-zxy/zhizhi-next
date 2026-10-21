@@ -51,15 +51,15 @@ $ErrorActionPreference = 'Stop'
 
 适配器仍拒绝这类未经复核的通知，尤其不能忽略模型重路由或失效安全配置；没有扩大工具、模型、权限或秘密放行。现在返回 `blocked / CODEX_NOTIFICATION_REQUIRES_REVIEW` 与固定摘要 `cli_notification_requires_review`，不再把它一律误报为 `PROVIDER_FAILURE`。
 
-probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`；后者不是提供方终态，`terminal_event` 不再据此伪造。顶层 `error`、`turn.failed` 仍保持失败。所有消息原文继续丢弃，即使后续出现合法答案也不会把被拒绝的调用标成成功。
+probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`；后者不是提供方终态。当前实现继续有界读取真实终态，再按独立策略决定是否接受输出。详见 [事件接受矩阵](CODEX_EVENT_ACCEPTANCE.md)。顶层 error 后 completed/exit 0 保留协议事实但隔离待审，不能猜成认证失败。所有消息原文继续丢弃。
 
 这是已确认的协议诊断修正，不是 Windows 根因结论。旧报告未记录事件类型，必须等待真实 Windows probe 才能判断当时是否走了该通知路径。
 
-## alpha.11 通知诊断（初版 v1，当前 v2 见下节，均全部阻断）
+## alpha.11 通知诊断（初版 v1，当前 v2 见下节）
 
 Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原因。新版仅在显式固定公开
 `--model-smoke` 中收集通知摘要；默认 host-only 不发模型请求，常规模型执行默认不收集。
-无新重试、fallback、忽略警告或成功条件。通知后即停止，后续正确答案不计成功。
+无新重试或 fallback。旧实现曾在通知后立即停止，这是丢失官方终态的适配器设计缺陷；当前改为有界读到终态后独立判定，未知和关键通知仍隔离，只有两个已审纯信息全文可继续既有输出校验。
 
 官方固定 commit `5425d3e625daa58eea3ad1de27c087eb3b2ffbd3`：
 
@@ -194,7 +194,7 @@ transport/persistence/code-mode 的动态错误尾不作为完整语法，仅可
 全部 producer 文件、固定 blob SHA、行号与边界在
 `deploy/windows-portable/codex-notice-projection-review.json`，没有读取任何用户配置。
 
-任何结果仍 `CODEX_NOTIFICATION_REQUIRES_REVIEW`、无有效答案、无重试/回退/权限扩展。
+投影器结果本身不授予接受许可；新动态语法/弱提示/unknown 仍为 `CODEX_NOTIFICATION_REQUIRES_REVIEW`，无有效答案、无重试/回退/权限扩展。两个原有纯信息全文的独立许可见事件接受矩阵。
 投影器自身异常只记固定 `projection_failed`，不覆盖主错误、不输出异常文本；原
 清理、取消、未完成状态锁存与缓存门禁保留。若下一次授权探针仍 unknown 或 family
 不足以定因，停止猜模板和重建循环，明确需要用户在本机查看那一条通知；本补丁不提供

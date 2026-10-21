@@ -26,6 +26,7 @@ FAILURE_SUMMARIES = frozenset(
         "unsupported_cli_configuration",
         "provider_reported_failure",
         "cli_notification_requires_review",
+        "cli_stream_error_requires_review",
         "unexpected_tool_or_event",
         "invalid_protocol_response",
         "output_validation_failed",
