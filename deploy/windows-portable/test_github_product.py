@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,28 @@ class GitHubProductTests(unittest.TestCase):
         text = (HERE / "build_github_product.py").read_text()
         self.assertIn('python("-m", "pytest", "deploy/windows-portable")', text)
         self.assertIn('python("-m", "pytest", "deploy/git-sync")', text)
+
+    def test_dependency_bootstrap_does_not_build_project_before_real_viewer(self):
+        workflow = (HERE.parents[1] / ".github/workflows/windows-git-candidate.yml").read_text()
+        commands = [shlex.split(line.strip().rstrip("\\")) for line in workflow.splitlines()
+                    if line.strip().startswith("uv ")]
+        sync, = [command for command in commands if command[1] == "sync"]
+        self.assertEqual(sync, ["uv", "sync", "--project", "projects/growth", "--frozen",
+                               "--group", "dev", "--extra", "wechat", "--extra", "captions",
+                               "--no-install-project"])
+        # Neither later invocation may silently undo the dependency-only install.
+        runs = [command for command in commands if command[1] == "run"]
+        self.assertEqual(len(runs), 2)
+        self.assertIn("--no-sync", runs[0])
+        self.assertIn("--no-project", runs[1])
+        text = (HERE / "build_github_product.py").read_text()
+        self.assertIn('env["PYTHONPATH"] = str(growth / "src")', text)
+        self.assertIn('run("viewer-production-build",', text)
+        self.assertLess(text.index('run("viewer-production-build",'),
+                        text.index('run("assemble-windows-product",'))
+        assembly = (HERE / "assemble_product.py").read_text()
+        self.assertIn("viewer=repo/'projects/growth/viewer/dist'", assembly)
+        self.assertIn("git','ls-files','-z','projects/growth/src/ahadiff'", assembly)
 
     def test_required_native_and_licensed_assets_are_kept(self):
         text = (HERE / "build_github_product.py").read_text()

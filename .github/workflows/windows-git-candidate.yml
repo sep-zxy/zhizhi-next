@@ -70,7 +70,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uv sync --project projects/growth --frozen --group dev --extra wechat --extra captions
+          # The portable backend is assembled from tracked source. Its wheel
+          # requires viewer/dist, which is produced by the real build gate below.
+          uv sync --project projects/growth --frozen --group dev --extra wechat --extra captions --no-install-project
           pnpm --dir projects/growth/viewer install --frozen-lockfile
       - name: Run isolated gates and build fresh Windows product
         shell: bash
