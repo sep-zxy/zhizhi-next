@@ -1,0 +1,110 @@
+{
+  "reviewed_at_utc": "2026-10-21T13:28:00Z",
+  "repository": "openai/codex",
+  "commit": "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3",
+  "mapping": {
+    "path": "codex-rs/exec/src/event_processor_with_jsonl_output.rs",
+    "lines": "409-472,494-505",
+    "sha": "73e0c9d911c82aae67c44e6b1a4ce54c7092b6be",
+    "rule": "ConfigWarning/DeprecationNotice with nonempty details serialize as summary + space + opening parenthesis + details + closing parenthesis; Warning forwards message; ModelRerouted has a dynamic format. Upstream type is not retained."
+  },
+  "exact_candidates": [
+    {
+      "id": "model_metadata_missing_fixed_model",
+      "path": "codex-rs/core/src/session/turn_context.rs",
+      "line": 1401,
+      "sha": "40cf7657a6dbe96d2e5dc3bacbe3a0761b1e161e",
+      "scope": "Exact expansion only for the already configured model; not evidence that this notice occurred.",
+      "text": "Model metadata for `gpt-6.1-sol` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/session/turn_context.rs#L1401",
+      "utf8_bytes": 123
+    },
+    {
+      "id": "service_tier_priority_unsupported_fixed_model",
+      "path": "codex-rs/core/src/session/mod.rs",
+      "line": 1219,
+      "sha": "9b00655edb7d9a25d6ac1a5384487dbfc54640a9",
+      "scope": "Only a public example expansion; no evidence that the actual configured service tier is priority.",
+      "text": "Configured service tier `priority` is not advertised as supported for model `gpt-6.1-sol` and will be omitted from requests.",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/session/mod.rs#L1219",
+      "utf8_bytes": 124
+    },
+    {
+      "id": "code_mode_unsupported_fixed_model",
+      "path": "codex-rs/core/src/session/code_mode_warning.rs",
+      "line": 20,
+      "sha": "87f122b065ea38d55dfd9b612bdb3dc84b9c31e8",
+      "text": "Code Mode is enabled in configuration, but model `gpt-6.1-sol` does not advertise Code Mode support. This may degrade model performance. Disable `features.code_mode` and `features.code_mode_only`, or select a model whose metadata enables Code Mode.",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/session/code_mode_warning.rs#L20",
+      "utf8_bytes": 248
+    },
+    {
+      "id": "stop_hook_empty_continuation",
+      "path": "codex-rs/core/src/session/turn.rs",
+      "line": 759,
+      "sha": "d1d43621210c979e2a98e2c2bc49698e825d71c1",
+      "text": "Stop hook requested continuation without a prompt; ignoring the block.",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/session/turn.rs#L759",
+      "utf8_bytes": 70
+    },
+    {
+      "id": "compaction_accuracy_notice",
+      "path": "codex-rs/core/src/compact.rs",
+      "line": 432,
+      "sha": "71761349e499b109b46baa3ca3e662d5ed68cda2",
+      "text": "Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/compact.rs#L432",
+      "utf8_bytes": 157
+    },
+    {
+      "id": "guardian_thread_context_deprecation",
+      "path": "codex-rs/features/src/lib.rs",
+      "line": 786,
+      "sha": "0928655c333c17dcb57b4f3ffe6d1ed28a2e3d09",
+      "text": "`[features.guardianv2].thread_context` is deprecated and ignored. (Thread-owned Guardian context is always enabled. Remove `thread_context` from [features.guardianv2] in config.toml, including profile overrides.)",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/features/src/lib.rs#L786",
+      "utf8_bytes": 212
+    },
+    {
+      "id": "transcript_v2_deprecation",
+      "path": "codex-rs/features/src/lib.rs",
+      "line": 790,
+      "sha": "0928655c333c17dcb57b4f3ffe6d1ed28a2e3d09",
+      "text": "`[features].transcript_v2` is deprecated and ignored. (Use `[tui].fullscreen_transcript` in config.toml instead.)",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/features/src/lib.rs#L790",
+      "utf8_bytes": 113
+    }
+  ],
+  "dynamic_templates_not_exact_rules": [
+    {
+      "path": "codex-rs/core/src/tools/code_mode/mod.rs",
+      "line": 121,
+      "template": "Code Mode is unavailable because {error}. {behavior}; enable `features.code_mode_host` and install `codex-code-mode-host`.",
+      "reason": "error is dynamic; behavior has two public choices. Do not use prefix or length to treat this as an exact match.",
+      "sha": "2b241ffc7d0351bdea5c18089b63db17dce7577c",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/tools/code_mode/mod.rs#L121"
+    },
+    {
+      "path": "codex-rs/core/src/responses_retry.rs",
+      "line": 133,
+      "template": "Falling back from WebSockets to HTTPS transport. {err:#}",
+      "reason": "Dynamic error may contain endpoint/path/service text; no raw suffix may be logged or admitted.",
+      "sha": "048a68bfc9bc7b80a88c1a9541a413b7a37ccd95",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/responses_retry.rs#L133"
+    },
+    {
+      "path": "codex-rs/core/src/tasks/mod.rs",
+      "line": 408,
+      "template": "Failed to save the conversation transcript; Codex will continue retrying. Error: {err}",
+      "reason": "Dynamic persistence error must remain unknown without separately reviewed complete fixed text.",
+      "sha": "6a3e95ee807b562022485af0b11b1ce7e0ebf560",
+      "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/tasks/mod.rs#L408"
+    }
+  ],
+  "policy": {
+    "matching": "Whole original UTF-8 text equality only; no lowercasing, trim, prefix, regex expansion, or length-only matching.",
+    "output": "Only fixed rule ID, source version, byte count and existing safe metadata. No text, path, endpoint or secret values.",
+    "effect": "Diagnostic classification only. All item.error notifications remain blocked; no fallback, retry, provider/model change, or enabling tools.",
+    "coverage": "Bounded reviewed sources, not an exhaustive inventory."
+  }
+}

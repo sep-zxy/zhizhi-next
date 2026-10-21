@@ -55,7 +55,7 @@ probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`�
 
 这是已确认的协议诊断修正，不是 Windows 根因结论。旧报告未记录事件类型，必须等待真实 Windows probe 才能判断当时是否走了该通知路径。
 
-## alpha.11 通知诊断（分类器 v1，仍全部阻断）
+## alpha.11 通知诊断（初版 v1，当前 v2 见下节，均全部阻断）
 
 Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原因。新版仅在显式固定公开
 `--model-smoke` 中收集通知摘要；默认 host-only 不发模型请求，常规模型执行默认不收集。
@@ -72,7 +72,7 @@ Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原�
 - [官方 feature 警告](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/features/src/lib.rs)
   L815–827、2143：弃用和实验功能；[exec 流丢失警告](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/lib.rs#L1668-L1670)。
 
-规则在 `notification_diagnostic` 中硬编码，`classifier_version=1`，固定 rule_id 前缀
+初版规则在 `notification_diagnostic` 中硬编码，`classifier_version=1`，固定 rule_id 前缀
 `codex_exec_notice_v1:`，后缀与 code 相同。完整消息仅在已有 JSONL 内存限额内短暂解析；
 分类最多检查前 8192 个 UTF-8 字节，只返回实际输入字节数、检查字节数和截断事实。
 绝不返回原文/片段/哈希、任意上游码、模型名、账号、路径、URL 或凭据。
@@ -95,3 +95,64 @@ Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原�
 `upstream_kind=not_preserved_by_exec_jsonl`。恶意文本可夹入相同关键词，所以类别仅帮助
 下一步静态调查，不能证明真正来源或改变 `CODEX_NOTIFICATION_REQUIRES_REVIEW` 阻断。
 下一次真实固定 smoke 必须仍由协调方按既有授权安排；这些离线测试不是模型 E2E。
+
+## 主错误与清理失败分离
+
+一次 Windows 固定 smoke 的内层记录了 `item.error`，外层却变成
+`CODEX_HOST_INVALID`，且临时目录残留。这与旧 `TemporaryDirectory.__exit__`
+覆盖主异常的源码路径相容，但没有保存当时清理异常，因此不能据此宣布实际根因。
+事后只读检查没有发现 readonly/reparse，也不能反证当时不存在短暂占用。
+
+新版取消隐式临时目录 finalizer，显式管理**本次调用创建**的独立目录：
+
+- 先终止并回收所属进程，再检查本次目录和全部祖先/后代；任何链接、Windows
+  reparse 属性、特殊文件、检查失败或超出有限枚举上限均拒绝删除。
+- 仅普通 `shutil.rmtree`，无 `chmod`、ACL 修改、强删、忽略错误或递归查找旧残留。
+  仅已知 sharing/busy/nonempty 错误可等待 100ms 后重试一次。权限/未知错误不重试。
+- `processes[*].failure_type/errno/winerror` 保持原执行错误；新增独立 `cleanup`
+  报告的 resource/status/attempts/errors/recovery，只有固定类别和数字 errno/winerror，
+  不含异常文本、文件名、路径、argv、通知原文或秘密。
+- 主异常（包括通知阻断、认证错误、超时/取消）不被清理异常替换。没有主异常但清理
+  不完整时返回 `blocked / CODEX_CLEANUP_FAILED`，不是成功或可缓存答案。
+- 任一清理未确认完成，该 runner 后续调用（包括已排队调用/缓存）返回
+  `CODEX_CLEANUP_PENDING`，不再启动 CLI。进程清理未知时不尝试删除工作目录。
+
+此策略不是抵御同用户进程竞态的 OS 沙箱。清理失败残留须由协调方在精确目录、
+进程/句柄已释放和路径属性重新核验后单独处理；当前探针没有“强制清理历史目录”入口。
+不能为清理问题重跑模型，也不能通过换目录重置已消耗的验收预算。
+
+144 字节、未截断的 `unknown_notification` 不足以恢复上游类型。只有完整消息与已审
+官方公开静态模板**精确相同**时，才可增补固定模板 ID；其他输入保持 unknown，绝不输出
+未知原文或其哈希，也不把模板命中当成忽略通知/换模型的许可。真实下一次固定请求仍由
+主协调按获准范围安排，不由代码诊断自动重试。
+
+### 清理路径补充
+
+reader cancel/join 与 owned stop 现在同属一个受控清理段。join 超时/取消/异常先锁存
+未完成状态，仍尝试有界 stop；再次取消分别记录，不会丢掉原通知或误删工作目录。
+`errors[*].operation` 仅为固定 `reader_join`、`owned_stop`、`job_setup_handle_close`。
+Windows `CloseHandle` 返回 false 必须立即记录对应 last error，不能清掉尚未确认关闭的
+job handle；创建/绑定与 handle-close 同时失败时，创建/绑定原错优先，次错单列。
+这一修复由合成取消和 ABI 返回值注入覆盖，不证明当次 Windows 残留由它造成。
+
+### 分类器 v2：精确公开模板
+
+当前输出 `classifier_version=2`、`codex_exec_notice_v2:`；原 v1 的弱模式提示继续标为
+`bounded_text_pattern_hint`。新增 7 个全文等值诊断 ID，命中时标为
+`exact_public_template_text`，但上游类别仍标记未由 JSONL 保留。不得 trim、lower、
+前缀匹配、动态模型名展开、按字节数判断或用截断文本宣称精确命中。
+
+完整公开文本、Git blob SHA、固定 commit、行号和官方链接位于
+`deploy/windows-portable/codex-notification-review.json`，与运行时代码有等值回归：
+
+- model_metadata_missing_fixed_model：固定 gpt-6.1-sol metadata 缺失模板。
+- service_tier_priority_unsupported_fixed_model：仅固定 priority/gpt-6.1-sol 公开展开。
+- code_mode_unsupported_fixed_model：固定 gpt-6.1-sol Code Mode metadata 提示。
+- stop_hook_empty_continuation、compaction_accuracy_notice：公开固定全文。
+- guardian_thread_context_deprecation、transcript_v2_deprecation：summary 加完整 details。
+
+这些候选均不是已观察到的 144 字节通知，目录也不是全部通知的穷举。特别是 Guardian
+的 details 单段恰为 144 字节，但 exec 实际全文含 summary/括号为 212 字节，不能误判。
+WebSocket fallback、transcript 保存失败及 Code Mode host 失败含动态错误后缀，不作为
+精确规则、不输出后缀。后续只有获准的固定公开输入才能产生新的诊断，仍仅在内存匹配
+已审模板并输出固定 ID；若未命中，根因继续明确未知，不以原文/哈希输出换取结论。

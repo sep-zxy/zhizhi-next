@@ -6,6 +6,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, cast
 
+from ._codex_notice_templates import EXACT_NOTIFICATION_TEMPLATES
+
 FAILURE_STAGES = frozenset(
     {"queue", "validation", "version", "authentication", "execution", "output", "cleanup"}
 )
@@ -30,6 +32,7 @@ FAILURE_SUMMARIES = frozenset(
         "process_exited_unsuccessfully",
         "runtime_version_mismatch",
         "host_process_unavailable",
+        "host_cleanup_incomplete",
         "deadline_exceeded",
         "policy_rejected",
     }
@@ -139,6 +142,8 @@ def coded_failure_diagnostic(
         kind, summary = "host", "runtime_version_mismatch"
     elif code in {"CODEX_EXECUTABLE_NOT_FOUND", "CODEX_HOST_INVALID"}:
         kind, summary = "host", "host_process_unavailable"
+    elif code in {"CODEX_CLEANUP_FAILED", "CODEX_CLEANUP_PENDING"}:
+        kind, summary = "host", "host_cleanup_incomplete"
     elif code == "MODEL_DEADLINE_EXCEEDED":
         kind, summary = "timeout", "deadline_exceeded"
     elif code == "CODEX_NOTIFICATION_REQUIRES_REVIEW":
@@ -194,11 +199,17 @@ def notification_diagnostic(message: Any) -> dict[str, Any]:
         code = "invalid_global_instructions_notice"
     elif " is deprecated" in lowered:
         code = "deprecation_text_notice"
+    evidence = "bounded_text_pattern_hint"
+    # Exact original complete text only. Never trim, fold case, interpolate
+    # dynamic values, or match a truncated prefix to a reviewed public template.
+    if present and len(raw) <= 8192 and message in EXACT_NOTIFICATION_TEMPLATES:
+        code = EXACT_NOTIFICATION_TEMPLATES[message]
+        evidence = "exact_public_template_text"
     return {
-        "classifier_version": 1,
-        "rule_id": "codex_exec_notice_v1:" + code,
+        "classifier_version": 2,
+        "rule_id": "codex_exec_notice_v2:" + code,
         "code": code,
-        "evidence": "bounded_text_pattern_hint",
+        "evidence": evidence,
         "upstream_kind": "not_preserved_by_exec_jsonl",
         "message_present": present,
         "input_utf8_bytes": len(raw),

@@ -69,6 +69,7 @@ async def probe_codex(
         "model": None,
         "failure": None,
         "processes": runner.process_diagnostics,
+        "cleanup": runner.cleanup_diagnostics,
         "platform_e2e": "not_run",
     }
     try:

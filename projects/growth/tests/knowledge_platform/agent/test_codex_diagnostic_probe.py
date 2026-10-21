@@ -190,7 +190,7 @@ def test_fixed_smoke_notification_hints_do_not_accept_later_valid_answer(tmp_pat
     process = report["processes"][-1]
     notice = process["notification"]
     assert notice == {
-        "classifier_version": 1, "rule_id": "codex_exec_notice_v1:" + code,
+        "classifier_version": 2, "rule_id": "codex_exec_notice_v2:" + code,
         "input_utf8_bytes": notice["input_utf8_bytes"],
         "inspected_utf8_bytes": notice["input_utf8_bytes"],
         "code": code, "evidence": "bounded_text_pattern_hint",

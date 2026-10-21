@@ -73,23 +73,43 @@ class CodexOwnedJob:
         if not self.kernel.SetInformationJobObject(
             self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)
         ):
-            error = ctypes.get_last_error()
-            self.close()
-            raise ctypes.WinError(error)
+            primary = ctypes.WinError(ctypes.get_last_error())
+            try:
+                self.close()
+            except OSError as cleanup_error:
+                # Keep the SetInformation failure primary. The runner records
+                # this separate exception through a fixed, non-text vocabulary.
+                primary.__dict__["codex_cleanup_error"] = cleanup_error
+            raise primary
 
     def assign(self, pid: int) -> None:
         """Assign before releasing the helper's stdin gate, preventing the spawn race."""
         process = self.kernel.OpenProcess(0x0101, False, pid)
         if not process:
             raise ctypes.WinError(ctypes.get_last_error())
+        primary: OSError | None = None
         try:
             if not self.kernel.AssignProcessToJobObject(self.handle, process):
                 raise ctypes.WinError(ctypes.get_last_error())
+        except OSError as exc:
+            primary = exc
+            raise
         finally:
-            self.kernel.CloseHandle(process)
+            if not self.kernel.CloseHandle(process):
+                error = ctypes.get_last_error()
+                cleanup_error = ctypes.WinError(error)
+                if primary is not None:
+                    primary.__dict__["codex_cleanup_error"] = cleanup_error
+                else:
+                    # Assign succeeded but the temporary process handle did not
+                    # close. This is still a failed setup, never clean success.
+                    primary = ctypes.WinError(error)
+                    primary.__dict__["codex_cleanup_error"] = cleanup_error
+                    raise primary
 
     def close(self) -> None:
         """Release job ownership and terminate all remaining job members."""
         if self.handle:
-            self.kernel.CloseHandle(self.handle)
+            if not self.kernel.CloseHandle(self.handle):
+                raise ctypes.WinError(ctypes.get_last_error())
             self.handle = None

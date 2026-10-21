@@ -19,9 +19,13 @@ import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from ..portable import portable_child_environment
+from ._codex_cleanup import cleanup_failure, cleanup_owned_workspace
 from ._codex_job import CodexOwnedJob
 from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
 from .diagnostics import (
@@ -171,7 +175,9 @@ class _ExecEvents:
                 # but do not ignore them: security/model policy may have changed.
                 self.event_counts["item.error"] = self.event_counts.get("item.error", 0) + 1
                 if self.notification_details:
-                    self.notification = notification_diagnostic(notification.get("message"))
+                    self.notification = notification_diagnostic(
+                        cast("dict[str, Any]", notification).get("message")
+                    )
                 raise _CodexFailure(
                     "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
                     failure=ModelFailure(
@@ -274,7 +280,54 @@ class CodexModelRunner:
             collect_process_diagnostics and collect_notification_diagnostics
         )
         self.process_diagnostics: list[dict[str, Any]] = []
+        self.cleanup_diagnostics: list[dict[str, Any]] = []
+        self._cleanup_pending = False
         self.preflight_states = {"version": "not_checked", "login": "not_checked"}
+
+    def _record_cleanup(self, report: dict[str, Any]) -> None:
+        if len(self.cleanup_diagnostics) < 32:
+            self.cleanup_diagnostics.append(report)
+        if report["status"] != "completed":
+            self._cleanup_pending = True
+
+    @contextlib.asynccontextmanager
+    async def _workspace(self, prefix: str) -> AsyncGenerator[Path, None]:
+        """No finalizer, forced permission reset, or cleanup of earlier invocations."""
+        import tempfile
+
+        root = Path(tempfile.mkdtemp(prefix=prefix))
+        primary: BaseException | None = None
+        report: dict[str, Any]
+        try:
+            yield root
+        except BaseException as exc:
+            primary = exc
+            raise
+        finally:
+            try:
+                if self._cleanup_pending:
+                    report = {
+                        "resource": "temporary_directory", "status": "failed", "attempts": 0,
+                        "errors": [], "recovery": "owned_process_cleanup_requires_review",
+                    }
+                else:
+                    report = await cleanup_owned_workspace(root)
+            except BaseException as exc:
+                report = {
+                    "resource": "temporary_directory", "status": "failed", "attempts": 1,
+                    "errors": [cleanup_failure(exc)],
+                    "recovery": "owned_workspace_retained_for_review",
+                }
+                self._record_cleanup(report)
+                if primary is None:
+                    raise
+            else:
+                self._record_cleanup(report)
+                if report["status"] != "completed" and primary is None:
+                    raise _CodexFailure(
+                        "CODEX_CLEANUP_FAILED", "blocked",
+                        failure=coded_failure_diagnostic("CODEX_CLEANUP_FAILED", stage="cleanup"),
+                    )
 
     def _environment(self) -> dict[str, str]:
         allowed = {
@@ -354,6 +407,62 @@ class CodexModelRunner:
                 observation["failure_type"] = "host_error"
             observation["elapsed_ms"] = round((time.monotonic() - started) * 1000)
 
+        async def finish_process(
+            primary: BaseException | None, *, record_steps: bool = True,
+            readers: tuple[asyncio.Task[None], ...] = (),
+        ) -> None:
+            report: dict[str, Any] = {
+                "resource": "process", "phase": phase, "status": "pending", "attempts": 1,
+                "errors": [], "recovery": "none",
+            }
+            observation["cleanup"] = report
+            first_cleanup_error: BaseException | None = None
+
+            def failed(exc: BaseException, operation: str) -> None:
+                nonlocal first_cleanup_error
+                if first_cleanup_error is None:
+                    first_cleanup_error = exc
+                report["errors"].append({"operation": operation, **cleanup_failure(exc)})
+                report.update(status="failed", recovery="owned_process_cleanup_requires_review")
+                # Latch before the next await: another cancellation must never
+                # make workspace deletion or a queued model request eligible.
+                self._cleanup_pending = True
+
+            try:
+                if record_steps:
+                    step("cleanup")
+                setup_cleanup = getattr(primary, "codex_cleanup_error", None)
+                if isinstance(setup_cleanup, OSError):
+                    failed(setup_cleanup, "job_setup_handle_close")
+                if readers:
+                    try:
+                        for reader in readers:
+                            reader.cancel()
+                        async with asyncio.timeout(5):
+                            await asyncio.gather(*readers, return_exceptions=True)
+                    except BaseException as exc:
+                        failed(exc, "reader_join")
+                # Even a cancelled/failed reader join must attempt owned stop.
+                # A second cancellation is separately retained, not permission
+                # to delete a workspace with unconfirmed process ownership.
+                try:
+                    await _stop(process, job)
+                except BaseException as exc:
+                    failed(exc, "owned_stop")
+                if first_cleanup_error is None:
+                    report["status"] = "completed"
+                    if record_steps:
+                        step("cleanup_complete")
+                elif primary is None:
+                    if isinstance(first_cleanup_error, asyncio.CancelledError):
+                        raise first_cleanup_error
+                    raise _CodexFailure(
+                        "CODEX_CLEANUP_FAILED", "blocked",
+                        failure=coded_failure_diagnostic("CODEX_CLEANUP_FAILED", stage="cleanup"),
+                    ) from None
+            finally:
+                self._record_cleanup(report)
+
         limit = self.config.max_output_bytes if events is not None else 16384
         command = [*self.config.executable, *args]
         job = None
@@ -390,7 +499,7 @@ class CodexModelRunner:
                 step("job_assigned")
         except BaseException as exc:
             failure(exc)
-            await _stop(process, job)
+            await finish_process(exc, record_steps=False)
             raise
         total = 0
         captured = bytearray()
@@ -429,6 +538,7 @@ class CodexModelRunner:
             asyncio.create_task(drain(process.stderr, stdout=False)),
             asyncio.create_task(feed()),
         ]
+        primary: BaseException | None = None
         try:
             await asyncio.gather(*jobs)
             code = await process.wait()
@@ -436,6 +546,7 @@ class CodexModelRunner:
             step("process_exited")
             return code, captured.decode("utf-8", errors="strict").strip()
         except BaseException as exc:
+            primary = exc
             failure(exc)
             # Cleanup may kill a still-running CLI. That synthetic exit must not
             # be reported as the provider's actual exit code.
@@ -445,16 +556,8 @@ class CodexModelRunner:
                     exc.failure = replace(exc.failure, exit_code=process.returncode)
             raise
         finally:
-            for reader in jobs:
-                reader.cancel()
-            await asyncio.gather(*jobs, return_exceptions=True)
             try:
-                step("cleanup")
-                await _stop(process, job)
-                step("cleanup_complete")
-            except BaseException as exc:
-                failure(exc)
-                raise
+                await finish_process(primary, readers=tuple(jobs))
             finally:
                 observation["elapsed_ms"] = round((time.monotonic() - started) * 1000)
                 if events is not None:
@@ -484,6 +587,11 @@ class CodexModelRunner:
             return outcome("blocked", "MODEL_PROCESSING_DISABLED")
         if not self.config.reuse_existing_login:
             return outcome("blocked", "CODEX_EXISTING_LOGIN_NOT_APPROVED")
+        if self._cleanup_pending:
+            return outcome(
+                "blocked", "CODEX_CLEANUP_PENDING",
+                failure=coded_failure_diagnostic("CODEX_CLEANUP_PENDING", stage="cleanup"),
+            )
         if (
             route is None
             or not route.account_qualified
@@ -530,6 +638,13 @@ class CodexModelRunner:
         try:
             async with asyncio.timeout(timeout):
                 async with self._lock:
+                    if self._cleanup_pending:
+                        return outcome(
+                            "blocked", "CODEX_CLEANUP_PENDING",
+                            failure=coded_failure_diagnostic(
+                                "CODEX_CLEANUP_PENDING", stage="cleanup"
+                            ),
+                        )
                     if self._quota_until and self._quota_until > datetime.now(UTC):
                         return outcome(
                             "waiting_quota", "SUBSCRIPTION_QUOTA", retry_after=self._quota_until
@@ -619,19 +734,23 @@ class CodexModelRunner:
         No exec/model call is made. Success is host_preflight_passed, never a
         ModelResult succeeded state or a model/platform E2E assertion.
         """
-        import tempfile
-
         execution = _ExecutionState(stage="validation")
         code = "CODEX_HOST_INVALID"
         status: str = "blocked"
         try:
-            if not self.config.enabled or not self.config.reuse_existing_login:
+            if self._cleanup_pending:
+                code = "CODEX_CLEANUP_PENDING"
+                execution.stage = "cleanup"
+            elif not self.config.enabled or not self.config.reuse_existing_login:
                 code = "CODEX_EXISTING_LOGIN_NOT_APPROVED"
             else:
                 async with asyncio.timeout(self.config.timeout_seconds):
                     async with self._lock:
-                        with tempfile.TemporaryDirectory(prefix="zhizhi-codex-probe-") as temporary:
-                            await self._preflight(Path(temporary), execution)
+                        if self._cleanup_pending:
+                            execution.stage = "cleanup"
+                            raise RpcFailure("CODEX_CLEANUP_PENDING", "blocked")
+                        async with self._workspace("zhizhi-codex-probe-") as temporary:
+                            await self._preflight(temporary, execution)
                 return {"status": "host_preflight_passed", "failure": None}
         except RpcFailure as exc:
             return {
@@ -653,10 +772,7 @@ class CodexModelRunner:
     async def _execute(
         self, task: ModelTask, prompt: bytes, execution: _ExecutionState
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        import tempfile
-
-        with tempfile.TemporaryDirectory(prefix="zhizhi-codex-") as temporary:
-            cwd = Path(temporary)
+        async with self._workspace("zhizhi-codex-") as cwd:
             await self._preflight(cwd, execution)
             schema = cwd / "output-schema.json"
             schema.write_text(json.dumps(ENVELOPE_SCHEMA), encoding="utf-8")
