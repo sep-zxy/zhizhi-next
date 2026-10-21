@@ -24,6 +24,9 @@ test('topic maintenance requires merge approval and sends explicit split links',
       projects: [], bindings: [], features: [], snapshots: [], analysis_runs: [],
       opportunities: [], topic_proposals: [], growth_tasks: [],
     };
+    else if (path === '/api/growth/local/knowledge') json = {
+      cards: [], candidates: [], wiki_articles: [], vault_path: '', knowledge_mode: 'unified',
+    };
     else if (path === '/api/growth/local/sync') json = {
       account_id: '00000000-0000-4000-8000-000000000001',
       device_id: '00000000-0000-4000-8000-000000000002',
@@ -86,6 +89,8 @@ test('topic maintenance requires merge approval and sends explicit split links',
   });
 
   await page.goto('/#/growth');
+  await page.getByRole('link', { name: '学习主题管理', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '学习主题管理', exact: true })).toBeVisible();
   await page.locator('#growth-cloud-url').fill('http://cloud.test');
   await page.locator('#growth-cloud-token').fill('token');
   await page.getByRole('button', { name: 'Connect and sync' }).click();

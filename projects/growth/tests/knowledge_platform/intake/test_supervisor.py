@@ -222,6 +222,12 @@ def test_unknown_wechat_account_is_not_sent_to_another_adapter(service, actors):
 
 def test_http_factory_accepts_shared_intake_instance(service):
     routes = create_intake_routes(service.domain, intake_service=service)
-    assert len(routes) == 4
+    assert {(route.path, tuple(sorted(route.methods))) for route in routes} == {
+        ("/api/knowledge/v1/intakes", ("GET", "HEAD")),
+        ("/api/knowledge/v1/intakes", ("POST",)),
+        ("/api/knowledge/v1/intakes/capabilities", ("GET", "HEAD")),
+        ("/api/knowledge/v1/intakes/{intake_id}", ("GET", "HEAD")),
+        ("/api/knowledge/v1/intakes/{intake_id}/decision", ("POST",)),
+    }
     with pytest.raises(ValueError):
         create_intake_routes(object(), intake_service=service)

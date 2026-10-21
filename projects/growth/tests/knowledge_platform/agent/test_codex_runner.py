@@ -274,6 +274,7 @@ def test_workflow_audit_preserves_requested_model_and_unknown_actual(tmp_path):
     for saved in [audit["model"], *audit["model_attempts"]]:
         assert saved["model_id"] is None and saved["requested_model_id"] == "fixture-model"
         assert "debug" not in saved and "output" not in saved
+        assert saved["failure"]["summary"] == "subscription_quota_exhausted"
 
 
 def test_nested_secret_text_stops_before_process(tmp_path):
@@ -337,3 +338,121 @@ def test_exited_cli_does_not_leak_descendant(tmp_path):
     # A killed orphan may await init's reap, but it must not be running.
     if status.exists():
         assert status.read_text().split()[2] == "Z"
+
+
+@pytest.mark.parametrize(
+    ("scenario", "kind", "summary", "event_type"),
+    [
+        ("transport", "transport", "transport_connection_failed", "turn.failed"),
+        ("schema", "provider", "structured_output_schema_rejected", "turn.failed"),
+        ("model", "provider", "requested_model_unavailable", "turn.failed"),
+        ("sandbox", "host", "sandbox_initialization_failed", "turn.failed"),
+        ("configuration", "host", "unsupported_cli_configuration", "turn.failed"),
+        ("unknown", "provider", "provider_reported_failure", "turn.failed"),
+        ("error", "transport", "transport_connection_failed", "error"),
+    ],
+)
+def test_provider_failure_has_controlled_diagnostic_not_raw_message(
+    tmp_path, scenario, kind, summary, event_type
+):
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+
+    result = asyncio.run(runner(tmp_path, "provider_failure_" + scenario).run(task()))
+    assert result.status == "failed" and result.error_code == "PROVIDER_FAILURE"
+    assert result.failure is not None
+    assert result.failure.stage == "execution"
+    assert result.failure.kind == kind and result.failure.summary == summary
+    assert result.failure.event_type == event_type
+    # A live process is killed when the failure arrives. Do not fabricate a
+    # natural exit code from that cleanup termination.
+    assert result.failure.exit_code in {None, 1}
+    audit = result_metadata(result)
+    assert audit["failure"] == asdict(result.failure)
+    encoded = json.dumps(audit, default=str)
+    assert "never-log-me" not in encoded and "untrusted text" not in encoded
+    assert "password=" not in encoded and "token=" not in encoded
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ["provider_failure_item", "notification_warning", "notification_reroute"],
+)
+def test_nonfatal_cli_notifications_still_fail_closed_without_mislabeling_provider_failure(
+    tmp_path, scenario
+):
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+
+    result = asyncio.run(runner(tmp_path, scenario).run(task()))
+    assert result.status == "blocked"
+    assert result.error_code == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
+    assert result.failure is not None and result.failure.kind == "policy"
+    assert result.failure.summary == "cli_notification_requires_review"
+    assert result.failure.event_type == "item.error" and result.output is None
+    encoded = json.dumps(result_metadata(result), default=str)
+    assert "never-log-me" not in encoded and "fallback-model" not in encoded
+
+
+@pytest.mark.parametrize(
+    ("scenario", "stage", "exit_code"),
+    [
+        ("wrong_version", "version", 0),
+        ("auth_missing", "authentication", 1),
+        ("nonzero_exit", "execution", 3),
+    ],
+)
+def test_observed_exit_code_is_kept_without_raw_output(tmp_path, scenario, stage, exit_code):
+    result = asyncio.run(runner(tmp_path, scenario).run(task()))
+    assert result.failure is not None
+    assert result.failure.stage == stage and result.failure.exit_code == exit_code
+
+
+def test_diagnostic_serialization_rejects_untrusted_fields_and_values():
+    from ahadiff.knowledge_platform.model.diagnostics import ModelFailure, sanitized_failure
+
+    valid = {
+        "stage": "execution", "kind": "provider", "summary": "provider_reported_failure",
+        "event_type": "turn.failed", "exit_code": None,
+    }
+    assert sanitized_failure({**valid, "message": "never-log-me", "prompt": "private"}) == valid
+    assert sanitized_failure(ModelFailure(**valid)) == valid
+    for field, value in (
+        ("summary", "private upstream text"),
+        ("stage", "private/path"),
+        ("kind", []),
+        ("event_type", {"secret": True}),
+        ("exit_code", True),
+        ("exit_code", 2**32),
+    ):
+        assert sanitized_failure({**valid, field: value}) is None
+    assert sanitized_failure(None) is None
+
+
+def test_real_task_ledger_retains_only_allowlisted_failure_diagnostic(tmp_path):
+    from ahadiff.knowledge_platform.auth import Actor
+    from ahadiff.knowledge_platform.domain import DomainService
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+    from ahadiff.knowledge_platform.workflow import KnowledgeWorkflow, WorkflowSettings
+
+    domain = DomainService(tmp_path / "platform.db")
+    owner = Actor("fixture-owner", "human", "user", frozenset({"*"}))
+    workflow = KnowledgeWorkflow(domain, None, WorkflowSettings(owner_id=owner.owner_id))
+    try:
+        queued = domain.create_task(
+            "knowledge.generate", {}, actor=owner, idempotency_key="fixture-failure-task"
+        )
+        claimed = domain.claim_task("fixture-worker", actor=workflow.worker)
+        assert claimed is not None
+        result = asyncio.run(runner(tmp_path, "provider_failure_transport").run(task()))
+        metadata = result_metadata(result)
+        metadata["failure"]["message"] = "never-log-me"
+        assert workflow._settle_model(
+            claimed, {"status": result.status, "model": metadata}, "generate"
+        )
+        saved = domain.read_task(queued["task_id"], actor=owner)
+        assert saved["state"] == "failed"
+        assert saved["result"]["model"]["failure"]["summary"] == "transport_connection_failed"
+        assert "message" not in saved["result"]["model"]["failure"]
+        assert "never-log-me" not in json.dumps(saved)
+        assert domain.list_entries(actor=owner) == []
+    finally:
+        domain.close()

@@ -14,6 +14,19 @@ from build_bundle import sha256,json_write
 
 IGNORED_PARTS={'__pycache__','.pytest_cache','.git'}
 
+def write_launchers(bundle):
+ for action in ['start','stop','diagnostics','publish',
+                'local-test-start','local-test-initialize','local-test-pair']:
+  arguments=' %*' if action in {'local-test-initialize','local-test-pair'} else ''
+  text='@echo off\r\nsetlocal\r\ncd /d "%~dp0"\r\n"%~dp0runtime\\python\\python.exe" -B -s -X utf8 "%~dp0app\\launcher.py" '+action+arguments+'\r\nset "EXITCODE=%ERRORLEVEL%"\r\nif not "%EXITCODE%"=="0" pause\r\nexit /b %EXITCODE%\r\n'
+  (bundle/(action+'.cmd')).write_bytes(text.encode('ascii'))
+ # This wrapper passes only explicit operator arguments. It never calls a
+ # model unless that operator adds the module's --model-smoke switch.
+ (bundle/'codex-diagnostic.cmd').write_bytes(
+  b'@echo off\r\nsetlocal\r\ncd /d "%~dp0"\r\n'
+  b'"%~dp0runtime\\python\\python.exe" -B -s -X utf8 -m '
+  b'ahadiff.knowledge_platform.model.diagnostic_probe %*\r\nexit /b %ERRORLEVEL%\r\n')
+
 def binary_kind(path):
  with path.open('rb') as f:
   magic=f.read(4)
@@ -48,6 +61,7 @@ def copy_component(source,destination):
 
 def assemble(args):
  repo=args.repo.resolve();bundle=args.output.resolve()/'bundle'
+ commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()
  if sys.platform=='win32':raise ValueError('Cloud assembly only')
  if not (bundle/'runtime/python/python.exe').is_file():raise ValueError('Prepare Windows runtimes first')
  app=bundle/'app';app.mkdir(exist_ok=True)
@@ -57,6 +71,13 @@ def assemble(args):
   components['wiki']=copy_component(args.wiki,app/'wiki')
   if not args.template_assets or not args.template_assets.is_file():raise ValueError('Independent approved template assets are required')
   shutil.copy2(args.template_assets,bundle/'provenance/wiki-template-assets.json')
+ if getattr(args,'private_wiki',None):
+  source=args.private_wiki.resolve()
+  if not (source/'index.html').is_file():raise ValueError('Private Wiki must be independently prebuilt in GitHub')
+  for path in source.rglob('*'):
+   if path.is_symlink() or not path.resolve().is_relative_to(source):raise ValueError('Private Wiki output link forbidden')
+  shutil.copytree(source,app/'wiki-private')
+  components['wiki-private']={'name':'private-wiki-ui','source_commit':commit,'entrypoints':{'http':'/wiki/'},'known_limits':['Same-origin authentication and Windows E2E remain separate acceptance gates.']}
  # Only version-controlled runtime source, no local fixtures/cache/credentials.
  paths=subprocess.check_output(['git','ls-files','-z','projects/growth/src/ahadiff'],cwd=repo).decode().split('\0')
  for relative in filter(None,paths):
@@ -72,16 +93,13 @@ def assemble(args):
  # uv cross-target installation creates host console wrappers; never ship those.
  wrappers=bundle/'runtime/python/Lib/site-packages/bin'
  if wrappers.exists():shutil.rmtree(wrappers)
- for action in ['start','stop','diagnostics','publish']:
-  text='@echo off\r\nsetlocal\r\ncd /d "%~dp0"\r\n"%~dp0runtime\\python\\python.exe" -B -s -X utf8 "%~dp0app\\launcher.py" '+action+'\r\nset "EXITCODE=%ERRORLEVEL%"\r\nif not "%EXITCODE%"=="0" pause\r\nexit /b %EXITCODE%\r\n'
-  (bundle/(action+'.cmd')).write_bytes(text.encode('ascii'))
+ write_launchers(bundle)
  json_write(bundle/'config/launch.json',{'schema_version':1,'owner':None,'identities_file':None,'model_config':None,'desktop_config':None,'pi_environment_file':None,'platform_port':8766,'run_worker':False,'auto_commit':False,'providers':[]})
  shutil.copy2(repo/'deploy/windows-portable/README.md',bundle/'README.md')
  for name in ['node-SHASUMS256.txt','windows-wheel-plan.json','base-runtime-binary-audit.json']:
   evidence=args.output.resolve()/'evidence'/name
   if evidence.is_file():shutil.copy2(evidence,bundle/'provenance'/name)
  json_write(bundle/'provenance/upstream-sources.json',{'git_source':'https://github.com/git-for-windows/git/tree/v2.56.0.windows.2','git_release':'https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.2','python_source':'https://www.python.org/downloads/release/python-31316/','node_source':'https://nodejs.org/dist/v22.23.3/','licenses':'Original bundled license and notice files are retained throughout runtime/ and app/.'})
- commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()
  json_write(bundle/'provenance/assembly.json',{'assembly_source_commit':commit,'components':components,'backend_source_commit':commit,'backend_source_mode':'tracked Python runtime sources, no Windows build step','windows_tested':False,'live_e2e':'not_run','asr':'separate_component_pending_validation'})
  for directory in ['data','temp','cache','reports/logs','reports/screenshots','reports/receipts','browser-profile']:(bundle/directory).mkdir(parents=True,exist_ok=True)
  seal(bundle,args.output.resolve())
@@ -117,4 +135,4 @@ def seal(bundle,output):
  print(json.dumps({'zip':str(archive),'sha256':sha256(archive),'bytes':archive.stat().st_size,'files':len(files),'windows_tested':False}),flush=True)
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--pi',type=Path);p.add_argument('--wiki',type=Path);p.add_argument('--template-assets',type=Path);a=p.parse_args();assemble(a)
+ p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--pi',type=Path);p.add_argument('--wiki',type=Path);p.add_argument('--private-wiki',type=Path);p.add_argument('--template-assets',type=Path);a=p.parse_args();assemble(a)

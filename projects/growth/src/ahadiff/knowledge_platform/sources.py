@@ -151,6 +151,22 @@ class SourceMethods:
         """Read an owner-scoped temporary preview and its precise lifecycle state."""
         return self._read("intake", intake_id, actor)
 
+    def list_intakes(
+        self,
+        *,
+        actor: Actor,
+        state: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """List owned, readable intake snapshots without expiring or retaining anything."""
+        authenticated(actor, "knowledge:read")
+        if state is not None and (not isinstance(state, str) or state not in INTAKE_STATES):
+            raise invalid("Unknown intake state")
+        return self._list_owned_records(
+            "intake", actor=actor, state=state, limit=limit, offset=offset
+        )
+
     @staticmethod
     def _intake_lifecycle(record: dict[str, Any]) -> dict[str, Any]:
         """Minimal storage-maintenance receipt, never a preview or source-read capability."""

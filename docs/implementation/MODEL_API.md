@@ -80,3 +80,9 @@ Pi 的 before_provider_request 事件异常会被运行时捕获，不能作为�
 `ModelResult` 新增可选 `requested_model_id: str | None = None`。Codex exec JSONL 不提供可信实际型号时，精确请求模型在此字段，`model_id=None`；不可混写或把模型自报当元数据。已有 Pi 的实际 `model_id` 行为不变。领域等待/失败审计保留两个字段。
 
 Codex 不提供通用无工具开关；已禁用命令和应用功能，read-only，加上非文本工具事件拒绝与清理。事件检测不是副作用回滚，不能作为绝对无工具保证。Schema 二次验证、整体输出字节/时限、幂等与额度冷却生效；没有已验证的提供方硬 token 预算，输出 token 数仅事后检查。任何 fixture 测试都不代替真实模型/Windows E2E。
+
+### 受控失败诊断
+
+`ModelResult.failure: ModelFailure | None = None` 为可选结构化诊断，不改变既有状态或 `error_code`。字段为 `stage`（队列/版本/登录/执行/输出等固定值）、`kind`（固定失败类别）、`summary`（固定枚举摘要，绝不摘录原错误）、`event_type`（仅 `error` / `turn.failed` / `item.error` 或空）及 `exit_code`（观察到的原生进程退出码或空）。被适配器终止后的退出码不能冒充提供方自然退出；未知保持空。
+
+Codex 的原始提供方消息只在内存中分类，既不写日志或账本，也不返回 UI。摘要是排错线索，不是根因已验证的声明；不能据此自动换模型、切 provider、创建登录、放宽沙箱或开启 API fallback。持久化必须经过 `sanitized_failure` 白名单校验，不允许任意追加 message / prompt / stderr / 路径等字段。

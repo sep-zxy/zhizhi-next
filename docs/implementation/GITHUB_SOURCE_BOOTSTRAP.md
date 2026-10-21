@@ -22,7 +22,7 @@ uv run --no-project python deploy/git-sync/source_bootstrap.py prepare --repo . 
 2. 记录该 seed 提交 SHA、传输分支固定 commit、`transport.json` 的外部预期 SHA-256。
 3. 手动运行 `Audited source bootstrap`，填入上述三个值。只在本仓库默认 `main` 运行；单一 Ubuntu runner、15 分钟上限、串行写入，不扩展权限或创建长期凭据。
 4. Runner 在新目录恢复并核验原文件、权限 mode 和完整 tree。任何校验失败不创建发布提交。恢复前后的 workflow blob 必须与 seed 提交完全相同。
-5. 用仅 job 存活期的 `GITHUB_TOKEN` 和 `contents: write` 创建以 seed 为 parent 的提交；提交前复查远端 main。普通 fast-forward push 遇到并发修改会失败，不使用 force，不触碰交付分支。
+5. 用仅 job 存活期的 `GITHUB_TOKEN` 和 `contents: write` 创建以 seed 为唯一 parent 的提交；提交前复查远端 main。推送使用明确 SHA 的 lease 作为原子 CAS，并独立校验新提交必须是该 SHA 的直接子提交。因此不允许历史重写，任何并发移动（包括回退到祖先）均失败，不触碰交付分支。
 6. 读取远端确认新 SHA。结果不确定时停止并检查远端，不盲目重试。父提交自然保留源码回退点。
 
 `workflow_dispatch` 入口必须已经存在于默认分支。不得尝试给 GITHUB_TOKEN 添加并不存在的 workflow 写权限；workflow 文件变更仍由已经授权的连接器处理。GitHub 文档说明 GITHUB_TOKEN 发出的普通 push 不递归触发工作流，因此完整源码恢复后必须另行手动启动构建，而不是等待一次不会发生的 CI。

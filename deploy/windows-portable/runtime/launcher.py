@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import socket
 import subprocess
 import sys
@@ -30,6 +31,16 @@ def within(path):
  if not resolved.is_relative_to(ROOT):raise ValueError('Path is outside portable root')
  return resolved
 
+def validate_root():
+ root=within(ROOT)
+ approved=EXPECTED_ROOT.resolve()
+ # Preserve the previous single-root package for rollback. New Git candidates
+ # run in a version directory, still strictly inside the already approved root.
+ if root==approved:return
+ if (root.parent==approved/'git-delivery'/'releases'
+     and re.fullmatch(r'[0-9a-f]{12}-[0-9]+-[0-9]+',root.name)):return
+ raise RuntimeError('Unexpected portable root; use the approved root or its immutable Git release directory')
+
 def write_json(name,data):
  p=within(name);p.parent.mkdir(parents=True,exist_ok=True)
  p.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -49,7 +60,7 @@ def run(command,**kwargs):
 def diagnose(env):
  result={'status':'checking','platform':platform.platform(),'python':sys.version.split()[0],'architecture':platform.machine(),'root':str(ROOT),'checks':{},'unified_platform':'waiting_auth','live_e2e':'not_run'}
  if sys.platform!='win32' or platform.machine().upper() not in {'AMD64','X86_64'}:raise RuntimeError('This artifact requires Windows x64')
- if os.path.normcase(str(ROOT))!=os.path.normcase(str(EXPECTED_ROOT)):raise RuntimeError(f'Extract only into {EXPECTED_ROOT}')
+ validate_root()
  for name in ['cryptography','tree_sitter','tree_sitter_c_sharp','tree_sitter_go','tree_sitter_java','tree_sitter_javascript','tree_sitter_php','tree_sitter_ruby','tree_sitter_rust','tree_sitter_typescript','pydantic_core','psycopg','win32api','sqlite3']:
   importlib.import_module(name);result['checks'][name]='import_ok'
  from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported
@@ -86,13 +97,22 @@ def spawn(command,name,env,cwd=None,new_console=False):
  if name in {'platform','viewer'}:SERVICES[name]=proc
  return proc
 
-def await_health(proc,port):
+def await_health(proc,port,service,authentication_status='configured'):
+ paths={'platform':'/health','viewer':'/healthz'}
+ if service not in paths:raise ValueError('Unknown service health contract')
+ if authentication_status not in {'configured','waiting_auth'}:raise ValueError('Unknown authentication mode')
  for _ in range(120):
   if proc.poll() is not None:raise RuntimeError('Application exited before health check; see package-local logs')
   try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz',timeout=1) as r:
-    if r.status==200:return
-  except OSError:pass
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}{paths[service]}',timeout=1) as r:
+    if r.status==200:
+     record=json.loads(r.read(4097))
+     expected_status='ready' if authentication_status=='configured' else 'waiting_auth'
+     if (service=='platform' and record.get('service')=='zhizhi-knowledge'
+         and record.get('status')==expected_status
+         and record.get('authentication_status')==authentication_status):return
+     if service=='viewer' and record.get('ok') is True:return
+  except (OSError,ValueError):pass
   time.sleep(.5)
  raise RuntimeError('Application startup timed out')
 
@@ -105,11 +125,53 @@ def browser_path():
     if p.is_file():return p
  return None
 
-def load_config():
- file=within('config/launch.json')
+def load_config(local_test=False):
+ file=within('data/local-test/launch.json' if local_test else 'config/launch.json')
+ if local_test and not file.is_file():raise RuntimeError('Explicit local-test initialization is required')
  return json.loads(file.read_text(encoding='utf-8')) if file.exists() else {}
 
-def start(env):
+def platform_command(config,local_test=False):
+ if not isinstance(config,dict):raise ValueError('Invalid launch configuration')
+ if local_test:
+  if (set(config)!={'mode','local_test_identity','platform_port'}
+      or config.get('mode')!='local-test'
+      or config.get('local_test_identity')!='data/local-test/identity.json'):
+   raise ValueError('Local-test configuration cannot include production settings')
+ elif 'mode' in config or 'local_test_identity' in config:
+  raise ValueError('Local-test identity requires its separate explicit launcher')
+ port=config.get('platform_port',8766)
+ if type(port) is not int or not 1024 <= port <= 65535:raise ValueError('Invalid platform port')
+ private_web=within('app/wiki-private')
+ if not within('app/wiki-private/index.html').is_file():raise RuntimeError('Prebuilt private Wiki UI is missing')
+ args=[sys.executable,'-B','-s','-X','utf8','-m','ahadiff.knowledge_platform',
+       '--state-directory',str(within('data/local-test/platform' if local_test else 'data/platform')),'--host','127.0.0.1',
+       '--port',str(port),'--private-web-root',str(private_web)]
+ if local_test:
+  identity=within('data/local-test/identity.json')
+  if not identity.is_file() or not within('data/local-test/platform').is_dir():
+   raise RuntimeError('Explicit local-test initialization is incomplete')
+  args.extend(['--local-test-identity',str(identity)])
+  return args,port,'configured'
+ identities=config.get('identities_file')
+ if not identities:
+  privileged=['owner','model_config','channel_config','asr_model_directory',
+              'desktop_config','pi_environment_file','run_worker','auto_commit','providers']
+  if any(config.get(field) for field in privileged):
+   raise ValueError('Identity-free shell cannot enable privileged configuration')
+  return args,port,'waiting_auth'
+ identity=within(identities)
+ if not identity.is_file():raise RuntimeError('Approved identity configuration is missing')
+ owner=config.get('owner')
+ if not isinstance(owner,str) or not owner:raise RuntimeError('Approved owner is required')
+ args.extend(['--identities-file',str(identity),'--owner',owner])
+ for field,flag in [('model_config','--model-config'),('channel_config','--channel-config'),('asr_model_directory','--asr-model-directory')]:
+  if config.get(field):args.extend([flag,str(within(config[field]))])
+ if config.get('run_worker') is True:args.append('--run-worker')
+ if config.get('auto_commit') is True:args.append('--auto-commit')
+ for provider in config.get('providers',[]):args.extend(['--provider',provider])
+ return args,port,'configured'
+
+def start(env,local_test=False):
  import msvcrt
  lock_path=within('data/launcher.lock');lock_path.parent.mkdir(parents=True,exist_ok=True)
  lock=lock_path.open('a+b');lock.seek(0);lock.write(b'0');lock.flush();lock.seek(0)
@@ -117,34 +179,32 @@ def start(env):
  except OSError:raise RuntimeError('This package is already running')
  stop=within('data/stop.request')
  if stop.exists():stop.unlink()
- config=load_config();status={'viewer':'starting','unified_platform':'waiting_auth','pi':'waiting_auth','dynamic_wiki':'not_run','live_e2e':'not_run'}
+ config=load_config(local_test);status={'viewer':'starting','unified_platform':'waiting_auth','pi':'waiting_auth','dynamic_wiki':'not_run','live_e2e':'not_run'}
  identities=config.get('identities_file')
+ configured=local_test or bool(identities)
  viewer_env=dict(env)
+ args,port,authentication_status=platform_command(config,local_test)
+ proc=spawn(args,'platform',env);await_health(proc,port,'platform',authentication_status)
+ status.update(unified_platform='running_auth_required' if configured else 'waiting_auth',
+               platform_url=f'http://127.0.0.1:{port}',
+               private_wiki_url=f'http://127.0.0.1:{port}/wiki/',
+               private_wiki='authentication_configured_not_verified' if configured else 'shell_running_not_authenticated')
+ if local_test:
+  status.update(fixture=True,mode='local-test',browser_authentication='pairing_required',
+                viewer='disabled_in_local_test',pi='disabled_in_local_test')
  if identities:
-  identity=within(identities)
-  if not identity.is_file():raise RuntimeError('Approved identity configuration is missing')
-  owner=config.get('owner')
-  if not isinstance(owner,str) or not owner:raise RuntimeError('Approved owner is required')
-  port=config.get('platform_port',8766)
-  if type(port) is not int or not 1024 <= port <= 65535:raise ValueError('Invalid platform port')
-  args=[sys.executable,'-B','-s','-X','utf8','-m','ahadiff.knowledge_platform','--state-directory',str(ROOT/'data/platform'),'--identities-file',str(identity),'--owner',owner,'--host','127.0.0.1','--port',str(port)]
-  for field,flag in [('model_config','--model-config'),('channel_config','--channel-config'),('asr_model_directory','--asr-model-directory')]:
-   if config.get(field):args.extend([flag,str(within(config[field]))])
-  if config.get('run_worker') is True:args.append('--run-worker')
-  if config.get('auto_commit') is True:args.append('--auto-commit')
-  for provider in config.get('providers',[]):args.extend(['--provider',provider])
-  proc=spawn(args,'platform',env);await_health(proc,port)
-  status.update(unified_platform='running_auth_required',platform_url=f'http://127.0.0.1:{port}')
   # Desktop config is an authorized deployment input, not generated credentials.
   if config.get('desktop_config'):
    desktop=within(config['desktop_config'])
    if json.loads(desktop.read_text(encoding='utf-8')).get('service_url')!=status['platform_url']:raise ValueError('Desktop service_url must match this package loopback platform')
    viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(desktop)
- workspace=within('data/viewer-workspace');(workspace/'.ahadiff').mkdir(parents=True,exist_ok=True)
- viewer_env['AHADIFF_VIEWER_DIST']=str(ROOT/'app/viewer')
- port=free_port();proc=spawn([sys.executable,'-B','-s','-X','utf8','-m','ahadiff','serve','--repo-root',str(workspace),'--port',str(port),'--no-browser'],'viewer',viewer_env,workspace)
- await_health(proc,port);url=f'http://127.0.0.1:{port}/'
- status.update(viewer='running',viewer_url=url,viewer_mode='unified_configured_not_verified' if viewer_env.get('AHADIFF_KNOWLEDGE_CONFIG') else 'standalone_not_unified')
+ if not local_test:
+  workspace=within('data/viewer-workspace');(workspace/'.ahadiff').mkdir(parents=True,exist_ok=True)
+  viewer_env['AHADIFF_VIEWER_DIST']=str(ROOT/'app/viewer')
+  port=free_port();proc=spawn([sys.executable,'-B','-s','-X','utf8','-m','ahadiff','serve','--repo-root',str(workspace),'--port',str(port),'--no-browser'],'viewer',viewer_env,workspace)
+  await_health(proc,port,'viewer')
+  status.update(viewer='running',viewer_url=f'http://127.0.0.1:{port}/',viewer_mode='unified_configured_not_verified' if viewer_env.get('AHADIFF_KNOWLEDGE_CONFIG') else 'standalone_not_unified')
+ url=status['private_wiki_url']
  if identities and config.get('pi_environment_file'):
   pi_config=json.loads(within(config['pi_environment_file']).read_text(encoding='utf-8'))
   permitted={'ZHIZHI_MODEL_PROVIDER','ZHIZHI_MODEL_ID','ZHIZHI_AGENT_TOKEN','ZHIZHI_USER_TOKEN','ZHIZHI_CHINA_TERMS_VERIFIED','ZHIZHI_MAX_OUTPUT_TOKENS'}
@@ -165,7 +225,9 @@ def start(env):
  print('Runtime/UI startup is NOT unified-platform or live-account E2E acceptance.',flush=True)
  browser=BROWSER
  if browser:
-  spawn([str(browser),'--user-data-dir='+str(within('browser-profile')),'--disk-cache-dir='+str(within('cache/browser')),'--no-first-run','--no-default-browser-check','--disable-background-mode',url],'browser',env)
+  profile='data/local-test/browser-profile' if local_test else 'browser-profile'
+  cache='data/local-test/browser-cache' if local_test else 'cache/browser'
+  spawn([str(browser),'--user-data-dir='+str(within(profile)),'--disk-cache-dir='+str(within(cache)),'--no-first-run','--no-default-browser-check','--disable-background-mode',url],'browser',env)
  else:print('No existing Edge/Chrome found. No browser will be installed. URL: '+url,flush=True)
  print('Use stop.cmd or Ctrl+C to stop this package. Authorization status is in reports/status.json.',flush=True)
  try:
@@ -185,7 +247,7 @@ def start(env):
     try:child.wait(timeout=8)
     except subprocess.TimeoutExpired:child.kill();child.wait(timeout=5)
   for stream in LOGS:stream.close()
-  status['viewer']='stopped';status['unified_platform']='stopped' if identities else 'waiting_auth';write_json('reports/status.json',status)
+  status['viewer']='disabled_in_local_test' if local_test else 'stopped';status['private_wiki']='stopped';status['unified_platform']='stopped' if configured else 'waiting_auth';write_json('reports/status.json',status)
   lock.close()
 
 def verify_distribution():
@@ -226,15 +288,55 @@ def publish(env):
  print('Generated and verified new local pages. No public deployment was performed.',flush=True)
 
 
+def parse_arguments(argv=None):
+ parser=argparse.ArgumentParser()
+ parser.add_argument('action',choices=['start','stop','diagnostics','publish',
+                                     'local-test-start','local-test-initialize','local-test-pair'])
+ parser.add_argument('--approve-local-test-identity',action='store_true')
+ parser.add_argument('--port',type=int)
+ parser.add_argument('--pairing-code')
+ args=parser.parse_args(argv)
+ if args.action=='local-test-initialize':
+  if not args.approve_local_test_identity:parser.error('Explicit --approve-local-test-identity is required')
+  if args.port is not None and not 1024 <= args.port <= 65535:parser.error('Invalid local-test port')
+ elif args.approve_local_test_identity or args.port is not None:
+  parser.error('Initialization options are only allowed for local-test-initialize')
+ if args.action=='local-test-pair':
+  if not args.pairing_code or not re.fullmatch(r'[A-F0-9]{20}',args.pairing_code):
+   parser.error('A 20-character uppercase pairing code is required')
+ elif args.pairing_code is not None:
+  parser.error('Pairing code is only allowed for local-test-pair')
+ return args
+
+def run_local_test_identity(args):
+ # Module validates Windows, portable paths and encrypted identity independently.
+ # Import only after explicit action validation, distribution verification and
+ # environment isolation; standard start never imports or initializes it.
+ if args.action=='local-test-initialize' and args.approve_local_test_identity:
+  arguments=['initialize','--approve-local-test-identity','--port',str(args.port or 8766)]
+ elif args.action=='local-test-pair':
+  arguments=['pair','--pairing-code',args.pairing_code]
+ else:raise ValueError('No explicit local-test identity action')
+ module=importlib.import_module('ahadiff.knowledge_platform.local_test_identity')
+ previous=sys.argv
+ try:
+  sys.argv=['ahadiff.knowledge_platform.local_test_identity',*arguments]
+  module.main()
+ finally:sys.argv=previous
+
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('action',choices=['start','stop','diagnostics','publish']);args=parser.parse_args()
+ args=parse_arguments()
  if sys.platform!='win32':raise RuntimeError('Windows runtime only')
  within(ROOT)
- if os.path.normcase(str(ROOT))!=os.path.normcase(str(EXPECTED_ROOT)):raise RuntimeError('Unexpected extraction directory')
+ validate_root()
  if args.action=='stop':
   if not within('data').is_dir():print('This package is not running.');return
   within('data/stop.request').write_text('stop\n',encoding='ascii');print('Stop requested for this package only.');return
  verify_distribution()
+ if args.action in {'local-test-initialize','local-test-pair'}:
+  env=isolated_environment();os.environ.clear();os.environ.update(env)
+  run_local_test_identity(args)
+  return
  global BROWSER, JOB
  BROWSER=browser_path()
  from windows_job import OwnedJob
@@ -243,7 +345,7 @@ def main():
  result=diagnose(env)
  if args.action=='diagnostics':print(json.dumps(result,ensure_ascii=False,indent=2));return
  if args.action=='publish':publish(env);return
- start(env)
+ start(env,local_test=args.action=='local-test-start')
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':
@@ -259,8 +361,8 @@ if __name__=='__main__':
   # No configuration contents or subprocess output are echoed into reports.
   report={'status':'blocked','error_type':type(error).__name__,'message':str(error),'live_e2e':'not_run'}
   print(json.dumps(report,ensure_ascii=False,indent=2))
-  if sys.platform=='win32' and os.path.normcase(str(ROOT))==os.path.normcase(str(EXPECTED_ROOT)):
-   try:write_json('reports/startup-error.json',report)
+  if sys.platform=='win32':
+   try:validate_root();write_json('reports/startup-error.json',report)
    except Exception:pass
   sys.exit(2)
  finally:

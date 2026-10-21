@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from .diagnostics import ModelFailure
+
 ModelPurpose = Literal["preview", "generate", "review", "answer"]
 Classification = Literal["public", "personal", "third_party_private", "employer", "secret"]
 ModelStatus = Literal[
@@ -94,8 +96,9 @@ class ModelResult:
     runtime_version: str = "1.3.0"
     input_fingerprint: str | None = None
     result_hash: str | None = None
-    usage: dict[str, Any] = field(default_factory=dict)
+    usage: dict[str, Any] = field(default_factory=lambda: dict[str, Any]())
     error_code: str | None = None
+    failure: ModelFailure | None = None
     retry_after: datetime | None = None
     fixture: bool = False
 

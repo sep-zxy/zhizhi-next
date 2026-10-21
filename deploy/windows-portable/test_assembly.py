@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 import zipfile
 spec=importlib.util.spec_from_file_location('build_bundle',Path(__file__).with_name('build_bundle.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -62,5 +63,64 @@ class RuntimeContractTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    mod.ROOT=Path(d);(mod.ROOT/'real').mkdir();(mod.ROOT/'link').symlink_to(mod.ROOT/'real')
    with self.assertRaises(ValueError):mod.within('link/file')
+ def test_versioned_git_root_stays_inside_original_authorized_root(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.EXPECTED_ROOT=Path(d)/'approved';mod.EXPECTED_ROOT.mkdir()
+   mod.ROOT=mod.EXPECTED_ROOT;mod.validate_root()
+   mod.ROOT=mod.EXPECTED_ROOT/'git-delivery'/'releases'/('a'*12+'-12-1')
+   mod.ROOT.mkdir(parents=True);mod.validate_root()
+   for path in [mod.EXPECTED_ROOT/'arbitrary',mod.EXPECTED_ROOT/'other-clone'/'releases'/('a'*12+'-12-1'),
+                Path(d)/'outside'/'releases'/('a'*12+'-12-1'),
+                mod.EXPECTED_ROOT/'releases'/'not-a-pinned-version']:
+    mod.ROOT=path
+    with self.assertRaises(RuntimeError):mod.validate_root()
+ def test_versioned_git_root_rejects_links(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.EXPECTED_ROOT=Path(d)/'approved';mod.EXPECTED_ROOT.mkdir()
+   outside=Path(d)/'outside';outside.mkdir()
+   (mod.EXPECTED_ROOT/'linked').symlink_to(outside)
+   mod.ROOT=mod.EXPECTED_ROOT/'linked'/'releases'/('a'*12+'-12-1')
+   with self.assertRaises(ValueError):mod.validate_root()
+ def test_platform_and_viewer_use_distinct_health_contracts(self):
+  mod=self.load_launcher();proc=Mock();proc.poll.return_value=None
+  for service,path,body in [('platform','/health',b'{"service":"zhizhi-knowledge","status":"ready","authentication_status":"configured"}'),
+                            ('viewer','/healthz',b'{"ok":true}')]:
+   with self.subTest(service=service),patch.object(mod.urllib.request,'urlopen') as opening:
+    response=opening.return_value.__enter__.return_value
+    response.status=200;response.read.return_value=body
+    mod.await_health(proc,8766,service)
+    opening.assert_called_once_with('http://127.0.0.1:8766'+path,timeout=1)
+ def test_wrong_service_body_or_degraded_health_is_not_ready(self):
+  mod=self.load_launcher();proc=Mock();proc.poll.return_value=None
+  for body in [b'{"ok":true}',b'{"service":"zhizhi-knowledge","status":"degraded"}']:
+   with self.subTest(body=body),patch.object(mod.urllib.request,'urlopen') as opening,patch.object(mod.time,'sleep'):
+    response=opening.return_value.__enter__.return_value
+    response.status=200;response.read.return_value=body
+    with self.assertRaisesRegex(RuntimeError,'startup timed out'):mod.await_health(proc,8766,'platform')
+ def test_waiting_auth_health_only_accepted_for_explicit_identity_free_shell(self):
+  mod=self.load_launcher();proc=Mock();proc.poll.return_value=None
+  with patch.object(mod.urllib.request,'urlopen') as opening,patch.object(mod.time,'sleep'):
+   response=opening.return_value.__enter__.return_value
+   response.status=200
+   response.read.return_value=b'{"service":"zhizhi-knowledge","status":"waiting_auth","authentication_status":"waiting_auth"}'
+   mod.await_health(proc,8766,'platform','waiting_auth')
+   with self.assertRaisesRegex(RuntimeError,'startup timed out'):mod.await_health(proc,8766,'platform','configured')
+ def test_identity_free_shell_command_is_credential_free_and_no_workers(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.ROOT=Path(d);(mod.ROOT/'app/wiki-private').mkdir(parents=True)
+   (mod.ROOT/'app/wiki-private/index.html').write_text('synthetic fixture')
+   args,port,mode=mod.platform_command({'owner':None,'providers':[],'run_worker':False,'auto_commit':False})
+   self.assertEqual(mode,'waiting_auth');self.assertEqual(port,8766)
+   self.assertIn('--private-web-root',args)
+   for flag in ['--owner','--identities-file','--run-worker','--provider','--model-config','--auto-commit']:
+    self.assertNotIn(flag,args)
+   for field,value in [('owner','someone'),('run_worker',True),('model_config','model.json'),
+                       ('channel_config','channel.json'),('desktop_config','desktop.json'),
+                       ('pi_environment_file','pi.json'),('providers',['codex']),('auto_commit',True)]:
+    with self.subTest(field=field),self.assertRaisesRegex(ValueError,'Identity-free'):
+     mod.platform_command({field:value})
 
 if __name__=='__main__':unittest.main()

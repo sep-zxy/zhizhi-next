@@ -154,6 +154,45 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
                     raise
         return visible
 
+    def _list_owned_records(
+        self,
+        kind: str,
+        *,
+        actor: Actor,
+        state: str | None,
+        limit: int,
+        offset: int,
+    ) -> dict[str, Any]:
+        """Page visible records only; hidden records never affect counts or offsets."""
+        authenticated(actor, "knowledge:read")
+        self._validate_page(limit, offset)
+        if kind not in {"task", "intake"} or limit > 100 or offset > 100_000:
+            raise invalid("Invalid collection pagination")
+        visible: list[dict[str, Any]] = []
+        skipped = 0
+        with self.store.reading() as connection:
+            rows = connection.execute(
+                "SELECT data FROM kp_records WHERE kind=? AND owner_id=? ORDER BY rowid DESC",
+                (kind, actor.owner_id),
+            )
+            for row in rows:
+                record = json.loads(row["data"])
+                if state is not None and record.get("state") != state:
+                    continue
+                try:
+                    record = self._protect_read(connection, record, actor)
+                except DomainError as exc:
+                    if exc.code != "CLASSIFICATION_FORBIDDEN":
+                        raise
+                    continue
+                if skipped < offset:
+                    skipped += 1
+                    continue
+                visible.append(record)
+                if len(visible) > limit:
+                    break
+        return {"items": visible[:limit], "has_more": len(visible) > limit}
+
     @staticmethod
     def _receipt(
         connection: sqlite3.Connection, actor: Actor, operation: str, key: str, input_hash: str

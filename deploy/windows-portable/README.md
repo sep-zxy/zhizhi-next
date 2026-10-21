@@ -1,8 +1,15 @@
 # Windows 便携验收包
 
-这是云端装配源目录，不是给 Windows 执行的安装工程。Windows 只运行完整发布 ZIP 中的启动器。
+这是 GitHub 托管 Runner 的装配源目录，不是给用户 Windows 执行的安装工程。
+最新流程由 `Windows Git acceptance candidate` 手动工作流执行。Windows 只通过
+Git 获取固定交付 commit、校验并运行版本目录中的启动器。ZIP 仅为 CI 辅助产物，
+不替代 Git 同步。
 
-## 云端构建
+## GitHub 构建
+
+入口、权限、候选发布与验收边界见 `docs/implementation/GITHUB_WINDOWS_DELIVERY.md`。
+初次运行默认只构建，不推进交付分支；报告实际大小后，由协调者明确启用候选发布。
+以前在隔离云电脑完成的包不属于此工作流的新产物。
 
 Python 经已有 uv 环境执行。`build_bundle.py plan` 从项目锁文件生成 Windows CPython 3.13 x64 的纯 wheel 闭包，`fetch-wheels` 仅下载精确 hash 的官方 PyPI 文件，`prepare-runtimes` 校验官方运行时并在云端展开、交叉目标安装 wheels。遇 HTTP 拒绝或 hash 不符立即停止，不换代理或未批准镜像。
 
@@ -12,14 +19,45 @@ Python 经已有 uv 环境执行。`build_bundle.py plan` 从项目锁文件生�
 
 ## 最终用户运行
 
-1. 解压完整包到 `C:\Code\zhizhi-e2e-20261020`。
+1. 在 `C:\Code\zhizhi-e2e-20261020` 授权范围内，通过 Git 检出已确认的交付 commit，先运行根目录 `verify.cmd --expected-commit <SHA>`，再进入 `current.json` 指定的独立版本目录。旧根目录包只保留回退，不覆盖状态。
 2. 双击 `diagnostics.cmd` 检查真实 Windows 导入、SQLite、安全路径、Node/Git。
-3. 双击 `start.cmd`。首次没有已授权部署配置时只启动原应用页面，并明确显示统一平台和Pi为waiting_auth。这不是统一链路验收通过。
+3. 双击 `start.cmd`。首次没有已授权身份时打开 `/wiki/` 私有工作区壳，所有知识 API 保持 401；统一平台和 Pi 明确为 waiting_auth。壳 HTTP 200 只证明进程存活，不是认证、统一链路或真实 E2E 通过。学习 viewer 独立启动；跨应用导航仍需按最终宿主契约验证。
 4. `stop.cmd` 只通知这个包的启动进程停止，不修改系统服务，不根据任意保存PID杀进程。
 
-无账户身份时不创建测试token，不复制任何个人登录态。后续由明确授权的部署配置接入统一平台。`config/launch.json` 可引用包内已批准身份、模型、桌面与Pi环境配置；这些文件不是默认交付内容，也不由启动器创建。
+`app/wiki-private` 是独立私有工作区静态 UI，`app/viewer` 是学习专域，
+`app/wiki` 是公开 Wiki 渲染运行时。三者不互相代替。私有 UI 的同源鉴权仍需实机验收，
+默认 401、页面能打开或 CI 绿色都不算贯通。
+
+`codex-diagnostic.cmd --codex-exe <已有官方CLI> --codex-home <已授权登录目录>`
+默认只做脱敏诊断，不调用模型。仅显式追加 `--model-smoke` 才执行固定公开 2+2 请求；
+不自动运行，不创建凭据，不将登录目录或原始错误内容写入报告。
+
+普通启动在无账户身份时不创建测试 token，不复制任何个人登录态。后续由明确授权的部署配置接入统一平台。`config/launch.json` 可引用包内已批准身份、模型、桌面与Pi环境配置；这些文件不是默认交付内容，也不由普通启动器创建。
 
 已批准Pi环境JSON只允许 ZHIZHI_MODEL_PROVIDER、ZHIZHI_MODEL_ID、ZHIZHI_AGENT_TOKEN、ZHIZHI_USER_TOKEN、ZHIZHI_CHINA_TERMS_VERIFIED、ZHIZHI_MAX_OUTPUT_TOKENS。token只传子进程环境，不放CLI参数或报告。真实登录和身份配置仍需单独批准。
+
+## 单独获准的本机测试身份
+
+这些入口只用于获准验收根内的固定 synthetic 测试 owner，不是生产登录或真实模型授权。
+CI 只打包入口，不运行初始化。必须先完成 Git 成品完整性检查。
+
+1. 明确获准创建本机测试身份后，手动运行
+   `local-test-initialize.cmd --approve-local-test-identity`，可显式追加 `--port 8766`。
+   cmd 不暗含批准开关；缺开关拒绝。只调用包内已封印模块，使用 Windows CurrentUser DPAPI
+   加密新测试身份，不读取个人登录态、不覆盖已有身份、不更改默认配置。
+2. 运行 `local-test-start.cmd`。只读取 `data/local-test/launch.json` 的固定三个键，
+   状态固定到 `data/local-test/platform`，不合并 `config/launch.json`。
+   仅启动测试私有 Wiki 服务和独立 `data/local-test/browser-profile`，
+   不启动 learning viewer、Pi、模型、渠道或后台 worker。
+3. 页面显示短期一次性码后，在同一版本目录手动运行
+   `local-test-pair.cmd --pairing-code <20位大写码>`。工具直连绑定 loopback 端口；
+   bearer 不交给页面。页面配对证明与 CSRF 只能存在内存，不写 URL、存储、日志或 Git。
+4. `stop.cmd` 停止该版本进程；重新启动或页面内存丢失后需要重新配对，
+   不能因旧 cookie 或已有加密身份而声称浏览器已登录。
+
+默认 `start.cmd` 不自动启用上述测试身份。初始化、配对和浏览器壳就绪仍不表示
+Windows DPAPI 实测、完整业务、真实模型或全部 E2E 已通过。
+交付 Git 忽略所有运行私有目录；不得强制添加本机状态或提交已跟踪配置的本机修改。
 
 ## 限制
 

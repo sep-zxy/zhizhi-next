@@ -60,6 +60,24 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(delivery.scan("fixture.py", value + b"\n", reviewed), ["github-token"])
         self.assertEqual(delivery.scan("other.py", value, reviewed), ["github-token"])
 
+    def test_origin_fixture_review_does_not_allow_new_content_or_secret_rules(self):
+        name = "projects/growth/tests/knowledge_platform/domain/test_browser_sessions.py"
+        approved = json.loads((HERE / "reviewed-fixtures.json").read_text(encoding="utf-8"))[name]
+        self.assertEqual(approved["sha256"],
+                         "8ecb3820f9cb08224a0d9bc8f8c648f44bbf49285d2bb5ac982ed2dc6a26c6a5")
+        self.assertEqual(approved["rules"], ["url-userinfo"])
+        self.assertEqual(approved["reviewed_source_commit"],
+                         "68ffbc3cf51a513d5a4a41316aed5814b646a095")
+        value = ("http://" + "user:secret@127.0.0.1:8766").encode()
+        # A path/rule match without the reviewed file's exact bytes is insufficient.
+        self.assertEqual(delivery.scan(name, value, {name: approved}), ["url-userinfo"])
+        reviewed = {name: {"sha256": delivery.digest(value), "rules": ["url-userinfo"]}}
+        self.assertEqual(delivery.scan(name, value, reviewed), [])
+        self.assertEqual(delivery.scan(name, value + b"\n", reviewed), ["url-userinfo"])
+        value += (" ghp_" + "abcdefghij" * 4).encode()
+        reviewed[name]["sha256"] = delivery.digest(value)
+        self.assertEqual(delivery.scan(name, value, reviewed), ["github-token", "url-userinfo"])
+
     def test_export_preserves_text_binary_and_modes(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "out"

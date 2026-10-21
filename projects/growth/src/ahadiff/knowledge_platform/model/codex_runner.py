@@ -15,6 +15,7 @@ import os
 import re
 import signal
 import sys
+import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -23,6 +24,12 @@ from typing import Any, cast
 from ..portable import portable_child_environment
 from ._codex_job import CodexOwnedJob
 from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
+from .diagnostics import (
+    ModelFailure,
+    coded_failure_diagnostic,
+    provider_failure_diagnostic,
+    sanitized_failure,
+)
 from .pi_runner import SYSTEM_PROMPT, RpcFailure, SubscriptionRoute, classify_provider_error
 from .validation import OUTPUT_ERRORS, contains_obvious_secret, parse_output, validate_schema
 
@@ -54,6 +61,23 @@ DISABLED_FEATURES = (
 )
 
 
+class _CodexFailure(RpcFailure):
+    """A provider/host failure with strictly allowlisted diagnostic metadata."""
+
+    def __init__(
+        self, code: str, status: ModelStatus = "failed", *, failure: ModelFailure
+    ) -> None:
+        super().__init__(code, status)
+        self.failure = failure
+
+
+@dataclass
+class _ExecutionState:
+    """Per-invocation stage; never shared between queued calls."""
+
+    stage: str = "queue"
+
+
 @dataclass(frozen=True, kw_only=True)
 class CodexRunnerConfig:
     """Explicit deployment opt-in; never accepts keys, auth blobs or API URLs."""
@@ -72,7 +96,7 @@ class CodexRunnerConfig:
 
     def __post_init__(self) -> None:
         if not self.executable or any(
-            not isinstance(arg, str) or not arg for arg in self.executable
+            not isinstance(arg, str) or not arg for arg in cast("tuple[Any, ...]", self.executable)
         ):
             raise ValueError("Executable must be a non-empty argv list")
         if self.expected_version != CODEX_VERSION:
@@ -106,6 +130,8 @@ class _ExecEvents:
         self.completed = False
         self.text: str | None = None
         self.usage: dict[str, Any] = {}
+        self.event_counts: dict[str, int] = {}
+        self.terminal_event: str | None = None
 
     def accept(self, raw: bytes) -> None:
         try:
@@ -114,9 +140,37 @@ class _ExecEvents:
             raise RpcFailure("CODEX_INVALID_JSONL") from exc
         if not isinstance(event, dict):
             raise RpcFailure("CODEX_INVALID_EVENT")
+        event = cast("dict[str, Any]", event)
         kind = event.get("type")
+        if not isinstance(kind, str):
+            raise RpcFailure("CODEX_INVALID_EVENT")
+        known_events = {
+            "thread.started", "turn.started", "turn.completed", "turn.failed", "error",
+            "item.started", "item.updated", "item.completed",
+        }
+        label = kind if kind in known_events else "unknown"
+        self.event_counts[label] = self.event_counts.get(label, 0) + 1
+        if kind in {"turn.completed", "turn.failed", "error"}:
+            self.terminal_event = kind
         if self.completed:
             raise RpcFailure("CODEX_EVENT_AFTER_COMPLETION")
+        if kind == "item.completed":
+            notification = event.get("item")
+            if (
+                isinstance(notification, dict)
+                and cast("dict[str, Any]", notification).get("type") == "error"
+            ):
+                # Pinned CLI emits warnings, deprecations AND model rerouting as
+                # non-fatal error items. Do not mislabel these PROVIDER_FAILURE,
+                # but do not ignore them: security/model policy may have changed.
+                self.event_counts["item.error"] = self.event_counts.get("item.error", 0) + 1
+                raise _CodexFailure(
+                    "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
+                    failure=ModelFailure(
+                        stage="execution", kind="policy",
+                        summary="cli_notification_requires_review", event_type="item.error",
+                    ),
+                )
         if kind == "thread.started" and not self.started:
             self.started = True
         elif kind == "turn.started" and self.started and not self.turn_started:
@@ -125,10 +179,8 @@ class _ExecEvents:
             item = event.get("item")
             if not isinstance(item, dict):
                 raise RpcFailure("CODEX_INVALID_EVENT")
+            item = cast("dict[str, Any]", item)
             item_type = item.get("type")
-            if item_type == "error":
-                status, code = classify_provider_error(str(item.get("message", "")))
-                raise RpcFailure(code, status)
             if item_type not in {"agent_message", "reasoning"}:
                 # Events can be emitted after a tool starts: this cannot undo side effects.
                 raise RpcFailure("UNEXPECTED_MODEL_TOOL", "blocked")
@@ -140,6 +192,7 @@ class _ExecEvents:
             usage = event.get("usage")
             if not isinstance(usage, dict):
                 raise RpcFailure("CODEX_USAGE_MISSING")
+            usage = cast("dict[str, Any]", usage)
             for source, target in (
                 ("input_tokens", "input"),
                 ("output_tokens", "output"),
@@ -158,9 +211,15 @@ class _ExecEvents:
             self.completed = True
         elif kind in {"turn.failed", "error"}:
             error = event.get("error", event)
-            message = error.get("message", "") if isinstance(error, dict) else ""
+            message = (
+                cast("dict[str, Any]", error).get("message", "")
+                if isinstance(error, dict) else ""
+            )
             status, code = classify_provider_error(str(message))
-            raise RpcFailure(code, status)
+            raise _CodexFailure(
+                code, status,
+                failure=provider_failure_diagnostic(str(message), event_type=kind),
+            )
         else:
             raise RpcFailure("CODEX_UNEXPECTED_EVENT", "blocked")
 
@@ -194,11 +253,16 @@ async def _stop(process: asyncio.subprocess.Process, job: CodexOwnedJob | None =
 class CodexModelRunner:
     """Serial, bounded, schema-checked CLI execution; Pi remains the default adapter."""
 
-    def __init__(self, config: CodexRunnerConfig) -> None:
+    def __init__(
+        self, config: CodexRunnerConfig, *, collect_process_diagnostics: bool = False
+    ) -> None:
         self.config = config
         self._lock = asyncio.Lock()
         self._cache: dict[str, tuple[str, ModelResult]] = {}
         self._quota_until: datetime | None = None
+        self._collect_process_diagnostics = collect_process_diagnostics
+        self.process_diagnostics: list[dict[str, Any]] = []
+        self.preflight_states = {"version": "not_checked", "login": "not_checked"}
 
     def _environment(self) -> dict[str, str]:
         allowed = {
@@ -235,7 +299,49 @@ class CodexModelRunner:
         *,
         payload: bytes = b"",
         events: _ExecEvents | None = None,
+        phase: str = "execution",
     ) -> tuple[int, str]:
+        if phase not in {"version", "authentication", "execution"}:
+            raise ValueError("Unknown process diagnostic phase")
+        started = time.monotonic()
+        observation: dict[str, Any] = {
+            "phase": phase,
+            "steps": [],
+            "elapsed_ms": 0,
+            "exit_code": None,
+            "failure_type": None,
+            "errno": None,
+            "winerror": None,
+            "stdout_bytes": 0,
+            "stderr_bytes": 0,
+            "event_counts": {},
+            "terminal_event": None,
+        }
+        if self._collect_process_diagnostics and len(self.process_diagnostics) < 32:
+            self.process_diagnostics.append(observation)
+
+        def step(name: str) -> None:
+            observation["steps"].append(
+                {"name": name, "elapsed_ms": round((time.monotonic() - started) * 1000)}
+            )
+
+        def failure(exc: BaseException) -> None:
+            # Deliberately never serialize str(exc), repr(exc), filenames or argv.
+            if isinstance(exc, OSError):
+                observation["failure_type"] = "os_error"
+                observation["errno"] = exc.errno if type(exc.errno) is int else None
+                winerror = getattr(exc, "winerror", None)
+                observation["winerror"] = winerror if type(winerror) is int else None
+            elif isinstance(exc, asyncio.CancelledError):
+                observation["failure_type"] = "cancelled"
+            elif isinstance(exc, RpcFailure):
+                observation["failure_type"] = "adapter_error"
+            elif isinstance(exc, UnicodeError):
+                observation["failure_type"] = "encoding_error"
+            else:
+                observation["failure_type"] = "host_error"
+            observation["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+
         limit = self.config.max_output_bytes if events is not None else 16384
         command = [*self.config.executable, *args]
         job = None
@@ -246,21 +352,32 @@ class CodexModelRunner:
                 "sys.exit(subprocess.call(sys.argv[1:]) if os.read(0,1)==b'\\0' else 2)"
             )
             command = [sys.executable, "-B", "-s", "-c", gate, *command]
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            cwd=str(cwd),
-            env=self._environment(),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            limit=limit + 1,
-            start_new_session=os.name == "posix",
-        )
+        try:
+            step("process_spawn")
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=str(cwd),
+                env=self._environment(),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=limit + 1,
+                start_new_session=os.name == "posix",
+            )
+            step("helper_started" if os.name == "nt" else "process_started")
+        except BaseException as exc:
+            failure(exc)
+            raise
         try:
             if os.name == "nt":
+                step("job_create")
                 job = CodexOwnedJob()
+                step("job_created")
+                step("job_assign")
                 job.assign(process.pid)
-        except BaseException:
+                step("job_assigned")
+        except BaseException as exc:
+            failure(exc)
             await _stop(process, job)
             raise
         total = 0
@@ -278,6 +395,7 @@ class CodexModelRunner:
                 if not chunk:
                     break
                 total += len(chunk)
+                observation["stdout_bytes" if stdout else "stderr_bytes"] += len(chunk)
                 if total > limit:
                     raise RpcFailure("CODEX_OUTPUT_TOO_LARGE", "blocked")
                 if stdout and events:
@@ -290,6 +408,7 @@ class CodexModelRunner:
             assert process.stdin is not None
             process.stdin.write((b"\0" if os.name == "nt" else b"") + payload)
             await process.stdin.drain()
+            step("stdin_released")
             process.stdin.close()
 
         assert process.stdout is not None and process.stderr is not None
@@ -301,12 +420,34 @@ class CodexModelRunner:
         try:
             await asyncio.gather(*jobs)
             code = await process.wait()
+            observation["exit_code"] = code
+            step("process_exited")
             return code, captured.decode("utf-8", errors="strict").strip()
+        except BaseException as exc:
+            failure(exc)
+            # Cleanup may kill a still-running CLI. That synthetic exit must not
+            # be reported as the provider's actual exit code.
+            if process.returncode is not None:
+                observation["exit_code"] = process.returncode
+                if isinstance(exc, _CodexFailure):
+                    exc.failure = replace(exc.failure, exit_code=process.returncode)
+            raise
         finally:
             for reader in jobs:
                 reader.cancel()
             await asyncio.gather(*jobs, return_exceptions=True)
-            await _stop(process, job)
+            try:
+                step("cleanup")
+                await _stop(process, job)
+                step("cleanup_complete")
+            except BaseException as exc:
+                failure(exc)
+                raise
+            finally:
+                observation["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+                if events is not None:
+                    observation["event_counts"] = dict(events.event_counts)
+                    observation["terminal_event"] = events.terminal_event
 
     async def run(self, task: ModelTask) -> ModelResult:
         route = self.config.routes[0] if self.config.routes else None
@@ -371,6 +512,7 @@ class CodexModelRunner:
             timeout = min(timeout, (task.deadline - datetime.now(UTC)).total_seconds())
         if timeout <= 0:
             return outcome("cancelled", "MODEL_DEADLINE_EXCEEDED")
+        execution = _ExecutionState()
         try:
             async with asyncio.timeout(timeout):
                 async with self._lock:
@@ -384,7 +526,7 @@ class CodexModelRunner:
                             return outcome("blocked", "MODEL_IDEMPOTENCY_CONFLICT")
                         return replace(cached[1], task_id=task.task_id)
                     try:
-                        output, usage = await self._execute(task, prompt)
+                        output, usage = await self._execute(task, prompt, execution)
                     except RpcFailure as exc:
                         if exc.status == "waiting_quota":
                             self._quota_until = datetime.now(UTC) + timedelta(
@@ -393,6 +535,10 @@ class CodexModelRunner:
                         return outcome(
                             cast("ModelStatus", exc.status),
                             exc.code,
+                            failure=(
+                                exc.failure if isinstance(exc, _CodexFailure)
+                                else coded_failure_diagnostic(exc.code, stage=execution.stage)
+                            ),
                             retry_after=(
                                 self._quota_until if exc.status == "waiting_quota" else None
                             ),
@@ -405,27 +551,99 @@ class CodexModelRunner:
                     self._cache[task.dedupe_key] = (task.fingerprint, result)
                     return result
         except TimeoutError:
-            return outcome("cancelled", "MODEL_DEADLINE_EXCEEDED")
+            return outcome(
+                "cancelled", "MODEL_DEADLINE_EXCEEDED",
+                failure=coded_failure_diagnostic(
+                    "MODEL_DEADLINE_EXCEEDED", stage=execution.stage
+                ),
+            )
         except FileNotFoundError:
-            return outcome("blocked", "CODEX_EXECUTABLE_NOT_FOUND")
+            return outcome(
+                "blocked", "CODEX_EXECUTABLE_NOT_FOUND",
+                failure=coded_failure_diagnostic(
+                    "CODEX_EXECUTABLE_NOT_FOUND", stage=execution.stage
+                ),
+            )
         except (OSError, UnicodeError, ValueError):
-            return outcome("blocked", "CODEX_HOST_INVALID")
+            return outcome(
+                "blocked", "CODEX_HOST_INVALID",
+                failure=coded_failure_diagnostic("CODEX_HOST_INVALID", stage=execution.stage),
+            )
+
+    async def _preflight(self, cwd: Path, execution: _ExecutionState) -> None:
+        """Use the identical version/login/owned-process path for run and diagnostics."""
+        self.preflight_states = {"version": "not_checked", "login": "not_checked"}
+        execution.stage = "version"
+        code, version = await self._process(["--version"], cwd, phase="version")
+        if code or version != "codex-cli " + self.config.expected_version:
+            self.preflight_states["version"] = "mismatch"
+            raise _CodexFailure(
+                "CODEX_VERSION_MISMATCH", "blocked",
+                failure=coded_failure_diagnostic(
+                    "CODEX_VERSION_MISMATCH", stage=execution.stage, exit_code=code
+                ),
+            )
+        self.preflight_states["version"] = "verified"
+        execution.stage = "authentication"
+        code, auth = await self._process(["login", "status"], cwd, phase="authentication")
+        if "api key" in auth.lower() or "api_key" in auth.lower():
+            self.preflight_states["login"] = "api_key_rejected"
+            raise RpcFailure("METERED_AUTH_FORBIDDEN", "blocked")
+        if code or auth != "Logged in using ChatGPT":
+            self.preflight_states["login"] = "not_authenticated" if code else "unrecognized"
+            raise _CodexFailure(
+                "SUBSCRIPTION_AUTH", "waiting_auth",
+                failure=coded_failure_diagnostic(
+                    "SUBSCRIPTION_AUTH", stage=execution.stage, exit_code=code
+                ),
+            )
+        self.preflight_states["login"] = "chatgpt"
+
+    async def inspect_existing_runtime(self) -> dict[str, Any]:
+        """Check only existing CLI version/login through the owned process boundary.
+
+        No exec/model call is made. Success is host_preflight_passed, never a
+        ModelResult succeeded state or a model/platform E2E assertion.
+        """
+        import tempfile
+
+        execution = _ExecutionState(stage="validation")
+        code = "CODEX_HOST_INVALID"
+        status: str = "blocked"
+        try:
+            if not self.config.enabled or not self.config.reuse_existing_login:
+                code = "CODEX_EXISTING_LOGIN_NOT_APPROVED"
+            else:
+                async with asyncio.timeout(self.config.timeout_seconds):
+                    async with self._lock:
+                        with tempfile.TemporaryDirectory(prefix="zhizhi-codex-probe-") as temporary:
+                            await self._preflight(Path(temporary), execution)
+                return {"status": "host_preflight_passed", "failure": None}
+        except RpcFailure as exc:
+            return {
+                "status": exc.status, "error_code": exc.code,
+                "failure": sanitized_failure(
+                    exc.failure if isinstance(exc, _CodexFailure)
+                    else coded_failure_diagnostic(exc.code, stage=execution.stage)
+                ),
+            }
+        except TimeoutError:
+            code, status = "MODEL_DEADLINE_EXCEEDED", "cancelled"
+        except (OSError, UnicodeError, ValueError):
+            pass
+        return {
+            "status": status, "error_code": code,
+            "failure": sanitized_failure(coded_failure_diagnostic(code, stage=execution.stage)),
+        }
 
     async def _execute(
-        self, task: ModelTask, prompt: bytes
+        self, task: ModelTask, prompt: bytes, execution: _ExecutionState
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         import tempfile
 
         with tempfile.TemporaryDirectory(prefix="zhizhi-codex-") as temporary:
             cwd = Path(temporary)
-            code, version = await self._process(["--version"], cwd)
-            if code or version != "codex-cli " + self.config.expected_version:
-                raise RpcFailure("CODEX_VERSION_MISMATCH", "blocked")
-            code, auth = await self._process(["login", "status"], cwd)
-            if "api key" in auth.lower() or "api_key" in auth.lower():
-                raise RpcFailure("METERED_AUTH_FORBIDDEN", "blocked")
-            if code or auth != "Logged in using ChatGPT":
-                raise RpcFailure("SUBSCRIPTION_AUTH", "waiting_auth")
+            await self._preflight(cwd, execution)
             schema = cwd / "output-schema.json"
             schema.write_text(json.dumps(ENVELOPE_SCHEMA), encoding="utf-8")
             args = [
@@ -447,7 +665,7 @@ class CodexModelRunner:
             ]
             for feature in DISABLED_FEATURES:
                 args.extend(["--disable", feature])
-            for key, value in {
+            overrides: dict[str, Any] = {
                 "forced_login_method": "chatgpt",
                 "model_provider": "openai",
                 "approval_policy": "never",
@@ -461,15 +679,23 @@ class CodexModelRunner:
                 "tools.experimental_request_user_input.enabled": False,
                 "notify": [],
                 "developer_instructions": SYSTEM_PROMPT,
-            }.items():
+            }
+            for key, value in overrides.items():
                 args.extend(["-c", key + "=" + json.dumps(value)])
             args.append("-")
             events = _ExecEvents(task.max_output_tokens)
+            execution.stage = "execution"
             code, _ = await self._process(args, cwd, payload=prompt, events=events)
             if code:
-                raise RpcFailure("CODEX_PROCESS_FAILED")
+                raise _CodexFailure(
+                    "CODEX_PROCESS_FAILED",
+                    failure=coded_failure_diagnostic(
+                        "CODEX_PROCESS_FAILED", stage=execution.stage, exit_code=code
+                    ),
+                )
             if not events.completed or events.text is None:
                 raise RpcFailure("CODEX_INCOMPLETE_TURN", "invalid_output")
+            execution.stage = "output"
             try:
                 envelope = parse_output(events.text, ENVELOPE_SCHEMA)
                 output = parse_output(envelope["result_json"], task.output_schema)

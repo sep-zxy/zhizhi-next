@@ -47,7 +47,9 @@
 
 exec JSONL 的标准事件没有可信的实际 model 字段。`requested_model_id` 记录传给 CLI 的精确模型；`model_id=null` 明确表示实际型号未知，绝不复制模型正文的自报值来补空。`runtime_version` 带 `codex-cli` 前缀。provider_id 是显式选定的官方 OpenAI 路由，不是从模型回答推断。调用者不得把 requested 当 actual。
 
-总 stdout + stderr 字节数（含所有 JSONL 事件）受限，单行也受限；超时和取消结束进程。POSIX 结束自有进程组，Windows 使用本次调用独有的 kill-on-close Job；先绑定等待 stdin 放行的宿主，再允许它启动 CLI，父进程先退出也能清理剩余后代。Windows 路径尚须实际验证，不能用 Linux fixture 测试代替。stderr 不落入应用审计；错误只记录固定代码，usage 只保留白名单数值。
+总 stdout + stderr 字节数（含所有 JSONL 事件）受限，单行也受限；超时和取消结束进程。POSIX 结束自有进程组，Windows 使用本次调用独有的 kill-on-close Job；先绑定等待 stdin 放行的宿主，再允许它启动 CLI，父进程先退出也能清理剩余后代。Windows 路径尚须实际验证，不能用 Linux fixture 测试代替。stderr 不落入应用审计；错误记录固定代码及受控诊断，usage 只保留白名单数值。
+
+受控诊断为 `ModelResult.failure`：固定阶段、固定类别、固定摘要、允许的错误事件类型，以及实际观察到的自然退出码。提供方原始错误不保存、不回显；只在内存中区分网络/结构化 Schema/请求模型/沙箱/配置等类别。未知错误保持 `provider_reported_failure`，不能把分类当根因证明。若收到错误事件时 CLI 仍运行，适配器会关闭其进程树，此时退出码保持 `null`，不将清理产生的终止码当提供方退出。登录、版本和自然非零退出的已观察退出码可以保留。
 
 CLI 未提供本适配可核验的上游 `max_output_tokens` 开关。任务的 token 上限在请求提示里表达，并在完成后按 CLI usage 检查；它不是提供方硬预算。调用前有输入字节限制，调用中有 wall-clock/总输出字节限制，超 token 的结果拒绝，但已消耗的订阅额度不能撤回。额度错误进入冷却期，不改投付费 API。
 

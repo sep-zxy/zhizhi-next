@@ -86,6 +86,23 @@ def git(repo: Path, *args: str, data: bytes | None = None, env=None) -> bytes:
     )
 
 
+def push_exact_parent(repo: Path, remote: str, target: str, commit: str,
+                      expected_parent: str, env=None) -> None:
+    """Atomic ref comparison while allowing only a direct fast-forward child.
+
+    The explicit lease protects against *any* ref movement, including a rollback
+    to an ancestor. It is not permission to rewrite history: we independently
+    require exactly one parent, equal to the approved previous ref.
+    """
+    exact_hex(commit, 40)
+    exact_hex(expected_parent, 40)
+    parents = git(repo, "rev-list", "--parents", "-n", "1", commit).decode().split()
+    if parents != [commit, expected_parent]:
+        raise ValueError("Publication must be a direct child of the approved ref")
+    git(repo, "push", "--porcelain", "--force-with-lease=" + target + ":" + expected_parent,
+        remote, commit + ":" + target, env=env)
+
+
 def tree_digest(files: dict[str, tuple[str, bytes]]) -> str:
     """Compute a Git tree without changing any source repository or its index."""
     root = {}
@@ -361,9 +378,9 @@ def publish(repo: Path, restored: Path, manifest: dict, expected_main: str) -> d
     if observed != [exact_hex(expected_main, 40), "refs/heads/main"]:
         raise ValueError("main moved; stop and prepare a new approved dispatch")
     commit = commit_restored(repo, restored, manifest, expected_main)
-    # Parent is expected_main. A concurrent update therefore rejects the normal
-    # fast-forward push; never force or change a delivery ref in this operation.
-    git(repo, "push", "--porcelain", remote, commit + ":refs/heads/main", env=env)
+    # Exact lease plus an independently verified direct parent is a CAS-only
+    # fast-forward. Never change a delivery ref in this operation.
+    push_exact_parent(repo, remote, "refs/heads/main", commit, expected_main, env)
     observed = git(repo, "ls-remote", remote, "refs/heads/main", env=env).decode().split()
     if observed != [commit, "refs/heads/main"]:
         raise ValueError("Push outcome uncertain; inspect remote before retrying")

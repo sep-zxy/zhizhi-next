@@ -1,25 +1,23 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, FolderGit2, Menu, Settings, X, House, Bell, MessagesSquare, GitBranch } from 'lucide-react';
+import { BookOpen, FolderGit2, Menu, X, House, GitBranch, FilePenLine, Lightbulb, Radar, ExternalLink, Terminal } from 'lucide-react';
 
 import { useTranslation } from '../i18n/useTranslation';
 import './GrowthShell.css';
-
-function KnowledgeNavIcon({ size = 24 }: { size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 8h18"/><path d="M7 12h7v4H7z"/></svg>; }
+import { zhizhiView } from '../pages/zhizhi-model';
 
 const NAV = [
-  { view: 'overview', label: '今日归纳', Icon: House },
-  { view: 'pending', label: '待确认', Icon: Bell },
-  { view: 'cards', label: '知识卡', Icon: KnowledgeNavIcon },
-  { view: 'wiki', label: '知识 Wiki', Icon: BookOpen },
-  { view: 'discuss', label: '探讨', Icon: MessagesSquare },
-  { view: 'projects', label: '项目与提交', Icon: GitBranch },
+  { view: 'home', label: '首页', Icon: House },
+  { view: 'projects', label: '工程项目', Icon: FolderGit2 },
+  { view: 'library', label: '学习库', Icon: BookOpen },
+  { view: 'understanding', label: '我的理解', Icon: Lightbulb },
+  { view: 'writeback', label: '成果回填', Icon: FilePenLine },
+  { view: 'radar', label: '学习雷达', Icon: Radar },
 ] as const;
-const LEGACY_VIEWS: Record<string, string> = { today: 'overview', learning: 'pending', topics: 'discuss', review: 'cards' };
 
-export default function GrowthShell({ children, projects, projectId, onProjectChange, latestScanAt, pendingCount }: {
+export default function GrowthShell({ children, projects, projectId, onProjectChange, latestScanAt, connectionState = 'loading' }: {
   children: ReactNode; projects?: Array<{ project_id: string; name: string }>;
-  latestScanAt?: string; pendingCount?: number; projectId?: string; onProjectChange?: (projectId: string) => void;
+  connectionState?: 'loading' | 'ready' | 'error'; latestScanAt?: string; pendingCount?: number; projectId?: string; onProjectChange?: (projectId: string) => void;
 }) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -28,8 +26,9 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
     typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
   const menuButton = useRef<HTMLButtonElement>(null);
   const requested = new URLSearchParams(location.search).get('view') ?? 'overview';
-  const activeView = LEGACY_VIEWS[requested] ?? requested;
-  const currentLabel = location.pathname === '/settings' || activeView === 'settings'
+  const canonicalView = zhizhiView(requested);
+  const activeView = ['session','exercise','candidates','topic-management'].includes(canonicalView) ? 'library' : canonicalView;
+  const currentLabel = location.pathname === '/settings'
     ? '设置' : NAV.find((item) => item.view === activeView)?.label ?? '知识卡';
   const projectQuery = projectId ? '&project=' + encodeURIComponent(projectId) : '';
 
@@ -70,15 +69,12 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
           to={`/growth?view=${view}${projectQuery}`}
           aria-current={location.pathname === '/growth' && activeView === view ? 'page' : undefined}
           className="growth-shell__nav-item">
-          <Icon size={19} aria-hidden="true" /><span>{label}</span>{view==="pending"&&pendingCount!==undefined&&pendingCount>0&&<span className="growth-shell__nav-count" aria-label={pendingCount+" 个待确认候选"}>{pendingCount}</span>}
+          <Icon size={19} aria-hidden="true" /><span>{label}</span>
         </Link>)}
       </nav>
       <div className="growth-shell__footer">
-        <Link to="/growth?view=settings" className="growth-shell__nav-item"
-          aria-current={location.pathname === '/settings' || activeView === 'settings' ? 'page' : undefined}>
-          <Settings size={19} aria-hidden="true" /><span>{t('Growth.view_settings')}</span>
-        </Link>
-
+        <a href="/wiki/" className="growth-shell__nav-item"><GitBranch size={19}/><span>个人 Wiki</span><ExternalLink size={14}/></a>
+        <Link to="/growth?view=cli" className="growth-shell__nav-item"><Terminal size={19}/><span>CLI 主入口</span></Link>
       </div>
     </aside>
     <button type="button" className="growth-shell__backdrop"
@@ -92,7 +88,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
           onClick={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
-        <span className="sr-only">{currentLabel}</span>
+        <span className="growth-shell__breadcrumb">知枝 / {currentLabel}</span>
         {projects && onProjectChange && <label className="growth-shell__project-switcher">
           <FolderGit2 size={16} aria-hidden="true" />
           <span className="sr-only">工作区项目</span>
@@ -104,7 +100,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
           </select>
         </label>}
         <div className="growth-shell__top-actions">{latestScanAt&&<span className="growth-shell__latest-snapshot" title={new Date(latestScanAt).toLocaleString()}>最后扫描 {new Date(latestScanAt).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})}</span>}
-          <span className="growth-shell__avatar" aria-label="本机工作区">我</span>
+          <span role="status" className={'growth-shell__connection is-'+connectionState}>{connectionState==='ready'?'本地服务已响应':connectionState==='error'?'连接异常':'正在连接'}</span><span className="growth-shell__avatar" aria-label="本机工作区">知</span>
         </div>
       </header>
       <main id="main-content" className="growth-shell__content" tabIndex={-1}

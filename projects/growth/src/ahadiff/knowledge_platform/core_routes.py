@@ -12,6 +12,7 @@ from starlette.routing import Route
 from .auth import classification_labels, classify_record, enforce_read_classification, request_actor
 from .contracts import new_id
 from .errors import DomainError, invalid
+from .task_views import public_task_event, public_task_record
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,16 +32,23 @@ def create_core_routes(domain: DomainService) -> list[Route]:
             try:
                 actor = request_actor(request)
                 data = await handler(request, actor, trace)
-                enforce_read_classification(actor, data, default="personal")
+                # An authorized empty page contains no private record. A public-
+                # only reader must not receive a fabricated classification error
+                # merely because there are no labels left after filtering.
+                empty_page = data == [] or (
+                    isinstance(data, dict) and data == {"items": [], "has_more": False}
+                )
+                default = "public" if empty_page else "personal"
+                enforce_read_classification(actor, data, default=default)
                 task_id = data.get("task_id") if isinstance(data, dict) else None
                 return JSONResponse(
                     {
                         "data": data,
                         "task_id": task_id,
                         "trace_id": trace,
-                        "data_classification": classify_record(data, default="personal"),
+                        "data_classification": classify_record(data, default=default),
                         "classification_labels": sorted(
-                            classification_labels(data, default="personal")
+                            classification_labels(data, default=default)
                         ),
                     }
                 )
@@ -67,18 +75,36 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         return value
 
     async def read_task(request: Request, actor: Any, trace: str) -> Any:
-        return await run_in_threadpool(
-            domain.read_task, request.path_params["task_id"], actor=actor
+        return public_task_record(
+            await run_in_threadpool(
+                domain.read_task, request.path_params["task_id"], actor=actor
+            )
         )
 
+    async def list_tasks(request: Request, actor: Any, trace: str) -> Any:
+        if set(request.query_params) - {"limit", "offset", "state"}:
+            raise invalid("Unsupported task list parameter")
+        page = await run_in_threadpool(
+            domain.list_tasks,
+            actor=actor,
+            state=request.query_params.get("state"),
+            limit=int(request.query_params.get("limit", "100")),
+            offset=int(request.query_params.get("offset", "0")),
+        )
+        return {
+            "items": [public_task_record(record) for record in page["items"]],
+            "has_more": page["has_more"],
+        }
+
     async def task_events(request: Request, actor: Any, trace: str) -> Any:
-        return await run_in_threadpool(
+        events = await run_in_threadpool(
             domain.task_events,
             request.path_params["task_id"],
             actor=actor,
             after=int(request.query_params.get("after", "0")),
             limit=int(request.query_params.get("limit", "100")),
         )
+        return [public_task_event(event) for event in events]
 
     async def resume_task(request: Request, actor: Any, trace: str) -> Any:
         payload = await body(request)
@@ -98,16 +124,18 @@ def create_core_routes(domain: DomainService) -> list[Route]:
             raise DomainError(
                 "INVALID_STATE", "Only a waiting task may be resumed", status_code=409
             )
-        return await run_in_threadpool(
-            domain.update_task,
-            task["task_id"],
-            {
-                "state": "queued",
-                "expected_revision": payload.get("expected_revision", task["revision"]),
-            },
-            actor=actor,
-            idempotency_key=key(request),
-            trace_id=trace,
+        return public_task_record(
+            await run_in_threadpool(
+                domain.update_task,
+                task["task_id"],
+                {
+                    "state": "queued",
+                    "expected_revision": payload.get("expected_revision", task["revision"]),
+                },
+                actor=actor,
+                idempotency_key=key(request),
+                trace_id=trace,
+            )
         )
 
     async def source(request: Request, actor: Any, trace: str) -> Any:
@@ -201,6 +229,7 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         )
 
     return [
+        Route(prefix + "/tasks", endpoint(list_tasks), methods=["GET"]),
         Route(prefix + "/tasks/{task_id}", endpoint(read_task), methods=["GET"]),
         Route(prefix + "/tasks/{task_id}/events", endpoint(task_events), methods=["GET"]),
         Route(prefix + "/tasks/{task_id}/resume", endpoint(resume_task), methods=["POST"]),

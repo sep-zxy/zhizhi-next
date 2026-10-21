@@ -6,11 +6,12 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from ..auth import Actor
-from ..errors import DomainError
+from ..errors import DomainError, invalid
 from .contracts import IntakeError
 from .service import IntakeService
 
@@ -92,6 +93,43 @@ def create_intake_routes(
     service = intake_service or IntakeService(domain, model_runner)
     if service.domain is not domain:
         raise ValueError("HTTP and worker intake services must share the same domain")
+
+    async def listing(request: Request) -> JSONResponse:
+        trace_id = getattr(request.state, "trace_id", None) or uuid.uuid4().hex
+        try:
+            actor = _actor(request)
+            if set(request.query_params) - {"limit", "offset", "state"}:
+                raise invalid("Unsupported intake list parameter")
+            page = await run_in_threadpool(
+                domain.list_intakes,
+                actor=actor,
+                state=request.query_params.get("state"),
+                limit=int(request.query_params.get("limit", "100")),
+                offset=int(request.query_params.get("offset", "0")),
+            )
+            return JSONResponse(
+                {
+                    "data": {
+                        "items": [_public_record(record) for record in page["items"]],
+                        "has_more": page["has_more"],
+                    },
+                    "task_id": None,
+                    "trace_id": trace_id,
+                }
+            )
+        except DomainError as exc:
+            return JSONResponse(exc.as_dict(trace_id), status_code=exc.status_code)
+        except IntakeError as exc:
+            return JSONResponse(
+                {
+                    "error": {"code": exc.code, "detail": exc.detail, "retryable": exc.retryable},
+                    "trace_id": trace_id,
+                },
+                status_code=exc.status_code,
+            )
+        except (ValueError, TypeError):
+            error = invalid("Intake pagination must be valid integers")
+            return JSONResponse(error.as_dict(trace_id), status_code=422)
 
     async def endpoint(request: Request) -> JSONResponse:
         trace_id = getattr(request.state, "trace_id", None) or uuid.uuid4().hex
@@ -200,6 +238,7 @@ def create_intake_routes(
             )
 
     return [
+        Route(PREFIX, listing, methods=["GET"]),
         Route(PREFIX, endpoint, methods=["POST"]),
         Route(PREFIX + "/capabilities", endpoint, methods=["GET"]),
         Route(PREFIX + "/{intake_id}", endpoint, methods=["GET"]),

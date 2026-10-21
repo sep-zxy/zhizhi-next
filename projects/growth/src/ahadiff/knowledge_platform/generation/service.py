@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ..model import Classification, ModelRunner, ModelTask
 from ..model.contracts import ModelResult, canonical_hash
+from ..model.diagnostics import sanitized_failure
 from ..model.validation import sanitized_usage
 from .publication import public_entry_input, summary_output_issues
 
@@ -74,6 +75,7 @@ def result_metadata(result: ModelResult) -> dict[str, Any]:
     data = asdict(result)
     data.pop("output", None)
     data["usage"] = sanitized_usage(result.usage)
+    data["failure"] = sanitized_failure(result.failure)
     if result.retry_after is not None:
         data["retry_after"] = result.retry_after.isoformat()
     return data

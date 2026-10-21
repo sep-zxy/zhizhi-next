@@ -1,12 +1,17 @@
 # Windows 便携验收包：装配契约
 
-本目录只负责云端装配。用户 Windows 只解压并运行最终结果，不安装依赖、不编译代码、不操作个人浏览器配置。目标根目录为 `C:\Code\zhizhi-e2e-20261020`。本包不是原生安装器；未通过 Windows 实机验收前不得宣称兼容性通过。
+本目录负责 GitHub 托管 Runner 上的最终装配。源码开发与脚本单测可在获准云端进行，
+不得把本地构建冒充 GitHub 产物。用户 Windows 仅在
+`C:\Code\zhizhi-e2e-20261020` 授权范围内通过 Git 获取固定版本、校验并运行，
+不安装开发依赖、不编译、不操作个人浏览器配置。新版本独立目录不覆盖旧包状态；
+未通过 Windows 实机与全部必需真实 E2E 前不得宣称交付完成。
 
 ## 输入
 
 每路交付一个无凭据目录与 `component.json`，包含 `name`、`version`、`source_commit`、`entrypoints`、`files`（相对路径到 SHA256）、`licenses`、`runtime_requirements`、`known_limits`。拒绝符号链接、绝对路径、目录穿越、源目录外引用及操作系统不匹配的原生二进制。模板或示例不得含真实 token、登录会话、个人素材。
 
 - `backend/`：项目 Python wheel 或完整运行源码，锁文件、Python 版本要求、启动入口及资源目录；由总装配准备 Windows 第三方 wheels。`viewer/` 必须是云端已构建静态资源。
+- `wiki-private/`：独立 `projects/wiki-private` 的锁定依赖、类型检查、测试与 GitHub 生产构建 `dist/`。装配参数 `--private-wiki`，固定静态入口 `/wiki/`；不使用学习 viewer 代替，不与公开 Wiki renderer 混淆。后端同源身份桥与浏览器操作必须独立验证。
 - `pi/`：固定 Pi 版本的已发布运行 JS/WASM/Windows x64 native 资源、云端预编译自有 JS 扩展、启动入口。不得在 Windows 调用 npm、npx、tsx、tsup、esbuild 或自动下载。扩展加载器的运行时转译和缓存必须明确验证并关闭/隔离。保留官方许可证及锁文件。
 - `wiki/`：已预编译 render-only JS 入口、固定插件和模板资源、字体、完整性清单及来源证据。Windows 允许解析新 Markdown、生成新 HTML/索引，但不编译 TS/SCSS/JS。保留投影、发布权限、固定 Git revision、最终产物与领域复核门槛。静态旧页面不能冒充动态发布验收。
 - `asr/`：可独立资源包，必须列出完整本地模型、模型许可证、精确 Windows wheels、必要运行时和验证状态。不得将可选分包解释为删除真实音视频验收范围。
@@ -21,6 +26,7 @@ app/backend/
 app/viewer/
 app/pi/
 app/wiki/
+app/wiki-private/
 config/                     # 无秘密默认配置；显式等待已授权身份
 data/platform/
 data/vault/
@@ -38,6 +44,7 @@ provenance/                 # 来源、版本、校验、许可证、构建证�
 start.cmd
 stop.cmd
 diagnostics.cmd
+codex-diagnostic.cmd        # 默认只做去敏诊断；显式 --model-smoke 才调用模型
 ```
 
 所有启动器由云端制作。所有应用管理的写入目录限定在包根目录内；Windows 本身的系统审计和安全日志不在此承诺范围。子进程环境必须显式隔离 HOME、USERPROFILE、APPDATA、LOCALAPPDATA、TEMP/TMP、Pi agent/session 路径及浏览器 profile。只绑定 `127.0.0.1`，不得建立防火墙规则、系统服务或自动启动。

@@ -28,6 +28,7 @@ SQLite 是唯一任务/流程账本；vault 是正式 Markdown 的 Git 存储；
 
 - `create_task(kind: str, payload: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
 - `read_task(task_id: str, *, actor: Actor) -> dict`
+- `list_tasks(*, actor: Actor, state: str | None = None, limit: int = 100, offset: int = 0) -> dict`：只读，返回 `{items, has_more}`，同 owner 且分类可读，按创建记录逆序。先过滤身份/分类与 state，再对可见记录分页；不返回全库或隐藏记录计数。
 - `complete_learning_task(task_id: str, outcome_id: str, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`：仅真实 user 完成人工练习；task.kind 必须 learning、state为queued/waiting_user，outcome 必须同owner且其metadata.radar_suggestion_id匹配task.payload.suggestion_id、entry_id属于targets。还核验真实radar_suggestion和已accepted/completed状态中的learning_id。事务succeeded+learning.task.completed.v1，重复同outcome不重复事件，不允许机器身份/任意worker任务绕租约。
 - `update_task(task_id: str, patch: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
 - `claim_task(worker_id: str, *, actor: Actor, kinds: list[str] | None = None, lease_seconds: int = 60) -> dict | None`
@@ -38,10 +39,17 @@ SQLite 是唯一任务/流程账本；vault 是正式 Markdown 的 Git 存储；
 
 Task 含 `task_id, owner_id, kind, state, payload, result, error, attempt, lease_token, lease_until, revision, trace_id, created_at, updated_at`。state 对齐 v0.3：`queued, running, succeeded, partial, waiting_user, waiting_auth, waiting_quota, retry_wait, blocked, failed, cancelled`，另兼容 `waiting_review, waiting_input`。invalid_output 映射 partial+error.code；不伪造 succeeded。运行中结果须 patch.lease_token，actor 还须 tasks:work；旧 lease 禁止写结果。patch 支持 checkpoint/result/error/next_run_at/expected_revision。等待态可 CAS 改 queued 恢复，终态不可变。事件含 `sequence, event_id, type, version, owner_id, trace_id, aggregate_id, aggregate_revision, occurred_at, payload`。
 
+`GET /api/knowledge/v1/tasks?limit=100&offset=0&state=waiting_auth` 返回 envelope 的 `data={items:[...],has_more:boolean}`。limit 为 1–100，offset 为 0–100000，state 省略即所有状态，非法参数或未知状态返回 422；未认证 401、缺 read scope 403。没有内容时真实返回空列表，不借助 mock 填充；只含公开分类权限的身份也可读取已过滤后的空结果。
+
+任务列表和 `GET /tasks/{task_id}` 均使用 `public_task_record` 安全投影：包含任务身份/kind/state/revision、attempt/max_attempts、时间、trace、分类、必要结果 ID/版本与受控模型审计；不包含 owner_id、payload、checkpoint、lease_token/lease_owner、模型 output、任意错误 detail 或服务器路径。`result.model.failure` 仅含固定 stage/kind/summary/event_type 与数值或空 exit_code。内部 `DomainService.read_task` 仍完整供受权 worker 使用租约；HTTP 投影不改变账本。
+
+`POST /tasks/{task_id}/resume` 回执使用相同任务投影；`GET /tasks/{task_id}/events` 只返回事件身份、版本、时间、序号、trace、分类及白名单时间线 payload（合法 state、数值 attempt、布尔 reclaimed、固定 quota_retry_due reason），不带 owner 或任意扩展 payload。内部 outbox 与 `DomainService.task_events` 保持完整，不因显示投影改写。
+
 ### Intake、来源与渠道游标
 
 - `create_intake(payload: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
 - `read_intake(intake_id: str, *, actor: Actor) -> dict`
+- `list_intakes(*, actor: Actor, state: str | None = None, limit: int = 100, offset: int = 0) -> dict`：返回同样的可见分页 `{items, has_more}`，只读快照，不自动 keep、expire、生成任务或调用模型。
 - `read_intake_lifecycle(intake_id: str, *, actor: Actor) -> dict`：维护专用，仅 user 或具 tasks:work + knowledge:read 的 service；同 owner 返回 intake_id/state/source_id/expires_at/revision 与 public 控制回执标签，不返回标题、URL、原文或预览，agent 禁止使用。用于分类受限但已经保留/失效收件的残留缓存协调，绝不开放 Source 正文。
 - `update_intake(intake_id: str, patch: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
 - `retain_source(intake_id: str, descriptor: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
@@ -51,6 +59,8 @@ Task 含 `task_id, owner_id, kind, state, payload, result, error, attempt, lease
 - `set_channel_state(channel: str, state: dict, *, actor: Actor, idempotency_key: str, trace_id=None) -> dict`
 
 Intake payload 可含 `channel, external_message_id, url, title, metadata`。`(owner_id, channel, external_message_id)` 额外去重。初始 `received`；preview 写入 patch.preview/parse_status，状态为 `preview_ready` 或 `partial`。丢弃写 `state=discarded`。只有显式用户 keep 才能调用 retain_source，agent 身份禁止 keep；已保留再次调用返回同一 source。descriptor 支持 `title, url, canonical_url, content_type, raw_text, raw_path, metadata, capability_report`。raw_path 是本服务已获准的 intake 暂存文件，不接受目录/符号链接；A 将原件按 SHA-256 复制进私有对象目录，失败不置 kept。对象私有，不能把 raw 当默认公开素材。source 含 `source_id, owner_id, intake_id, content_hash, object_path, descriptor, visibility=private`。`get_source` 返回元数据；`read_evidence` 检查引用归属与内容摘要后返回带原文的私有 evidence。
+
+`GET /api/knowledge/v1/intakes?limit=100&offset=0&state=preview_ready` 返回 `data={items:[...],has_more:boolean}`，分页与认证规则同 tasks。items 使用既有 intake `_public_record`：intake_id/state/channel/url/title/preview_revision/parse_status/分类/source_id/task_id/到期与创建更新时间、去除 cache_ref 的 preview；不返回 payload、外部消息身份、内部 metadata 或对象路径。`GET /intakes/capabilities` 继续独立存在，不拿能力说明冒充收件列表。列表显示账本快照，不因 GET 隐式清理；到期处理继续由既有生命周期流程负责。
 
 ### 提案、复核与正式条目
 

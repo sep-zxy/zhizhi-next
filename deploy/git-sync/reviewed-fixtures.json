@@ -1,4 +1,12 @@
 {
+  "projects/growth/tests/knowledge_platform/domain/test_browser_sessions.py": {
+    "sha256": "8ecb3820f9cb08224a0d9bc8f8c648f44bbf49285d2bb5ac982ed2dc6a26c6a5",
+    "rules": [
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; rejects a literal user:secret loopback URL as an invalid browser-session origin",
+    "reviewed_source_commit": "68ffbc3cf51a513d5a4a41316aed5814b646a095"
+  },
   "projects/growth/tests/unit/test_redact.py": {
     "sha256": "26ce4fc200809ca65e8518b6c73777afbdc724ae5d2c0956619490d21ae293b4",
     "rules": [

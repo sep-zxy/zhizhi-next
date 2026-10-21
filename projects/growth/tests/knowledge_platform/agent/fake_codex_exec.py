@@ -63,6 +63,34 @@ def emit(value):
 
 emit({"type": "thread.started", "thread_id": "fixture-thread"})
 emit({"type": "turn.started"})
+if scenario.startswith("notification_"):
+    message = (
+        "model rerouted: requested -> fallback-model (fixture); never-log-me"
+        if scenario == "notification_reroute"
+        else "runtime warning; private detail=never-log-me"
+    )
+    emit({"type": "item.completed", "item": {"type": "error", "message": message}})
+    # A later valid answer must not bypass a rejected configuration/reroute notification.
+if scenario.startswith("provider_failure_"):
+    messages = {
+        "transport": "stream disconnected before completion; password=never-log-me",
+        "schema": "Invalid schema for response_format; prompt=never-log-me",
+        "model": "The requested model is not supported; token=never-log-me",
+        "sandbox": "Sandbox initialization failed; path=never-log-me",
+        "configuration": "invalid config value; private=never-log-me",
+        "unknown": "Unrecognized upstream failure; content=never-log-me",
+        "item": "stream disconnected before completion; password=never-log-me",
+        "error": "stream disconnected before completion; password=never-log-me",
+    }
+    kind = scenario.removeprefix("provider_failure_")
+    message = messages[kind]
+    if kind == "item":
+        emit({"type": "item.completed", "item": {"type": "error", "message": message}})
+    elif kind == "error":
+        emit({"type": "error", "message": message})
+    else:
+        emit({"type": "turn.failed", "error": {"message": message}})
+    raise SystemExit(1)
 if scenario in {"quota", "auth_error"}:
     emit(
         {
@@ -87,6 +115,8 @@ if scenario.startswith("tool_"):
     time.sleep(30)
     raise SystemExit(0)
 inner = '{"text":"有效结果\\u2028仍为同一JSONL"}'
+if scenario == "arithmetic":
+    inner = '{"answer":4}'
 if scenario == "invalid_inner":
     inner = '{"text":"a","text":"b"}'
 if scenario == "schema_wrong":

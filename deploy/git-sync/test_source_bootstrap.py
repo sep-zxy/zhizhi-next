@@ -204,6 +204,46 @@ class BootstrapTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(ValueError, "manual GitHub"):
             bootstrap.publish(Path("."), Path("."), {}, "a" * 40)
 
+    def test_atomic_push_requires_exact_parent_and_keeps_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, remote = root / "repo", root / "remote"
+            init(repo)
+            remote.mkdir()
+            run(remote, "init", "--bare")
+            first = commit(repo, {"file": ("100644", b"first")})
+            run(repo, "push", str(remote), first + ":refs/heads/main")
+            second = commit(repo, {"file": ("100644", b"second")})
+            bootstrap.push_exact_parent(repo, str(remote), "refs/heads/main", second, first)
+            self.assertEqual(run(remote, "rev-parse", "refs/heads/main"), second)
+            self.assertEqual(run(remote, "rev-parse", "refs/heads/main^"), first)
+
+    def test_atomic_push_rejects_changed_remote_even_if_reset_to_ancestor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, remote = root / "repo", root / "remote"
+            init(repo)
+            remote.mkdir()
+            run(remote, "init", "--bare")
+            first = commit(repo, {"file": ("100644", b"first")})
+            second = commit(repo, {"file": ("100644", b"second")})
+            third = commit(repo, {"file": ("100644", b"third")})
+            # Simulate an unexpected rollback after the caller approved second.
+            run(repo, "push", str(remote), first + ":refs/heads/main")
+            with self.assertRaises(subprocess.CalledProcessError):
+                bootstrap.push_exact_parent(repo, str(remote), "refs/heads/main", third, second)
+            self.assertEqual(run(remote, "rev-parse", "refs/heads/main"), first)
+
+    def test_atomic_push_rejects_nonchild_before_contacting_remote(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            init(repo)
+            first = commit(repo, {"file": ("100644", b"first")})
+            commit(repo, {"file": ("100644", b"second")})
+            third = commit(repo, {"file": ("100644", b"third")})
+            with self.assertRaisesRegex(ValueError, "direct child"):
+                bootstrap.push_exact_parent(repo, "/not/a/remote", "refs/heads/main", third, first)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -68,6 +68,22 @@ class TaskMethods:
         """Read an owned task, including durable wait/retry/error information."""
         return self._read("task", task_id, actor)
 
+    def list_tasks(
+        self,
+        *,
+        actor: Actor,
+        state: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """List owned, readable tasks newest-first without revealing hidden counts."""
+        authenticated(actor, "knowledge:read")
+        if state is not None and (not isinstance(state, str) or state not in TASK_STATES):
+            raise invalid("Unknown task state")
+        return self._list_owned_records(
+            "task", actor=actor, state=state, limit=limit, offset=offset
+        )
+
     def update_task(
         self,
         task_id: str,
