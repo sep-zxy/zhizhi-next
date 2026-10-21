@@ -1,3 +1,4 @@
+import { isBackendApiRoute } from '../fixtures/api-routes';
 import { expect, test } from '@playwright/test';
 
 const sourceId = '00000000-0000-4000-8000-000000000101';
@@ -24,7 +25,7 @@ test('topic maintenance requires merge approval and sends explicit split links',
     [`/api/growth/local/cloud/topics/${targetId}/split`]:'POST',
   };
 
-  await page.route((url) => url.pathname.startsWith('/api/'), async (route) => {
+  await page.route(isBackendApiRoute, async (route) => {
     const path = new URL(route.request().url()).pathname;
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     expect(methods[path], 'Fixture must declare '+path).toBeDefined();

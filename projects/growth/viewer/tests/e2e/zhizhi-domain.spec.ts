@@ -1,3 +1,4 @@
+import { isBackendApiRoute } from '../fixtures/api-routes';
 import { expect, test, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import type { UnderstandingSubmission } from '../../src/api/understanding';
@@ -23,7 +24,7 @@ async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSa
     [root+'/radar/runs']:['POST'],[root+'/radar/r1/decision']:['POST'],[root+'/radar/r1']:['GET'],[root+'/radar/r1/complete']:['POST'],
   };
   const draft=options.writeback?{draft_id:'d1',card_id:cardId,markdown:'新的边界说明',original_markdown:'旧的边界说明',status:'draft'}:null;
-  await page.route('**/api/**',async route=>{
+  await page.route(isBackendApiRoute,async route=>{
     const request=route.request();const url=new URL(request.url());requests.push(url.pathname+url.search);
     expect(methods[url.pathname], 'Fixture must declare '+url.pathname).toBeDefined();
     expect(methods[url.pathname], 'HTTP contract for '+url.pathname).toContain(request.method());
