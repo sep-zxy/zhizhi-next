@@ -49,9 +49,9 @@ $ErrorActionPreference = 'Stop'
 - [JSONL 映射](https://raw.githubusercontent.com/openai/codex/rust-v0.163.0-alpha.10.2/codex-rs/exec/src/event_processor_with_jsonl_output.rs) 将配置/运行警告、弃用通知、模型重路由转成 `item.completed` 内的 `type=error`，CLI 本身可能继续运行。
 - [官方测试](https://raw.githubusercontent.com/openai/codex/rust-v0.163.0-alpha.10.2/codex-rs/exec/src/event_processor_with_jsonl_output_tests.rs) 明确验证运行警告是非致命 item。
 
-适配器仍拒绝这类未经复核的通知，尤其不能忽略模型重路由或失效安全配置；没有扩大工具、模型、权限或秘密放行。现在返回 `blocked / CODEX_NOTIFICATION_REQUIRES_REVIEW` 与固定摘要 `cli_notification_requires_review`，不再把它一律误报为 `PROVIDER_FAILURE`。
+非致命通知本身不再触发失败。完整流、自然成功终态、合法输出及既有权限/清理条件联合验收；未知通知保留固定 warning 摘要，不强求读取原文。明确的运行边界失效仍拒绝，见事件接受矩阵。
 
-probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`；后者不是提供方终态。当前实现继续有界读取真实终态，再按独立策略决定是否接受输出。详见 [事件接受矩阵](CODEX_EVENT_ACCEPTANCE.md)。顶层 error 后 completed/exit 0 保留协议事实但隔离待审，不能猜成认证失败。所有消息原文继续丢弃。
+probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`；后者不是提供方终态。当前实现继续有界读取真实终态，再按独立策略决定是否接受输出。详见 [事件接受矩阵](CODEX_EVENT_ACCEPTANCE.md)。顶层 error 后完整单一 completed/exit 0 可以是官方已恢复流，需再通过 schema/权限/清理等联合校验，不能猜成认证失败。所有消息原文继续丢弃。
 
 这是已确认的协议诊断修正，不是 Windows 根因结论。旧报告未记录事件类型，必须等待真实 Windows probe 才能判断当时是否走了该通知路径。
 
@@ -59,7 +59,7 @@ probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`�
 
 Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原因。新版仅在显式固定公开
 `--model-smoke` 中收集通知摘要；默认 host-only 不发模型请求，常规模型执行默认不收集。
-无新重试或 fallback。旧实现曾在通知后立即停止，这是丢失官方终态的适配器设计缺陷；当前改为有界读到终态后独立判定，未知和关键通知仍隔离，只有两个已审纯信息全文可继续既有输出校验。
+无新重试或 fallback。旧实现曾在通知后立即停止，这是丢失官方终态的适配器设计缺陷；当前改为有界读到终态后独立判定，未知非致命通知可继续既有输出校验，不再使用两个模板允许列表。
 
 官方固定 commit `5425d3e625daa58eea3ad1de27c087eb3b2ffbd3`：
 
@@ -93,7 +93,7 @@ Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原�
 
 所有类别均标 `evidence=bounded_text_pattern_hint` 与
 `upstream_kind=not_preserved_by_exec_jsonl`。恶意文本可夹入相同关键词，所以类别仅帮助
-下一步静态调查，不能证明真正来源或改变 `CODEX_NOTIFICATION_REQUIRES_REVIEW` 阻断。
+下一步静态调查，不能证明真正来源，不参与结果接受或拒绝。
 下一次真实固定 smoke 必须仍由协调方按既有授权安排；这些离线测试不是模型 E2E。
 
 ## 主错误与清理失败分离
@@ -123,7 +123,7 @@ Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原�
 
 144 字节、未截断的 `unknown_notification` 不足以恢复上游类型。只有完整消息与已审
 官方公开静态模板**精确相同**时，才可增补固定模板 ID；其他输入保持 unknown，绝不输出
-未知原文或其哈希，也不把模板命中当成忽略通知/换模型的许可。真实下一次固定请求仍由
+未知原文或其哈希，也不把模板命中当成换 provider/权限的许可。真实下一次固定请求仍由
 主协调按获准范围安排，不由代码诊断自动重试。
 
 ### 清理路径补充
@@ -194,8 +194,8 @@ transport/persistence/code-mode 的动态错误尾不作为完整语法，仅可
 全部 producer 文件、固定 blob SHA、行号与边界在
 `deploy/windows-portable/codex-notice-projection-review.json`，没有读取任何用户配置。
 
-投影器结果本身不授予接受许可；新动态语法/弱提示/unknown 仍为 `CODEX_NOTIFICATION_REQUIRES_REVIEW`，无有效答案、无重试/回退/权限扩展。两个原有纯信息全文的独立许可见事件接受矩阵。
+投影器不决定接受策略；unknown/弱提示不再自动拒绝结果，未识别不等于不安全。真正明确的 sandbox 失效/流丢失等依既有边界拒绝，且没有重试/回退/权限扩展。
 投影器自身异常只记固定 `projection_failed`，不覆盖主错误、不输出异常文本；原
 清理、取消、未完成状态锁存与缓存门禁保留。若下一次授权探针仍 unknown 或 family
-不足以定因，停止猜模板和重建循环，明确需要用户在本机查看那一条通知；本补丁不提供
+不足以定因，不再猜模板和重建循环，也不要求用户手动查看普通非致命告警；本补丁不提供
 人工窗口、不将原文送入控制台/JSON/日志/剪贴板，也不承诺已经获得该人工原文证据。

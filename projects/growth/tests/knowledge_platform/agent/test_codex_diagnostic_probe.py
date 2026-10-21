@@ -124,19 +124,20 @@ def test_probe_opt_in_disabled_means_no_process(tmp_path):
     assert not (tmp_path / "calls.jsonl").exists()
 
 
-def test_probe_separates_nonfatal_notification_rejection_from_provider_terminal_failure(tmp_path):
+def test_probe_preserves_nonfatal_warning_without_replacing_provider_success(tmp_path):
     report = asyncio.run(
         probe_codex(config(tmp_path, "notification_warning"), model_smoke=True)
     )
-    assert report["status"] == "model_smoke_not_passed"
-    assert report["model"]["status"] == "blocked"
-    assert report["model"]["error_code"] == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
-    assert report["failure"]["summary"] == "cli_notification_requires_review"
+    assert report["status"] == "fixture_model_smoke_passed"
+    assert report["model"]["status"] == "succeeded"
+    assert report["model"]["error_code"] is None
+    assert report["failure"] is None
+    assert report["model"]["warning_codes"] == ["codex_nonfatal_notification"]
     execute = report["processes"][-1]
     assert execute["event_counts"]["item.error"] == 1
     assert execute["terminal_event"] == "turn.completed"
     assert execute["provider_turn_state"] == "completed" and execute["exit_code"] == 0
-    assert execute["notification_policy"] == "requires_review"
+    assert execute["notification_policy"] == "nonfatal"
     assert "never-log-me" not in json.dumps(report)
 
 
@@ -183,11 +184,11 @@ def test_windows_job_failure_phase_and_errno_use_a_safe_os_shim(
     [("notification_warning", "unknown_notification"),
      ("notification_reroute", "model_reroute_notice")],
 )
-def test_fixed_smoke_notification_hints_do_not_accept_later_valid_answer(tmp_path, scenario, code):
+def test_fixed_smoke_nonfatal_hints_do_not_veto_valid_answer(tmp_path, scenario, code):
     report = asyncio.run(probe_codex(config(tmp_path, scenario), model_smoke=True))
-    assert report["model"]["status"] == "blocked"
-    assert report["model"]["error_code"] == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
-    assert report["model"]["answer_matches_fixed_schema"] is False
+    assert report["model"]["status"] == "succeeded"
+    assert report["model"]["error_code"] is None
+    assert report["model"]["answer_matches_fixed_schema"] is True
     assert report["model"]["actual_model_id"] is None
     process = report["processes"][-1]
     notice = process["notification"]
@@ -201,7 +202,7 @@ def test_fixed_smoke_notification_hints_do_not_accept_later_valid_answer(tmp_pat
     }
     assert process["terminal_event"] == "turn.completed"
     assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
-    assert process["notification_policy"] == "requires_review"
+    assert process["notification_policy"] == "nonfatal"
     assert process["steps"][-1]["name"] == "cleanup_complete"
     calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
     assert sum("exec" in call["args"] for call in calls) == 1
@@ -247,7 +248,7 @@ def test_notification_classifier_is_bounded_and_parser_collection_default_off():
     events = _ExecEvents(4096)
     events.accept(b'{"type":"item.completed","item":{"type":"error","message":"secret"}}')
     assert events.notification is None and events.completed is False
-    complete_then_reject(events)
+    complete_then_accept(events)
 
 
 @pytest.mark.parametrize("message", [
@@ -274,22 +275,22 @@ def test_malicious_text_and_byte_bound_cannot_authorize_a_turn(message):
     assert set(notice) == {"classifier_version", "rule_id", "code", "evidence", "upstream_kind",
                            "message_present", "input_utf8_bytes",
                            "inspected_utf8_bytes", "truncated"}
-    complete_then_reject(events)
+    complete_then_accept(events)
 
 
 def test_first_notification_diagnostic_does_not_hide_rest_of_stream(tmp_path):
     report = asyncio.run(probe_codex(config(tmp_path, "notification_multiple"), model_smoke=True))
     process = report["processes"][-1]
-    assert report["model"]["status"] == "blocked"
+    assert report["model"]["status"] == "succeeded"
     assert process["notification"]["code"] == "unknown_notification"
     assert process["event_counts"]["item.error"] == 2
     assert process["terminal_event"] == "turn.completed"
     assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
-    assert process["notification_policy"] == "requires_review"
-    assert report["model"]["answer_matches_fixed_schema"] is False
+    assert process["notification_policy"] == "nonfatal"
+    assert report["model"]["answer_matches_fixed_schema"] is True
 
 
-def complete_then_reject(events):
+def complete_then_accept(events):
     for item in [
         {"type": "thread.started", "thread_id": "synthetic-thread"},
         {"type": "turn.started"},
@@ -297,7 +298,5 @@ def complete_then_reject(events):
         {"type": "turn.completed", "usage": {"output_tokens": 1}},
     ]:
         events.accept(json.dumps(item).encode())
-    from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.finish(0)
+    events.finish(0)
     assert events.provider_turn_state == "completed"

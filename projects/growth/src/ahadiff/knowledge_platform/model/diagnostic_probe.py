@@ -17,7 +17,7 @@ from typing import Any
 from ._codex_notice_projection import PROJECTION_CLI_VERSION
 from .codex_runner import CodexModelRunner, CodexRunnerConfig
 from .contracts import ModelTask
-from .diagnostics import coded_failure_diagnostic, sanitized_failure
+from .diagnostics import coded_failure_diagnostic, sanitized_failure, sanitized_warning_codes
 from .pi_runner import RpcFailure, SubscriptionRoute
 from .validation import sanitized_usage
 
@@ -111,6 +111,7 @@ async def probe_codex(
                 "actual_model_evidence": "unknown_in_exec_jsonl",
                 "fixture": result.fixture,
                 "usage": sanitized_usage(result.usage),
+                "warning_codes": sanitized_warning_codes(result.warning_codes),
             }
         else:
             report.update(await runner.inspect_existing_runtime())

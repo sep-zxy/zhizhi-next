@@ -27,6 +27,7 @@ FAILURE_SUMMARIES = frozenset(
         "provider_reported_failure",
         "cli_notification_requires_review",
         "cli_stream_error_requires_review",
+        "runtime_boundary_violation",
         "unexpected_tool_or_event",
         "invalid_protocol_response",
         "output_validation_failed",
@@ -39,6 +40,19 @@ FAILURE_SUMMARIES = frozenset(
     }
 )
 FAILURE_EVENTS = frozenset({"error", "turn.failed", "item.error"})
+
+
+WARNING_CODES = frozenset({"codex_nonfatal_notification", "codex_recovered_stream_error"})
+
+
+def sanitized_warning_codes(value: Any) -> list[str]:
+    """Only fixed adapter-owned summaries; no upstream text or dynamic codes."""
+    if not isinstance(value, tuple | list):
+        return []
+    items = cast("tuple[Any, ...] | list[Any]", value)
+    if len(items) > 16:
+        return []
+    return sorted({item for item in items if isinstance(item, str) and item in WARNING_CODES})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -171,7 +185,7 @@ def notification_diagnostic(message: Any) -> dict[str, Any]:
 
     alpha.11 erases ConfigWarning/Warning/DeprecationNotice/ModelRerouted kinds
     when mapping them into ErrorItem.message. Pattern hints cannot recover the
-    actual upstream type and MUST NOT be used to continue a rejected turn.
+    actual upstream type and MUST NOT determine result acceptance or rejection.
     """
     present = isinstance(message, str)
     raw = message.encode("utf-8", errors="replace") if present else b""

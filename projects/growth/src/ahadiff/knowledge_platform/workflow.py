@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from .auth import Actor
 from .errors import DomainError
-from .model.diagnostics import sanitized_failure
+from .model.diagnostics import sanitized_failure, sanitized_warning_codes
 
 if TYPE_CHECKING:
     from .model.contracts import Classification
@@ -211,12 +211,14 @@ class KnowledgeWorkflow:
         def audit(value: Any) -> dict[str, Any]:
             if not isinstance(value, dict):
                 return {}
-            safe = {
+            value = cast("dict[str, Any]", value)
+            safe: dict[str, Any] = {
                 key: item
                 for key, item in cast("dict[str, Any]", value).items()
                 if key in metadata_fields
                 and isinstance(item, str | bool | int | float | type(None))
             }
+            safe["warning_codes"] = sanitized_warning_codes(value.get("warning_codes"))
             failure = sanitized_failure(value.get("failure"))
             if failure is not None:
                 safe["failure"] = failure

@@ -101,6 +101,7 @@ class ModelResult:
     failure: ModelFailure | None = None
     retry_after: datetime | None = None
     fixture: bool = False
+    warning_codes: tuple[str, ...] = ()
 
 
 class ModelRunner(Protocol):

@@ -71,7 +71,14 @@ if scenario.startswith("notification_"):
         if scenario == "notification_reroute"
         else "runtime warning; private detail=never-log-me"
     )
+    sandbox_notice = (
+        "Credential masking is inactive because sandboxing is disabled. Commands "
+        "will receive unmasked credentials. Select a sandboxed permission profile "
+        "to use credential masking."
+    )
     message = {
+        "notification_boundary": sandbox_notice,
+        "notification_stream_loss": "in-process app-server event stream lagged; dropped 1 events",
         "notification_ignored_configuration": (
             "Codex is ignoring 1 unrecognized configuration setting. "
             "Check for typos or deprecated settings.\n"
@@ -91,8 +98,11 @@ if scenario.startswith("notification_"):
             "`[tui].fullscreen_transcript` in config.toml instead.)"
         ),
     }.get("notification_informational" if scenario.startswith("notification_informational")
+          else "notification_ignored_configuration" if scenario.endswith("configuration_boundary")
           else scenario, message)
     emit({"type": "item.completed", "item": {"type": "error", "message": message}})
+    if scenario == "notification_ignored_configuration_boundary":
+        emit({"type": "item.completed", "item": {"type": "error", "message": sandbox_notice}})
     if scenario == "notification_multiple":
         emit({"type": "item.completed", "item": {"type": "error",
               "message": "model rerouted: requested -> private-never-log-me"}})
@@ -106,8 +116,14 @@ if scenario.startswith("notification_"):
         emit({"type": "turn.failed", "error": {"message": "synthetic failure"}})
         Path(calls_path + ".finished").write_text("natural fixture termination")
         raise SystemExit(1)
-if scenario == "stream_error_recovered":
+if scenario.startswith("stream_error_"):
     emit({"type": "error", "message": "401 unknown synthetic error; never-log-me"})
+    if scenario == "stream_error_failed":
+        emit({"type": "turn.failed", "error": {"message": "synthetic failure"}})
+        raise SystemExit(1)
+    if scenario == "stream_error_tool":
+        emit({"type": "item.started", "item": {"type": "command_execution"}})
+        time.sleep(30)
 if scenario.startswith("provider_failure_"):
     messages = {
         "transport": "stream disconnected before completion; password=never-log-me",
@@ -152,13 +168,13 @@ if scenario.startswith("tool_"):
     time.sleep(30)
     raise SystemExit(0)
 inner = '{"text":"有效结果\\u2028仍为同一JSONL"}'
-if scenario == "arithmetic":
+if scenario == "arithmetic" or payload["output_schema"].get("required") == ["answer"]:
     inner = '{"answer":4}'
 if scenario == "invalid_inner":
     inner = '{"text":"a","text":"b"}'
-if scenario == "schema_wrong":
+if scenario in {"schema_wrong", "notification_schema_wrong", "stream_error_schema_wrong"}:
     inner = '{"text":5}'
-if scenario == "secret":
+if scenario in {"secret", "notification_secret", "stream_error_secret"}:
     inner = json.dumps({"text": '"password": "fixture_secret_value"'})
 outer = json.dumps({"result_json": inner})
 if scenario == "deep_output":
@@ -173,7 +189,7 @@ if scenario == "claimed_model":
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": outer}})
 if scenario == "duplicate_message":
     emit({"type": "item.completed", "item": {"type": "agent_message", "text": outer}})
-if scenario in {"early_exit", "notification_incomplete"}:
+if scenario in {"early_exit", "notification_incomplete", "stream_error_incomplete"}:
     raise SystemExit(0)
 emit(
     {
@@ -188,7 +204,8 @@ emit(
 )
 if scenario.startswith("notification_") or scenario == "stream_error_recovered":
     Path(calls_path + ".finished").write_text("natural fixture termination")
-if scenario in {"nonzero_exit", "notification_nonzero", "notification_informational_nonzero"}:
+if scenario in {"nonzero_exit", "notification_nonzero", "notification_informational_nonzero",
+                "stream_error_nonzero"}:
     raise SystemExit(3)
-if scenario == "after_completion":
+if scenario in {"after_completion", "stream_error_extra_terminal"}:
     emit({"type": "turn.started"})

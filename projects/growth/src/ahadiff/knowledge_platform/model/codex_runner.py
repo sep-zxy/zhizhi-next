@@ -33,7 +33,6 @@ from ._codex_notice_projection import (
     project_notice,
     projection_result,
 )
-from ._codex_notice_templates import EXACT_NOTIFICATION_TEMPLATES
 from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
 from .diagnostics import (
     ModelFailure,
@@ -75,12 +74,27 @@ DISABLED_FEATURES = (
     "tool_suggest",
 )
 
-# Acceptance is separate from diagnostic pattern hints. These complete public
-# messages affect display/accuracy only, not identity, route or permissions.
-_INFORMATIONAL_NOTICES = frozenset(
-    text for text, code in EXACT_NOTIFICATION_TEMPLATES.items()
-    if code in {"transcript_v2_deprecation", "compaction_accuracy_notice"}
+# Full upstream statements of a violated configured boundary, not unknown
+# warning words. Provenance: CODEX_EVENT_ACCEPTANCE.md. Optional masking,
+# metadata, deprecation, hook-trust hints and same-provider model reroutes do
+# not establish a permissions violation by themselves.
+_SANDBOX_DISABLED_NOTICE = (
+    "Credential masking is inactive because sandboxing is disabled. Commands "
+    "will receive unmasked credentials. Select a sandboxed permission profile "
+    "to use credential masking."
 )
+
+
+def _known_notice_boundary_violation(message: str) -> bool:
+    if message == _SANDBOX_DISABLED_NOTICE:
+        return True
+    match = re.fullmatch(
+        r"in-process app-server event stream lagged; dropped ([1-9][0-9]{0,19}) events",
+        message,
+    )
+    return match is not None and int(match[1]) <= 2**64 - 1
+
+
 _MAX_NOTIFICATIONS = 16
 
 
@@ -203,14 +217,10 @@ class _ExecEvents:
                 message = cast("dict[str, Any]", notification).get("message")
                 if not isinstance(message, str):
                     raise RpcFailure("CODEX_INVALID_EVENT")
-                informational = (
-                    self.cli_version == "0.163.0-alpha.11"
-                    and message in _INFORMATIONAL_NOTICES
-                )
-                if not informational:
-                    self.notification_policy = "requires_review"
+                if _known_notice_boundary_violation(message):
+                    self.notification_policy = "boundary_violation"
                 elif self.notification_policy == "not_observed":
-                    self.notification_policy = "informational"
+                    self.notification_policy = "nonfatal"
                 if self.notification_details and self.notification is None:
                     self.notification = notification_diagnostic(
                         cast("dict[str, Any]", notification).get("message")
@@ -222,7 +232,7 @@ class _ExecEvents:
                             )
                         except Exception:
                             # No exception text/traceback, and never replace the
-                            # primary notification rejection with projector failure.
+                            # protocol/acceptance facts with projector failure.
                             projection = projection_result(evidence="projection_failed")
                         self.notification["projection"] = projection
                 return
@@ -269,11 +279,10 @@ class _ExecEvents:
         elif kind == "error" or (kind == "turn.failed" and self.turn_started):
             if self.event_counts.get("error", 0) > _MAX_NOTIFICATIONS:
                 raise RpcFailure("CODEX_NOTIFICATION_LIMIT", "blocked")
-            error = event.get("error", event)
-            message = (
-                cast("dict[str, Any]", error).get("message", "")
-                if isinstance(error, dict) else ""
-            )
+            error = event if kind == "error" else event.get("error")
+            if not isinstance(error, dict):
+                raise RpcFailure("CODEX_INVALID_EVENT")
+            message = cast("dict[str, Any]", error).get("message")
             if not isinstance(message, str):
                 raise RpcFailure("CODEX_INVALID_EVENT")
             # Classify only in memory. No classification authorizes stopping the
@@ -306,23 +315,15 @@ class _ExecEvents:
             )
         if not self.completed:
             raise RpcFailure("CODEX_INCOMPLETE_TURN", "invalid_output")
-        if self.stream_error is not None:
-            # Exec drops willRetry. Preserve completed, but do not silently
-            # accept a contradictory error/completed combination in this policy.
+        # The pinned CLI emits retryable errors as top-level error without
+        # willRetry, then completed/exit 0 on recovery. Successful final facts
+        # win over intermediate text; failed/invalid/nonzero paths above do not.
+        if self.notification_policy == "boundary_violation":
             raise _CodexFailure(
-                "CODEX_STREAM_ERROR_REQUIRES_REVIEW", "blocked",
+                "CODEX_RUNTIME_BOUNDARY_VIOLATION", "blocked",
                 failure=ModelFailure(
                     stage="execution", kind="policy",
-                    summary="cli_stream_error_requires_review", event_type="error",
-                    exit_code=exit_code,
-                ),
-            )
-        if self.notification_policy == "requires_review":
-            raise _CodexFailure(
-                "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
-                failure=ModelFailure(
-                    stage="execution", kind="policy",
-                    summary="cli_notification_requires_review", event_type="item.error",
+                    summary="runtime_boundary_violation", event_type="item.error",
                     exit_code=exit_code,
                 ),
             )
@@ -774,7 +775,7 @@ class CodexModelRunner:
                             return outcome("blocked", "MODEL_IDEMPOTENCY_CONFLICT")
                         return replace(cached[1], task_id=task.task_id)
                     try:
-                        output, usage = await self._execute(task, prompt, execution)
+                        output, usage, warning_codes = await self._execute(task, prompt, execution)
                     except RpcFailure as exc:
                         if exc.status == "waiting_quota":
                             self._quota_until = datetime.now(UTC) + timedelta(
@@ -792,7 +793,8 @@ class CodexModelRunner:
                             ),
                         )
                     result = outcome(
-                        "succeeded", output=output, usage=usage, result_hash=canonical_hash(output)
+                        "succeeded", output=output, usage=usage, result_hash=canonical_hash(output),
+                        warning_codes=warning_codes,
                     )
                     if len(self._cache) >= 256:
                         self._cache.pop(next(iter(self._cache)))
@@ -890,7 +892,7 @@ class CodexModelRunner:
 
     async def _execute(
         self, task: ModelTask, prompt: bytes, execution: _ExecutionState
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    ) -> tuple[dict[str, Any], dict[str, Any], tuple[str, ...]]:
         async with self._workspace("zhizhi-codex-") as cwd:
             await self._preflight(cwd, execution)
             schema = cwd / "output-schema.json"
@@ -957,4 +959,9 @@ class CodexModelRunner:
                     raise ValueError("Secret-like model output")
             except OUTPUT_ERRORS:
                 raise RpcFailure("OUTPUT_SCHEMA_INVALID", "invalid_output") from None
-            return output, events.usage
+            warnings: list[str] = []
+            if events.event_counts.get("item.error"):
+                warnings.append("codex_nonfatal_notification")
+            if events.stream_error is not None:
+                warnings.append("codex_recovered_stream_error")
+            return output, events.usage, tuple(warnings)

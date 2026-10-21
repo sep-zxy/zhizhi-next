@@ -10,10 +10,9 @@ from ahadiff.knowledge_platform.model._codex_notice_templates import (
 )
 from ahadiff.knowledge_platform.model.codex_runner import _ExecEvents
 from ahadiff.knowledge_platform.model.diagnostics import notification_diagnostic
-from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
 
 
-def complete_then_reject(events):
+def complete_then_accept(events):
     for item in [
         {"type": "thread.started", "thread_id": "synthetic-thread"},
         {"type": "turn.started"},
@@ -21,8 +20,7 @@ def complete_then_reject(events):
         {"type": "turn.completed", "usage": {"output_tokens": 1}},
     ]:
         events.accept(json.dumps(item).encode())
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.finish(0)
+    events.finish(0)
     assert events.provider_turn_state == "completed"
 
 
@@ -43,7 +41,7 @@ def test_exact_templates_match_reviewed_official_source_record():
 
 
 @pytest.mark.parametrize(('message', 'code'), EXACT_NOTIFICATION_TEMPLATES.items())
-def test_exact_public_template_remains_blocked_without_text_or_actual_model(message, code):
+def test_exact_public_template_keeps_safe_diagnostic_without_acceptance_veto(message, code):
     diagnostic = notification_diagnostic(message)
     assert diagnostic['classifier_version'] == 2
     assert diagnostic['rule_id'] == 'codex_exec_notice_v2:' + code
@@ -57,7 +55,7 @@ def test_exact_public_template_remains_blocked_without_text_or_actual_model(mess
     }}).encode())
     assert events.completed is False and events.text is None
     assert events.notification == diagnostic
-    complete_then_reject(events)
+    complete_then_accept(events)
 
 
 @pytest.mark.parametrize('change', [
@@ -81,7 +79,7 @@ def test_mutations_and_multiple_notices_cannot_claim_exact_template(message, cha
         'type': 'error', 'message': changed,
     }}).encode())
     assert events.completed is False and events.text is None
-    complete_then_reject(events)
+    complete_then_accept(events)
 
 
 def test_byte_count_never_classifies_unknown_notice():

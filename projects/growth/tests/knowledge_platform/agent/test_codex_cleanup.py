@@ -174,7 +174,7 @@ def retained_workspace(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(("scenario", "code"), [
-    ("notification_warning", "CODEX_NOTIFICATION_REQUIRES_REVIEW"),
+    ("notification_boundary", "CODEX_RUNTIME_BOUNDARY_VIOLATION"),
     ("wrong_version", "CODEX_VERSION_MISMATCH"),
     ("auth_missing", "SUBSCRIPTION_AUTH"),
     ("provider_failure_transport", "PROVIDER_FAILURE"),
@@ -252,7 +252,7 @@ def test_primary_cancellation_survives_workspace_cleanup_failure(tmp_path, retai
     assert runner.cleanup_diagnostics[-1]["status"] == "failed"
 
 
-@pytest.mark.parametrize("scenario", ["notification_warning", "arithmetic"])
+@pytest.mark.parametrize("scenario", ["notification_boundary", "arithmetic"])
 def test_process_cleanup_is_independent_and_blocks_workspace_deletion(
     tmp_path, monkeypatch, scenario
 ):
@@ -275,7 +275,7 @@ def test_process_cleanup_is_independent_and_blocks_workspace_deletion(
     monkeypatch.setattr(codex_runner, "cleanup_owned_workspace",
                         lambda *a: pytest.fail("Process cleanup not confirmed"))
     report = asyncio.run(probe_codex(settings(tmp_path, scenario), model_smoke=True))
-    expected = ("CODEX_NOTIFICATION_REQUIRES_REVIEW" if scenario == "notification_warning"
+    expected = ("CODEX_RUNTIME_BOUNDARY_VIOLATION" if scenario == "notification_boundary"
                 else "CODEX_CLEANUP_FAILED")
     assert report["model"]["error_code"] == expected
     assert report["model"]["answer_matches_fixed_schema"] is False
@@ -283,7 +283,7 @@ def test_process_cleanup_is_independent_and_blocks_workspace_deletion(
     assert process["cleanup"]["status"] == "failed"
     assert process["cleanup"]["errors"][0]["winerror"] == 5
     assert process["failure_type"] == (
-        "adapter_error" if scenario == "notification_warning" else None
+        "adapter_error" if scenario == "notification_boundary" else None
     )
     assert process["errno"] is None and process["winerror"] is None
     assert report["cleanup"][-1]["attempts"] == 0
@@ -306,7 +306,7 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
     ]
     if primary_notice:
         protocol.append({"type": "item.completed", "item": {
-            "type": "error", "message": "synthetic warning",
+            "type": "error", "message": codex_runner._SANDBOX_DISABLED_NOTICE,
         }})
     protocol.extend([
         {"type": "item.completed", "item": {"type": "agent_message", "text": "isolated"}},
@@ -369,7 +369,7 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
     from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
     expected_error = (RpcFailure if primary_notice or join_error == "os_error"
                       else asyncio.CancelledError)
-    expected_code = ("CODEX_NOTIFICATION_REQUIRES_REVIEW" if primary_notice
+    expected_code = ("CODEX_RUNTIME_BOUNDARY_VIOLATION" if primary_notice
                      else "CODEX_CLEANUP_FAILED" if join_error == "os_error" else None)
     with pytest.raises(expected_error, match=expected_code):
         asyncio.run(run())
@@ -378,7 +378,7 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
     assert process_report["failure_type"] == ("adapter_error" if primary_notice else None)
     if primary_notice:
         assert process_report["event_counts"]["item.error"] == 1
-        assert process_report["notification"]["code"] == "unknown_notification"
+        assert process_report["notification"]["code"] == "credential_masking_sandbox_disabled"
     else:
         assert process_report["event_counts"] == {
             "thread.started": 1, "turn.started": 1, "item.completed": 1, "turn.completed": 1,

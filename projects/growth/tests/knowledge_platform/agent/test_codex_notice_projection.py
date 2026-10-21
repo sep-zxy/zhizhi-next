@@ -29,7 +29,6 @@ from ahadiff.knowledge_platform.model._codex_notice_projection import (
 from ahadiff.knowledge_platform.model._codex_notice_templates import EXACT_NOTIFICATION_TEMPLATES
 from ahadiff.knowledge_platform.model.codex_runner import CodexModelRunner, _ExecEvents
 from ahadiff.knowledge_platform.model.diagnostic_probe import fixed_public_smoke_task, probe_codex
-from ahadiff.knowledge_platform.model.pi_runner import RpcFailure
 
 
 def settings(tmp_path, scenario="notification_ignored_configuration"):
@@ -122,7 +121,7 @@ def test_official_fixed_hints_must_correspond_to_key(key, hint):
 
 
 @pytest.mark.parametrize("message", list(EXACT_NOTIFICATION_TEMPLATES))
-def test_projection_does_not_authorize_unverified_cli_version(message):
+def test_projection_does_not_control_nonfatal_protocol_acceptance(message):
     result = project_notice(message)
     assert result["template_id"] == EXACT_NOTIFICATION_TEMPLATES[message]
     assert result["evidence"] == "exact_public_template_text"
@@ -139,8 +138,7 @@ def test_projection_does_not_authorize_unverified_cli_version(message):
         {"type": "turn.completed", "usage": {"output_tokens": 1}},
     ]:
         events.accept(json.dumps(item).encode())
-    with pytest.raises(RpcFailure, match="CODEX_NOTIFICATION_REQUIRES_REVIEW"):
-        events.finish(0)
+    events.finish(0)
     assert events.provider_turn_state == "completed"
 
 
@@ -443,7 +441,7 @@ def test_projection_notification_primary_survives_cleanup_failure(
     monkeypatch.setattr(codex_runner, "_stop", stop)
     monkeypatch.setattr(codex_runner, "cleanup_owned_workspace", retained_workspace)
     runner = CodexModelRunner(
-        settings(tmp_path),
+        settings(tmp_path, "notification_ignored_configuration_boundary"),
         collect_process_diagnostics=True,
         collect_notification_diagnostics=True,
         collect_notice_projection=True,
@@ -457,7 +455,7 @@ def test_projection_notification_primary_survives_cleanup_failure(
         return first, replay
 
     first, replay = asyncio.run(run())
-    assert first.error_code == "CODEX_NOTIFICATION_REQUIRES_REVIEW" and first.output is None
+    assert first.error_code == "CODEX_RUNTIME_BOUNDARY_VIOLATION" and first.output is None
     assert replay.error_code == "CODEX_CLEANUP_PENDING" and replay.output is None
     assert len(stops) == 3 and not runner._cache
     assert runner.process_diagnostics[-1]["notification"]["projection"]["template_id"] == (
@@ -567,15 +565,15 @@ def test_non_text_stays_unknown(message):
         ("notification_multiple", None, "unknown"),
     ],
 )
-def test_opt_in_fixed_probe_once_blocked_cleaned_and_redacted(
+def test_opt_in_fixed_probe_accepts_nonfatal_notice_once_cleaned_and_redacted(
     tmp_path, scenario, template, family, capsys, caplog
 ):
     report = asyncio.run(
         probe_codex(settings(tmp_path, scenario), model_smoke=True, notice_projection=True)
     )
-    assert report["model"]["error_code"] == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
-    assert report["model"]["status"] == "blocked"
-    assert report["model"]["answer_matches_fixed_schema"] is False
+    assert report["model"]["error_code"] is None
+    assert report["model"]["status"] == "succeeded"
+    assert report["model"]["answer_matches_fixed_schema"] is True
     assert report["model"]["actual_model_id"] is None
     process = report["processes"][-1]
     projection = process["notification"]["projection"]
@@ -584,7 +582,7 @@ def test_opt_in_fixed_probe_once_blocked_cleaned_and_redacted(
     assert process["event_counts"]["item.error"] == expected_count
     assert process["provider_turn_state"] == "completed" and process["exit_code"] == 0
     assert process["terminal_event"] == "turn.completed"
-    assert process["notification_policy"] == "requires_review"
+    assert process["notification_policy"] == "nonfatal"
     assert process["cleanup"]["status"] == "completed"
     assert all(item["status"] == "completed" for item in report["cleanup"])
     assert "never-log-me" not in json.dumps(report)
@@ -643,7 +641,7 @@ def test_projection_without_diagnostic_collectors_cannot_run(tmp_path):
     assert not (tmp_path / "calls.jsonl").exists()
 
 
-def test_projection_exception_keeps_primary_error_and_no_exception_text(
+def test_projection_exception_does_not_change_acceptance_or_leak_exception_text(
     tmp_path, monkeypatch, caplog, capsys
 ):
     def broken(_message):
@@ -651,7 +649,7 @@ def test_projection_exception_keeps_primary_error_and_no_exception_text(
 
     monkeypatch.setattr(codex_runner, "project_notice", broken)
     report = asyncio.run(probe_codex(settings(tmp_path), model_smoke=True, notice_projection=True))
-    assert report["model"]["error_code"] == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
+    assert report["model"]["error_code"] is None
     assert report["processes"][-1]["notification"]["projection"]["evidence"] == "projection_failed"
     assert all(item["status"] == "completed" for item in report["cleanup"])
     for secret in ("synthetic-secret-marker", "private-path-marker", "never-log-me"):

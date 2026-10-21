@@ -312,7 +312,10 @@ def test_workflow_audit_preserves_requested_model_and_unknown_actual(tmp_path):
     domain = RecordingDomain()
     workflow = KnowledgeWorkflow(domain, None, WorkflowSettings(owner_id="fixture-owner"))
     result = asyncio.run(runner(tmp_path, "quota").run(task()))
-    metadata = {**asdict(result), "debug": "private diagnostic", "output": {"private": True}}
+    metadata = {**asdict(result), "debug": "private diagnostic", "output": {"private": True},
+                "warning_codes": ["codex_nonfatal_notification", "codex_recovered_stream_error",
+                                  "synthetic-private-warning"]}
+    metadata = json.loads(json.dumps(metadata, default=str))
     settled = workflow._settle_model(
         {"task_id": "fixture-task", "lease_token": "fixture-lease"},
         {"status": "waiting_quota", "model": metadata, "model_attempts": [metadata]},
@@ -323,6 +326,10 @@ def test_workflow_audit_preserves_requested_model_and_unknown_actual(tmp_path):
     for saved in [audit["model"], *audit["model_attempts"]]:
         assert saved["model_id"] is None and saved["requested_model_id"] == "fixture-model"
         assert "debug" not in saved and "output" not in saved
+        assert saved["warning_codes"] == [
+            "codex_nonfatal_notification", "codex_recovered_stream_error",
+        ]
+        assert "synthetic-private-warning" not in json.dumps(saved)
         assert saved["failure"]["summary"] == "subscription_quota_exhausted"
 
 
@@ -425,17 +432,15 @@ def test_provider_failure_has_controlled_diagnostic_not_raw_message(
     "scenario",
     ["notification_warning", "notification_reroute"],
 )
-def test_nonfatal_cli_notifications_still_fail_closed_without_mislabeling_provider_failure(
+def test_nonfatal_cli_notifications_preserve_success_with_safe_warning(
     tmp_path, scenario
 ):
     from ahadiff.knowledge_platform.generation.service import result_metadata
 
     result = asyncio.run(runner(tmp_path, scenario).run(task()))
-    assert result.status == "blocked"
-    assert result.error_code == "CODEX_NOTIFICATION_REQUIRES_REVIEW"
-    assert result.failure is not None and result.failure.kind == "policy"
-    assert result.failure.summary == "cli_notification_requires_review"
-    assert result.failure.event_type == "item.error" and result.output is None
+    assert result.status == "succeeded" and result.output is not None
+    assert result.error_code is None and result.failure is None
+    assert result.model_id is None and result.warning_codes == ("codex_nonfatal_notification",)
     encoded = json.dumps(result_metadata(result), default=str)
     assert "never-log-me" not in encoded and "fallback-model" not in encoded
 
@@ -447,7 +452,7 @@ def test_item_notice_does_not_hide_natural_nonzero_exit(tmp_path):
     assert result.status == "failed" and result.error_code == "CODEX_PROCESS_FAILED"
     assert result.output is None and result.failure.exit_code == 1
     process = model.process_diagnostics[-1]
-    assert process["notification_policy"] == "requires_review"
+    assert process["notification_policy"] == "nonfatal"
     assert process["provider_turn_state"] == "incomplete"
 
 
