@@ -71,6 +71,22 @@ if scenario.startswith("notification_"):
         if scenario == "notification_reroute"
         else "runtime warning; private detail=never-log-me"
     )
+    message = {
+        "notification_ignored_configuration": (
+            "Codex is ignoring 1 unrecognized configuration setting. "
+            "Check for typos or deprecated settings.\n"
+            "  system (C:\\never-log-me\\config.toml): `never-log-me` is ignored."
+        ),
+        "notification_legacy_windows": (
+            "Ignoring deprecated managed config file at C:\\never-log-me\\managed_config.toml; "
+            "CODEX_HOME/managed_config.toml is no longer supported on Windows. "
+            "Use %ProgramData%\\OpenAI\\Codex\\requirements.toml for enforced settings "
+            "or config.toml for defaults."
+        ),
+        "notification_transport_notice": (
+            "Falling back from WebSockets to HTTPS transport. never-log-me"
+        ),
+    }.get(scenario, message)
     emit({"type": "item.completed", "item": {"type": "error", "message": message}})
     if scenario == "notification_multiple":
         emit({"type": "item.completed", "item": {"type": "error",

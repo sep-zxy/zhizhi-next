@@ -156,3 +156,46 @@ job handle；创建/绑定与 handle-close 同时失败时，创建/绑定原错
 WebSocket fallback、transcript 保存失败及 Code Mode host 失败含动态错误后缀，不作为
 精确规则、不输出后缀。后续只有获准的固定公开输入才能产生新的诊断，仍仅在内存匹配
 已审模板并输出固定 ID；若未命中，根因继续明确未知，不以原文/哈希输出换取结论。
+
+## 独立显式通知投影 v1
+
+仅在固定公开算术探针另加 `--notice-projection` 时启用；它必须与
+`--model-smoke` 同时出现。CLI 必须精确为 `0.163.0-alpha.11`，路由仍为
+`openai/gpt-6.1-sol`，不兼容时不发模型请求。runner 在子进程和缓存访问前
+独立验证固定任务完整语义指纹、task/dedupe ID、空 trace 与 deadline 及两个诊断
+collector，不能把这个开关用于任意 prompt/schema/知识材料。普通任务日志不变。
+
+包内原诊断入口的参数为：
+
+```text
+codex-diagnostic.cmd --codex-exe <已有官方CLI绝对路径> --codex-home <已有登录目录绝对路径> --model-smoke --notice-projection
+```
+
+这只是参数契约，不是运行授权或自动重试计划。真实调用次数仍由主协调控制。
+
+新的 `processes[*].notification.projection` 是独立的固定枚举对象：版本、固定官方
+commit、template_id/reason_id（或 null）、最多一个 family、evidence 和
+`upstream_kind=not_preserved_by_exec_jsonl`。它不输出原文/删节原文、动态槽、配置键、
+路径、账号、URL、哈希、词集合、槽长度或额外结构指纹，原有 v2 字节数/截断事实不变。
+输出值即使被未来调用方误传任意字符串也会收窄至固定词表。
+
+完整消息至多 8192 UTF-8 字节，不截断后猜测。不 trim/lower/Unicode 归一化；控制字符、
+相似字、首尾增字、错误计数和内嵌其他已知模板不能获得完整匹配结论。精确旧七条模板
+之外，仅新增以下完整语法；动态槽仅在内存参与验证后丢弃：
+
+- 忽略配置项：完整单/复数计数标题、最多三行来源/键、键对应的固定迁移提示、剩余计数。
+- Windows 旧 managed config：完整公开首尾文本与受限绝对路径形状。
+- 内部事件流丢失：完整固定文本与有界数字槽，数字不输出。
+
+完整语法命中标 `official_template_shape_match`，表示形状相同，不证明消息可信来源，
+不等于恢复已丢失的上游类型，更不证明本次 Windows 144 字节通知的根因。
+transport/persistence/code-mode 的动态错误尾不作为完整语法，仅可返回一个固定
+`family_hint`；识别到拼接/内嵌模板则 ambiguous，其他情况 unknown。
+全部 producer 文件、固定 blob SHA、行号与边界在
+`deploy/windows-portable/codex-notice-projection-review.json`，没有读取任何用户配置。
+
+任何结果仍 `CODEX_NOTIFICATION_REQUIRES_REVIEW`、无有效答案、无重试/回退/权限扩展。
+投影器自身异常只记固定 `projection_failed`，不覆盖主错误、不输出异常文本；原
+清理、取消、未完成状态锁存与缓存门禁保留。若下一次授权探针仍 unknown 或 family
+不足以定因，停止猜模板和重建循环，明确需要用户在本机查看那一条通知；本补丁不提供
+人工窗口、不将原文送入控制台/JSON/日志/剪贴板，也不承诺已经获得该人工原文证据。

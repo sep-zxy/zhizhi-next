@@ -1,0 +1,155 @@
+{
+  "reviewed_at_utc": "2026-10-21T15:08:00Z",
+  "repository": "openai/codex",
+  "commit": "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3",
+  "cli_version": "0.163.0-alpha.11",
+  "projection_version": 1,
+  "scope": {
+    "explicit_flag": "--notice-projection",
+    "requires": "--model-smoke",
+    "task_fingerprint": "84876861b54346f1487a90314acfedc2ceb0180745186eca4f3ab370ac16749a",
+    "task_id": "codex-cli-public-arithmetic-smoke",
+    "dedupe_key": "codex-cli-public-arithmetic-smoke-v1",
+    "provider": "openai",
+    "model": "gpt-6.1-sol",
+    "max_utf8_bytes": 8192,
+    "trace_id": "",
+    "deadline": null
+  },
+  "mapping": {
+    "path": "codex-rs/exec/src/event_processor_with_jsonl_output.rs",
+    "lines": "409-505",
+    "sha": "73e0c9d911c82aae67c44e6b1a4ce54c7092b6be",
+    "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/event_processor_with_jsonl_output.rs#L409"
+  },
+  "exact_candidates_review": "codex-notification-review.json",
+  "full_grammar_candidates": [
+    {
+      "id": "ignored_configuration_fields",
+      "reason_id": "unrecognized_configuration",
+      "family": "configuration",
+      "source": {
+        "path": "codex-rs/config/src/strict_config.rs",
+        "lines": "238-343",
+        "sha": "b8e8f8d88dae1c01a839aebe462756db5b0be6b1",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/config/src/strict_config.rs#L238"
+      },
+      "formatter": {
+        "path": "codex-rs/config/src/config_layer_source.rs",
+        "lines": "78-109",
+        "sha": "c044ff5593e7257209f08736782d9e487e96a285",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/config/src/config_layer_source.rs#L78"
+      },
+      "grammar": "Original entire message only: exact singular/plural header and count; one to three source/key rows; key-specific exact public hint; exact remaining-count suffix if count > 3. No trailing text. Source/key slots discarded.",
+      "source_prefixes": [
+        "packaged defaults (",
+        "MDM (",
+        "system (",
+        "enterprise-managed (",
+        "user (",
+        "project (",
+        "legacy managed_config.toml (",
+        "requirements ("
+      ],
+      "source_literal": "session-flags",
+      "conservative_bounds": "1..9999 total settings, opaque slots <=1024 UTF-8 bytes. Retain fixed MDM colon, enterprise comma-space, project /config.toml. A bounded_label truncation that loses required syntax is NOT a full shape match. No normalization or dynamic source/key output."
+    },
+    {
+      "id": "windows_legacy_managed_config",
+      "reason_id": "unsupported_legacy_config_location",
+      "family": "configuration",
+      "source": {
+        "path": "codex-rs/config/src/loader/layer_io.rs",
+        "lines": "74-96",
+        "sha": "1f6bf6b92d682e9fe3ff6d3b1be1bc560f0a121c",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/config/src/loader/layer_io.rs#L74"
+      },
+      "grammar": "Exact full Windows legacy-config warning, with a discarded bounded drive-absolute path ending in backslash managed_config.toml. Exact whole public suffix including %ProgramData% path. No extra suffix. UNC or truncated/invalid path shapes are not a full match."
+    },
+    {
+      "id": "in_process_event_stream_loss",
+      "reason_id": "notification_events_dropped",
+      "family": "event_stream",
+      "source": {
+        "path": "codex-rs/exec/src/lib.rs",
+        "lines": "1668-1670",
+        "sha": "f97ce42737a261fa855b8055eead32cf5b44ced2",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/lib.rs#L1668"
+      },
+      "grammar": "in-process app-server event stream lagged; dropped [1-9][0-9]{0,8} events",
+      "dynamic_output": "The count is discarded."
+    }
+  ],
+  "family_only_candidates": [
+    {
+      "family": "transport",
+      "prefix": "Falling back from WebSockets to HTTPS transport. ",
+      "source": {
+        "path": "codex-rs/core/src/responses_retry.rs",
+        "lines": "133-133",
+        "sha": "048a68bfc9bc7b80a88c1a9541a413b7a37ccd95",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/responses_retry.rs#L133"
+      }
+    },
+    {
+      "family": "persistence",
+      "prefix": "Failed to save the conversation transcript; Codex will continue retrying. Error: ",
+      "source": {
+        "path": "codex-rs/core/src/tasks/mod.rs",
+        "lines": "408-408",
+        "sha": "6a3e95ee807b562022485af0b11b1ce7e0ebf560",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/tasks/mod.rs#L408"
+      }
+    },
+    {
+      "family": "code_mode",
+      "prefix": "Code Mode is unavailable because ",
+      "source": {
+        "path": "codex-rs/core/src/tools/code_mode/mod.rs",
+        "lines": "121-121",
+        "sha": "2b241ffc7d0351bdea5c18089b63db17dce7577c",
+        "url": "https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/tools/code_mode/mod.rs#L121"
+      }
+    }
+  ],
+  "output": {
+    "keys": [
+      "projection_version",
+      "source_commit",
+      "template_id",
+      "reason_id",
+      "family",
+      "evidence",
+      "upstream_kind"
+    ],
+    "families": [
+      "unknown",
+      "ambiguous",
+      "model_metadata",
+      "configuration",
+      "code_mode",
+      "hooks",
+      "context",
+      "feature_deprecation",
+      "transport",
+      "persistence",
+      "event_stream"
+    ],
+    "evidence": [
+      "none",
+      "exact_public_template_text",
+      "official_template_shape_match",
+      "family_hint",
+      "projection_failed"
+    ],
+    "upstream_kind": "not_preserved_by_exec_jsonl"
+  },
+  "policy": {
+    "matches": "Complete original equality or bounded full grammar; no strip, lower, Unicode normalization, arbitrary text redaction or text hash. Embedded recognized anchors or concatenated templates become ambiguous. Control characters except required LF reject. Oversize invalid Unicode input remains unknown, never classify a truncated prefix.",
+    "family": "At most one constant hint from a long leading public anchor. Incomplete full-grammar candidates may yield only their family hint. Arbitrary dynamic error tails are NEVER treated as a complete template. A spoofed string can match; shape is NOT authenticated producer identity or root cause.",
+    "privacy": "No message text, dynamic slots, keys, paths, account strings, URLs, hashes, word sets, slot lengths or additional shape fingerprints in the projection. Existing v2 input-byte/truncation diagnostics remain unchanged; no additional text fingerprint.",
+    "effect": "Every item.error stays blocked with output null. No retry, model/provider fallback, new credentials, feature/config changes or permission expansion. Projection failure cannot replace primary notification rejection.",
+    "ordinary_tasks": "Collector defaults off. Runner independently verifies all fixed public task semantic fields via fingerprint, execution IDs, empty trace/deadline, exact model/version and both diagnostic collectors BEFORE subprocess or cache access.",
+    "limitations": "Non-exhaustive reviewed producer inventory. Nothing here proves the observed 144-byte unknown notification belongs to any listed producer. If the next authorized probe remains unknown or only an insufficient family hint, stop template-guess/build loops; user-local review of that one message needs a separately approved nonlogging mechanism. No human window in this patch."
+  }
+}

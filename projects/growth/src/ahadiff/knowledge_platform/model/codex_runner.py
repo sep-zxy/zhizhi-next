@@ -27,6 +27,12 @@ if TYPE_CHECKING:
 from ..portable import portable_child_environment
 from ._codex_cleanup import cleanup_failure, cleanup_owned_workspace
 from ._codex_job import CodexOwnedJob
+from ._codex_notice_projection import (
+    PROJECTION_CLI_VERSION,
+    PROJECTION_TASK_FINGERPRINT,
+    project_notice,
+    projection_result,
+)
 from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
 from .diagnostics import (
     ModelFailure,
@@ -131,8 +137,12 @@ class CodexRunnerConfig:
 class _ExecEvents:
     """Conservative allowlist for the official exec JSONL protocol, not model claims."""
 
-    def __init__(self, max_output_tokens: int, *, notification_details: bool = False) -> None:
+    def __init__(
+        self, max_output_tokens: int, *, notification_details: bool = False,
+        notice_projection: bool = False,
+    ) -> None:
         self.notification_details = notification_details
+        self.notice_projection = notification_details and notice_projection
         self.notification: dict[str, Any] | None = None
         self.max_output_tokens = max_output_tokens
         self.started = False
@@ -178,6 +188,16 @@ class _ExecEvents:
                     self.notification = notification_diagnostic(
                         cast("dict[str, Any]", notification).get("message")
                     )
+                    if self.notice_projection:
+                        try:
+                            projection = project_notice(
+                                cast("dict[str, Any]", notification).get("message")
+                            )
+                        except Exception:
+                            # No exception text/traceback, and never replace the
+                            # primary notification rejection with projector failure.
+                            projection = projection_result(evidence="projection_failed")
+                        self.notification["projection"] = projection
                 raise _CodexFailure(
                     "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
                     failure=ModelFailure(
@@ -270,6 +290,7 @@ class CodexModelRunner:
     def __init__(
         self, config: CodexRunnerConfig, *, collect_process_diagnostics: bool = False,
         collect_notification_diagnostics: bool = False,
+        collect_notice_projection: bool = False,
     ) -> None:
         self.config = config
         self._lock = asyncio.Lock()
@@ -279,6 +300,7 @@ class CodexModelRunner:
         self._collect_notification_diagnostics = (
             collect_process_diagnostics and collect_notification_diagnostics
         )
+        self._collect_notice_projection = collect_notice_projection
         self.process_diagnostics: list[dict[str, Any]] = []
         self.cleanup_diagnostics: list[dict[str, Any]] = []
         self._cleanup_pending = False
@@ -592,6 +614,21 @@ class CodexModelRunner:
                 "blocked", "CODEX_CLEANUP_PENDING",
                 failure=coded_failure_diagnostic("CODEX_CLEANUP_PENDING", stage="cleanup"),
             )
+        if self._collect_notice_projection and (
+            not self._collect_notification_diagnostics
+            or self.config.expected_version != PROJECTION_CLI_VERSION
+            or route is None or route.model_id != "gpt-6.1-sol"
+            or task.fingerprint != PROJECTION_TASK_FINGERPRINT
+            or task.task_id != "codex-cli-public-arithmetic-smoke"
+            or task.dedupe_key != "codex-cli-public-arithmetic-smoke-v1"
+            or task.deadline is not None or task.trace_id != ""
+        ):
+            return outcome(
+                "blocked", "CODEX_NOTICE_PROJECTION_SCOPE_INVALID",
+                failure=coded_failure_diagnostic(
+                    "CODEX_NOTICE_PROJECTION_SCOPE_INVALID", stage="validation"
+                ),
+            )
         if (
             route is None
             or not route.account_qualified
@@ -816,6 +853,7 @@ class CodexModelRunner:
             events = _ExecEvents(
                 task.max_output_tokens,
                 notification_details=self._collect_notification_diagnostics,
+                notice_projection=self._collect_notice_projection,
             )
             execution.stage = "execution"
             code, _ = await self._process(args, cwd, payload=prompt, events=events)

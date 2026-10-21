@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ._codex_notice_projection import PROJECTION_CLI_VERSION
 from .codex_runner import CodexModelRunner, CodexRunnerConfig
 from .contracts import ModelTask
 from .diagnostics import coded_failure_diagnostic, sanitized_failure
@@ -46,7 +47,7 @@ def fixed_public_smoke_task() -> ModelTask:
 
 
 async def probe_codex(
-    config: CodexRunnerConfig, *, model_smoke: bool = False
+    config: CodexRunnerConfig, *, model_smoke: bool = False, notice_projection: bool = False
 ) -> dict[str, Any]:
     """Run bounded existing-login checks, optionally one explicit fixed model call.
 
@@ -57,6 +58,7 @@ async def probe_codex(
     runner = CodexModelRunner(
         config, collect_process_diagnostics=True,
         collect_notification_diagnostics=model_smoke,
+        collect_notice_projection=notice_projection,
     )
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -73,7 +75,15 @@ async def probe_codex(
         "platform_e2e": "not_run",
     }
     try:
-        if not config.enabled or not config.reuse_existing_login:
+        if notice_projection and (
+            not model_smoke or config.expected_version != PROJECTION_CLI_VERSION
+        ):
+            report["status"] = "blocked"
+            report["error_code"] = "CODEX_NOTICE_PROJECTION_SCOPE_INVALID"
+            report["failure"] = sanitized_failure(coded_failure_diagnostic(
+                "CODEX_NOTICE_PROJECTION_SCOPE_INVALID", stage="validation"
+            ))
+        elif not config.enabled or not config.reuse_existing_login:
             report["status"] = "blocked"
             report["failure"] = sanitized_failure(
                 coded_failure_diagnostic(
@@ -139,6 +149,10 @@ def main() -> None:
         "--model-smoke", action="store_true",
         help="Explicitly run one fixed, public 2+2 request; omitted means no model request.",
     )
+    parser.add_argument(
+        "--notice-projection", action="store_true",
+        help="Opt in to constant-only notification projection for the fixed --model-smoke case.",
+    )
     args = parser.parse_args()
     try:
         if not args.codex_exe.is_absolute() or not args.codex_home.is_absolute():
@@ -157,7 +171,9 @@ def main() -> None:
             timeout_seconds=120,
             max_input_bytes=16384,
         )
-        report = asyncio.run(probe_codex(config, model_smoke=args.model_smoke))
+        report = asyncio.run(probe_codex(
+            config, model_smoke=args.model_smoke, notice_projection=args.notice_projection
+        ))
     except Exception:
         # Keep CLI setup failures redacted as well. Never print exception repr/tracebacks.
         report = {
