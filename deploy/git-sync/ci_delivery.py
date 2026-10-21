@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from source_bootstrap import REPOSITORY, exact_hex, git, json_bytes, push_exact_parent, safe
@@ -194,7 +195,21 @@ def validate_stage_files(staged: Path, release_id: str) -> None:
         raise ValueError("Unexpected or missing file outside the sealed candidate")
 
 
-def publish(staged: Path, expected_delivery: str, expected_source: str) -> dict:
+def record_publication(path: Path, publication: dict) -> None:
+    """Keep confirmed remote state available even if later local cleanup fails."""
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        temporary.write_bytes(json_bytes(publication))
+        temporary.replace(path)
+    except OSError:
+        # A local receipt failure cannot undo the remote write. Preserve a safe
+        # log record while keeping the receipt failure fatal, never retrying push.
+        print(json.dumps({**publication, "receipt_status": "write_failed"}), flush=True)
+        raise
+
+
+def publish(staged: Path, expected_delivery: str, expected_source: str,
+            *, receipt_path: Path | None = None) -> dict:
     exact_hex(expected_delivery, 40)
     exact_hex(expected_source, 40)
     if (os.environ.get("GITHUB_ACTIONS") != "true"
@@ -229,9 +244,15 @@ def publish(staged: Path, expected_delivery: str, expected_source: str) -> dict:
     }
     remote = f"https://github.com/{REPOSITORY}.git"
     target = "refs/heads/windows-delivery"
-    with tempfile.TemporaryDirectory(prefix="github-delivery-") as directory:
-        repo = Path(directory)
+    temporary = tempfile.TemporaryDirectory(prefix="github-delivery-")
+    publication = None
+    try:
+        repo = Path(temporary.name)
         git(repo, "init", "--bare")
+        # No detached auto-maintenance may race deletion of this throwaway repo.
+        # These settings are local to it, never the runner's global Git config.
+        git(repo, "config", "gc.auto", "0")
+        git(repo, "config", "maintenance.auto", "false")
         observed = git(repo, "ls-remote", remote, target, env=env).decode().split()
         if observed != [expected_delivery, target]:
             raise ValueError("Delivery branch moved; no files or refs published")
@@ -264,9 +285,29 @@ def publish(staged: Path, expected_delivery: str, expected_source: str) -> dict:
         observed = git(repo, "ls-remote", remote, target, env=env).decode().split()
         if observed != [commit, target]:
             raise ValueError("Delivery push uncertain; inspect remote before retry")
-    return {**result, "status": "candidate_git_published", "delivery_commit": commit,
+        publication = {
+            **result, "status": "candidate_git_published", "delivery_commit": commit,
             "previous_delivery_commit": expected_delivery, "tree": tree,
-            "windows_e2e": "not_run", "final_delivery": False}
+            "windows_e2e": "not_run", "final_delivery": False,
+            "cleanup": {"status": "pending"},
+        }
+        if receipt_path is not None:
+            record_publication(receipt_path, publication)
+    finally:
+        try:
+            temporary.cleanup()
+            cleanup = {"status": "completed"}
+        except OSError as error:
+            cleanup = {"status": "warning", "error_type": type(error).__name__,
+                       "errno": error.errno}
+            # Report only error class/code, not paths, stderr or credential env.
+            # Do not replace any primary push/CAS/readback/receipt exception.
+            print(json.dumps({"event": "delivery_cleanup", **cleanup}), file=sys.stderr)
+        if publication is not None:
+            publication["cleanup"] = cleanup
+    if receipt_path is not None:
+        record_publication(receipt_path, publication)
+    return publication
 
 
 if __name__ == "__main__":
@@ -283,6 +324,8 @@ if __name__ == "__main__":
     result = stage(args.bundle, build_receipt, args.expected_source, args.stage,
                    args.maximum_product_bytes)
     if args.publish_expected_delivery:
-        result = publish(args.stage, args.publish_expected_delivery, args.expected_source)
-    args.receipt.write_bytes(json_bytes(result))
+        result = publish(args.stage, args.publish_expected_delivery, args.expected_source,
+                         receipt_path=args.receipt)
+    else:
+        args.receipt.write_bytes(json_bytes(result))
     print(json.dumps(result, ensure_ascii=False))

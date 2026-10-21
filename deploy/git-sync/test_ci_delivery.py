@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import errno
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -272,6 +276,149 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(workflow.count("contents: write"), 1)
         self.assertIn("needs: build", workflow)
         self.assertIn("persist-credentials: false", workflow)
+
+
+class PublicationOutcomeTests(unittest.TestCase):
+    """Mocked Git only: establish error ordering, not a real publication."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        bundle, receipt = fixture(self.root)
+        self.staged = self.root / "stage"
+        ci.stage(bundle, receipt, SOURCE, self.staged)
+        self.receipt = self.root / "publication.json"
+        self.operations = []
+        self.cleanup_error = None
+        self.readback = "d" * 40
+        self.initial = "a" * 40
+        self.cleanup_receipt = None
+        self.stderr, self.stdout = io.StringIO(), io.StringIO()
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(contextlib.redirect_stderr(self.stderr))
+        self.stack.enter_context(contextlib.redirect_stdout(self.stdout))
+        self.stack.enter_context(patch.dict(os.environ, {
+            "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+            "GITHUB_REPOSITORY": ci.REPOSITORY, "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": SOURCE,
+            "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_TOKEN": "not-a-real-credential",
+        }, clear=True))
+        self.stack.enter_context(patch.object(ci.tempfile, "TemporaryDirectory", return_value=
+            SimpleNamespace(name=str(self.root / "throwaway.git"), cleanup=self.cleanup)))
+        self.stack.enter_context(patch.object(ci, "git", side_effect=self.git))
+        self.push = self.stack.enter_context(patch.object(ci, "push_exact_parent"))
+
+    def git(self, repo, *args, **kwargs):
+        self.operations.append(args)
+        if args[0] == "ls-remote":
+            calls = sum(operation[0] == "ls-remote" for operation in self.operations)
+            value = self.initial if calls == 1 else self.readback
+            return (value + "\trefs/heads/windows-delivery\n").encode()
+        if args[0] in {"hash-object", "write-tree", "commit-tree"}:
+            return (("d" if args[0] == "commit-tree" else "b") * 40 + "\n").encode()
+        return b""
+
+    def cleanup(self):
+        if self.receipt.exists():
+            self.cleanup_receipt = json.loads(self.receipt.read_text())
+        if self.cleanup_error is not None:
+            raise self.cleanup_error
+
+    def publish(self):
+        return ci.publish(self.staged, "a" * 40, SOURCE, receipt_path=self.receipt)
+
+    def test_confirmed_publication_is_recorded_before_successful_cleanup(self):
+        result = self.publish()
+        self.assertEqual(self.cleanup_receipt["status"], "candidate_git_published")
+        self.assertEqual(self.cleanup_receipt["cleanup"], {"status": "pending"})
+        self.assertEqual(result["cleanup"], {"status": "completed"})
+        self.assertEqual(json.loads(self.receipt.read_text()), result)
+        self.push.assert_called_once()
+        fetch = next(i for i, op in enumerate(self.operations) if op[0] == "fetch")
+        self.assertIn(("config", "gc.auto", "0"), self.operations[:fetch])
+        self.assertIn(("config", "maintenance.auto", "false"), self.operations[:fetch])
+
+    def test_cleanup_failure_preserves_confirmed_state_without_republishing(self):
+        self.cleanup_error = OSError(errno.ENOTEMPTY, "sensitive-local-path")
+        result = self.publish()
+        self.assertEqual(self.cleanup_receipt["delivery_commit"], "d" * 40)
+        self.assertEqual(result["status"], "candidate_git_published")
+        self.assertEqual(result["cleanup"], {
+            "status": "warning", "error_type": "OSError", "errno": errno.ENOTEMPTY})
+        self.assertFalse(result["final_delivery"])
+        self.assertEqual(result["windows_e2e"], "not_run")
+        self.assertEqual(json.loads(self.receipt.read_text()), result)
+        self.push.assert_called_once()
+        evidence = self.receipt.read_text() + self.stderr.getvalue() + self.stdout.getvalue()
+        self.assertNotIn("sensitive-local-path", evidence)
+        self.assertNotIn("not-a-real-credential", evidence)
+        self.assertIn('"event": "delivery_cleanup"', self.stderr.getvalue())
+
+    def test_push_failure_is_not_masked_by_cleanup_failure(self):
+        original = RuntimeError("primary push failure")
+        self.push.side_effect = original
+        self.cleanup_error = OSError(errno.ENOTEMPTY, "secondary cleanup failure")
+        with self.assertRaises(RuntimeError) as caught:
+            self.publish()
+        self.assertIs(caught.exception, original)
+        self.assertFalse(self.receipt.exists())
+        self.push.assert_called_once()
+
+    def test_uncertain_readback_stays_uncertain_despite_cleanup_failure(self):
+        self.readback = "e" * 40
+        self.cleanup_error = OSError(errno.ENOTEMPTY, "secondary cleanup failure")
+        with self.assertRaisesRegex(ValueError, "push uncertain"):
+            self.publish()
+        self.assertFalse(self.receipt.exists())
+        self.push.assert_called_once()
+
+    def test_moved_ref_and_cleanup_failure_never_publish(self):
+        self.initial = "e" * 40
+        self.cleanup_error = OSError(errno.ENOTEMPTY, "secondary cleanup failure")
+        with self.assertRaisesRegex(ValueError, "branch moved"):
+            self.publish()
+        self.assertFalse(self.receipt.exists())
+        self.push.assert_not_called()
+        self.assertFalse(any(op[0] == "fetch" for op in self.operations))
+
+    def test_receipt_failure_keeps_safe_confirmed_log_and_original_error(self):
+        self.receipt.mkdir()  # Atomic replacement must fail, not hide an IO error.
+        self.cleanup_error = OSError(errno.ENOTEMPTY, "secondary cleanup failure")
+        # Avoid reading the deliberate directory in the cleanup test hook.
+        with patch.object(ci.tempfile, "TemporaryDirectory", return_value=SimpleNamespace(
+                name=str(self.root / "throwaway.git"),
+                cleanup=lambda: (_ for _ in ()).throw(self.cleanup_error))):
+            with self.assertRaises(IsADirectoryError):
+                self.publish()
+        event = json.loads(self.stdout.getvalue())
+        self.assertEqual(event["status"], "candidate_git_published")
+        self.assertEqual(event["receipt_status"], "write_failed")
+        self.assertEqual(event["delivery_commit"], "d" * 40)
+        self.push.assert_called_once()
+
+    def test_final_receipt_write_failure_retains_early_confirmed_receipt(self):
+        original_replace = Path.replace
+        calls = 0
+
+        def replace(path, target):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError(errno.EIO, "synthetic receipt write failure")
+            return original_replace(path, target)
+
+        with patch.object(Path, "replace", replace), self.assertRaises(OSError):
+            self.publish()
+        saved = json.loads(self.receipt.read_text())
+        self.assertEqual(saved["status"], "candidate_git_published")
+        self.assertEqual(saved["cleanup"], {"status": "pending"})
+        event = json.loads(self.stdout.getvalue())
+        self.assertEqual(event["receipt_status"], "write_failed")
+        self.assertEqual(event["cleanup"], {"status": "completed"})
+        self.push.assert_called_once()
 
 
 if __name__ == "__main__":
