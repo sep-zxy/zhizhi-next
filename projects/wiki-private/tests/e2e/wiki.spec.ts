@@ -85,140 +85,146 @@ async function fixtures(
     body: Record<string, unknown>;
     key: string | undefined;
   }[] = [];
-  await page.route("**/api/knowledge/v1/**", async (route) => {
-    const request = route.request(),
-      url = new URL(request.url()),
-      path = url.pathname.replace("/api/knowledge/v1", "");
-    const respond = (data: unknown, status = 200) =>
-      route.fulfill({
-        status,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data,
-          task_id: null,
-          trace_id: "trace_fixture",
-        }),
-      });
-    if (options.auth === false)
-      return route.fulfill({
-        status: 401,
-        contentType: "application/json",
-        body: JSON.stringify({
-          error: {
-            code: "UNAUTHENTICATED",
-            detail: "sensitive raw diagnostic",
-          },
-          trace_id: "trace_fixture",
-        }),
-      });
-    if (request.method() === "POST") {
-      writes.push({
-        path,
-        body: request.postDataJSON(),
-        key: request.headers()["idempotency-key"],
-      });
-      if (path === "/intakes") return respond(intake, 202);
-      if (path.endsWith("/decisions"))
+  await page.route(
+    (url) => url.pathname.startsWith("/api/knowledge/v1/"),
+    async (route) => {
+      const request = route.request(),
+        url = new URL(request.url()),
+        path = url.pathname.replace("/api/knowledge/v1", "");
+      const respond = (data: unknown, status = 200) =>
+        route.fulfill({
+          status,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data,
+            task_id: null,
+            trace_id: "trace_fixture",
+          }),
+        });
+      if (options.auth === false)
+        return route.fulfill({
+          status: 401,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: {
+              code: "UNAUTHENTICATED",
+              detail: "sensitive raw diagnostic",
+            },
+            trace_id: "trace_fixture",
+          }),
+        });
+      if (request.method() === "POST") {
+        writes.push({
+          path,
+          body: request.postDataJSON(),
+          key: request.headers()["idempotency-key"],
+        });
+        if (path === "/intakes") return respond(intake, 202);
+        if (path.endsWith("/decisions"))
+          return respond({
+            decision: request.postDataJSON().decision,
+            change_id: change.change_id,
+            task_id: "tsk_fixture",
+          });
+        if (path.endsWith("/decision"))
+          return respond({
+            state:
+              request.postDataJSON().decision === "keep"
+                ? "retained"
+                : "discarded",
+            intake_id: "int_fixture",
+            source_id: "src_fixture",
+          });
+      }
+      if (path === "/entries") return respond(entries);
+      if (path.startsWith("/entries/")) {
+        if (options.slowId && path.endsWith(options.slowId))
+          await new Promise((r) => setTimeout(r, 600));
+        const item = entries.find((e) => path.endsWith(e.entry_id));
+        return item
+          ? respond({
+              ...item,
+              revision:
+                Number(url.searchParams.get("revision")) || item.revision,
+            })
+          : respond(null, 404);
+      }
+      if (path === "/search")
         return respond({
-          decision: request.postDataJSON().decision,
+          results:
+            url.searchParams.get("q") === "无匹配"
+              ? []
+              : [
+                  {
+                    entry_id: "ent_one",
+                    revision: 2,
+                    title: "隔离测试条目",
+                    snippet: "真实接口形状的检索片段",
+                    stale_index: true,
+                    scope: "wiki",
+                    visibility: "private",
+                    evidence_refs: [],
+                  },
+                ],
+        });
+      if (path === "/reviews") return respond([change]);
+      if (path.endsWith("/decision-challenge"))
+        return respond({
           change_id: change.change_id,
-          task_id: "tsk_fixture",
+          patch_hash: change.patch_hash,
+          base_revision: 2,
+          policy_version: "1",
+          expires_at: "2099-01-01T00:00:00Z",
+          decision_nonce: "fixture-only-nonce",
         });
-      if (path.endsWith("/decision"))
-        return respond({
-          state:
-            request.postDataJSON().decision === "keep"
-              ? "retained"
-              : "discarded",
-          intake_id: "int_fixture",
-          source_id: "src_fixture",
-        });
-    }
-    if (path === "/entries") return respond(entries);
-    if (path.startsWith("/entries/")) {
-      if (options.slowId && path.endsWith(options.slowId))
-        await new Promise((r) => setTimeout(r, 600));
-      const item = entries.find((e) => path.endsWith(e.entry_id));
-      return item
-        ? respond({
-            ...item,
-            revision: Number(url.searchParams.get("revision")) || item.revision,
-          })
-        : respond(null, 404);
-    }
-    if (path === "/search")
-      return respond({
-        results:
-          url.searchParams.get("q") === "无匹配"
-            ? []
-            : [
-                {
-                  entry_id: "ent_one",
-                  revision: 2,
-                  title: "隔离测试条目",
-                  snippet: "真实接口形状的检索片段",
-                  stale_index: true,
-                  scope: "wiki",
-                  visibility: "private",
-                  evidence_refs: [],
-                },
-              ],
-      });
-    if (path === "/reviews") return respond([change]);
-    if (path.endsWith("/decision-challenge"))
-      return respond({
-        change_id: change.change_id,
-        patch_hash: change.patch_hash,
-        base_revision: 2,
-        policy_version: "1",
-        expires_at: "2099-01-01T00:00:00Z",
-        decision_nonce: "fixture-only-nonce",
-      });
-    if (path === "/changes/chg_fixture") return respond(change);
-    if (path === "/tasks") return respond({ items: [task], has_more: false });
-    if (path === "/tasks/tsk_fixture") return respond(task);
-    if (path === "/tasks/tsk_fixture/events")
-      return respond([
-        {
-          event_id: "evt_fixture",
-          type: "task.updated.v1",
-          sequence: 1,
-          occurred_at: now,
-          aggregate_revision: 3,
-          payload: { state: "waiting_auth" },
-        },
-      ]);
-    if (path === "/intakes")
-      return respond({ items: [intake], has_more: false });
-    if (path === "/intakes/int_fixture") return respond(intake);
-    if (path === "/intakes/capabilities")
-      return respond({
-        capabilities: [
+      if (path === "/changes/chg_fixture") return respond(change);
+      if (path === "/tasks") return respond({ items: [task], has_more: false });
+      if (path === "/tasks/tsk_fixture") return respond(task);
+      if (path === "/tasks/tsk_fixture/events")
+        return respond([
           {
-            adapter: "web",
-            platform: "web",
-            body_text: "partial",
-            captions: "unsupported",
-            video: "unsupported",
-            verification: "not_live_verified",
+            event_id: "evt_fixture",
+            type: "task.updated.v1",
+            sequence: 1,
+            occurred_at: now,
+            aggregate_revision: 3,
+            payload: { state: "waiting_auth" },
           },
-        ],
-      });
-    return respond(null, 404);
-  });
-  await page.route("**/health", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        status: "ready",
-        service: "zhizhi-knowledge",
-        worker_enabled: false,
-        channel_worker_enabled: false,
-        channel_status: "disabled",
-        automatic_commit_enabled: false,
-        publication_enabled: false,
+        ]);
+      if (path === "/intakes")
+        return respond({ items: [intake], has_more: false });
+      if (path === "/intakes/int_fixture") return respond(intake);
+      if (path === "/intakes/capabilities")
+        return respond({
+          capabilities: [
+            {
+              adapter: "web",
+              platform: "web",
+              body_text: "partial",
+              captions: "unsupported",
+              video: "unsupported",
+              verification: "not_live_verified",
+            },
+          ],
+        });
+      throw new Error("Unexpected synthetic API route: " + path);
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/health",
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          service: "zhizhi-knowledge",
+          worker_enabled: false,
+          channel_worker_enabled: false,
+          channel_status: "disabled",
+          automatic_commit_enabled: false,
+          publication_enabled: false,
+        }),
       }),
-    }),
   );
   return writes;
 }

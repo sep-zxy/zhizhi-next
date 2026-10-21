@@ -72,6 +72,9 @@ if scenario.startswith("notification_"):
         else "runtime warning; private detail=never-log-me"
     )
     emit({"type": "item.completed", "item": {"type": "error", "message": message}})
+    if scenario == "notification_multiple":
+        emit({"type": "item.completed", "item": {"type": "error",
+              "message": "model rerouted: requested -> private-never-log-me"}})
     # A later valid answer must not bypass a rejected configuration/reroute notification.
 if scenario.startswith("provider_failure_"):
     messages = {

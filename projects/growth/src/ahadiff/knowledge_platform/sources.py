@@ -8,13 +8,16 @@ import os
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .auth import Actor, authenticated, classification_labels
 from .contracts import canonical, fingerprint, new_id, now, validate_payload
 from .errors import DomainError, invalid
 from .publication import reject_publication_proofs
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 INTAKE_STATES = frozenset(
     {
@@ -81,6 +84,132 @@ def clean_url(value: str | None) -> str | None:
 
 class SourceMethods:
     """Intake/source operations using the domain's shared transaction boundary."""
+
+    def supplement_intake(
+        self,
+        intake_id: str,
+        payload: dict[str, Any],
+        *,
+        actor: Actor,
+        idempotency_key: str,
+        prepare_preview: Callable[[dict[str, Any]], dict[str, Any]],
+        trace_id: str | None = None,
+        attachment_request: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """User text replaces the temporary reading copy, never retained RAW or knowledge.
+
+        The trusted cache builder runs only after receipt/CAS/lifecycle checks in
+        the same transaction. A failed commit may leave an expiring cache blob,
+        not a permanent Source; old digest references stay valid.
+        """
+        authenticated(actor, "knowledge:write")
+        if actor.kind != "user":
+            raise DomainError(
+                "FORBIDDEN", "Only the authenticated user may supplement material", status_code=403
+            )
+        if set(payload) - {"expected_preview_revision", "text", "private_note"}:
+            raise invalid("Unsupported material supplement field")
+        revision = payload.get("expected_preview_revision")
+        if type(revision) is not int or revision < 0:
+            raise invalid("expected_preview_revision must be a nonnegative integer")
+        for field, limit, byte_limit in (
+            ("text", 100_000, 300_000),
+            ("private_note", 10_000, 30_000),
+        ):
+            value = payload.get(field, "")
+            if not isinstance(value, str) or len(value) > limit:
+                raise invalid("Supplement text exceeds the supported bound")
+            try:
+                encoded = value.encode("utf-8")
+            except UnicodeError as exc:
+                raise invalid("Supplement must be valid UTF-8 text") from exc
+            if len(encoded) > byte_limit:
+                raise invalid("Supplement text exceeds the supported byte bound")
+        if not payload.get("text", "").strip():
+            raise invalid("Supplement source text must be nonempty")
+
+        def supplement(connection: Any) -> dict[str, Any]:
+            intake = self._protect_read(
+                connection, self.store.get(connection, "intake", intake_id, actor.owner_id), actor
+            )
+            if intake.get("source_id") or intake["state"] in {"discarded", "expired"}:
+                raise DomainError(
+                    "INVALID_STATE",
+                    "Only unretained temporary material can be supplemented",
+                    status_code=409,
+                )
+            if intake["expires_at"] <= now():
+                raise DomainError(
+                    "INTAKE_EXPIRED", "Temporary material has expired", status_code=409
+                )
+            if intake["preview_revision"] != revision:
+                raise DomainError(
+                    "BASE_STALE", "Read the current preview before supplementing", status_code=409
+                )
+            task = (
+                self.store.get(connection, "task", intake["task_id"], actor.owner_id)
+                if intake.get("task_id")
+                else None
+            )
+            if task and task.get("reconciliation_required"):
+                raise DomainError(
+                    "RECONCILIATION_REQUIRED",
+                    "Reconcile uncertain preview work before supplementing",
+                    status_code=409,
+                )
+            if task and (task["kind"] != "intake.preview" or task["state"] == "running"):
+                raise DomainError(
+                    "TASK_RUNNING",
+                    "Wait for the current preview operation to settle",
+                    status_code=409,
+                )
+            preview = prepare_preview(intake)
+            intake.update(
+                preview=preview,
+                state="partial",
+                parse_status="partial",
+                preview_revision=revision + 1,
+                revision=intake["revision"] + 1,
+                updated_at=now(),
+                classification_labels=sorted(
+                    set(classification_labels(intake, default="personal")) | {"personal"}
+                ),
+            )
+            self.store.put(connection, "intake", intake_id, intake)
+            if task and task["state"] not in {"succeeded", "failed", "cancelled"}:
+                task.update(
+                    state="cancelled",
+                    lease_owner=None,
+                    lease_token=None,
+                    lease_until=None,
+                    revision=task["revision"] + 1,
+                    updated_at=now(),
+                )
+                self.store.put(connection, "task", task["task_id"], task)
+                self.store.event(
+                    connection,
+                    "task.updated.v1",
+                    task,
+                    task["task_id"],
+                    {"state": "cancelled"},
+                    trace_id,
+                )
+            self.store.event(
+                connection,
+                "intake.supplemented.v1",
+                intake,
+                intake_id,
+                {"preview_revision": revision + 1},
+                trace_id,
+            )
+            return intake
+
+        # Only the trusted file adapter supplies attachment_request, never HTTP supplement JSON.
+        operation = "attach_text_intake" if attachment_request is not None else "supplement_intake"
+        receipt_payload = attachment_request if attachment_request is not None else payload
+        return self._mutate(
+            actor, f"{operation}:{intake_id}", idempotency_key, receipt_payload, supplement
+        )
 
     def create_intake(
         self,

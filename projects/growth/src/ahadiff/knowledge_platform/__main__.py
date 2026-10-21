@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from .config_io import load_config_object, string_list
+from .navigation import learning_viewer_url
 
 
 def main() -> None:
@@ -27,11 +28,19 @@ def main() -> None:
         "--local-test-identity", type=Path,
         help="Explicit approved Windows-only DPAPI test identity, never production",
     )
+    identity_options.add_argument(
+        "--owner-dpapi-identity", type=Path,
+        help="Explicit already-approved operational acceptance identity; never initializes",
+    )
     parser.add_argument(
         "--private-web-root", type=Path,
         help="Absolute compiled private Wiki assets directory, mounted at /wiki/",
     )
     parser.add_argument("--model-config", type=Path)
+    parser.add_argument(
+        "--learning-viewer-url",
+        help="Launcher-assigned exact loopback root; navigation only, never authentication",
+    )
     parser.add_argument(
         "--asr-model-directory",
         type=Path,
@@ -43,6 +52,10 @@ def main() -> None:
         help="Explicit official-channel policy and OpenBao references",
     )
     parser.add_argument("--owner", help="Required with an existing identities file")
+    parser.add_argument(
+        "--owner-browser-actor",
+        help="Opt in one existing user actor to loopback pairing; never creates an identity",
+    )
     parser.add_argument("--provider", action="append", default=[])
     parser.add_argument(
         "--allow-classification",
@@ -60,20 +73,41 @@ def main() -> None:
     parser.add_argument("--run-worker", action="store_true")
     parser.add_argument("--auto-commit", action="store_true")
     args = parser.parse_args()
+    try:
+        args.learning_viewer_url = learning_viewer_url(args.learning_viewer_url)
+    except ValueError:
+        parser.error("Learning navigation requires a canonical non-privileged loopback root")
     if args.auto_commit and not args.run_worker:
         parser.error("--auto-commit requires --run-worker")
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
-    if args.identities_file is None:
+    if args.learning_viewer_url is not None and (
+        args.host != "127.0.0.1" or args.local_test_identity is not None
+        or args.learning_viewer_url == f"http://127.0.0.1:{args.port}/"
+    ):
+        parser.error("Learning navigation requires a separate loopback service, not local-test")
+    if args.identities_file is None and args.owner_dpapi_identity is None:
         if (
-            args.owner is not None or args.run_worker or args.auto_commit
+            args.owner is not None or args.owner_browser_actor is not None
+            or args.run_worker or args.auto_commit
             or args.model_config is not None or args.channel_config is not None
             or args.asr_model_directory is not None or args.provider
             or args.allow_classification or args.input_classification != "personal"
         ):
             parser.error("No-identity and local-test modes prohibit production backend options")
     elif not args.owner:
-        parser.error("--owner is required with --identities-file")
+        parser.error("--owner is required with an existing operational identity")
+    if args.owner_dpapi_identity is not None and (
+        args.owner_browser_actor is None or args.channel_config is not None
+        or args.asr_model_directory is not None
+        or args.input_classification not in {"public", "personal"}
+        or set(args.allow_classification or []) - {"public", "personal"}
+    ):
+        parser.error("Owner acceptance requires explicit browser binding and excludes channels/ASR")
+    if args.owner_browser_actor is not None and (
+        args.host != "127.0.0.1" or args.port < 1024 or not args.owner_browser_actor.strip()
+    ):
+        parser.error("Owner browser pairing requires an explicit actor and exact loopback origin")
     from .portable import portable_root, require_portable_path, validate_portable_runtime
 
     validate_portable_runtime(args.state_directory)
@@ -81,7 +115,7 @@ def main() -> None:
         if args.host != "127.0.0.1":
             parser.error("Portable knowledge service must bind to 127.0.0.1")
         for configured_path in (
-            args.identities_file, args.local_test_identity,
+            args.identities_file, args.local_test_identity, args.owner_dpapi_identity,
             args.model_config, args.channel_config, args.asr_model_directory,
             args.private_web_root,
         ):
@@ -113,9 +147,10 @@ def main() -> None:
         uvicorn.run(app, host="127.0.0.1", port=test_identity.port, access_log=False)
         return
 
-    if args.identities_file is None:
+    if args.identities_file is None and args.owner_dpapi_identity is None:
         app = create_application(
-            args.state_directory, tokens={}, private_web_root=args.private_web_root
+            args.state_directory, tokens={}, private_web_root=args.private_web_root,
+            learning_viewer_url=args.learning_viewer_url,
         )
         import uvicorn
 
@@ -130,7 +165,33 @@ def main() -> None:
     owner = args.owner
     if not isinstance(owner, str) or not owner.strip():
         parser.error("--owner requires an explicit existing identity owner")
-    identities = load_config_object(args.identities_file, secret=True)
+    if args.owner_dpapi_identity is not None:
+        from .owner_identity import load_owner_identity
+
+        try:
+            protected_owner = load_owner_identity(
+                args.owner_dpapi_identity, state_directory=args.state_directory,
+                host=args.host, port=args.port,
+            )
+        except (ValueError, OSError):
+            parser.error("Protected owner identity or isolated state is unavailable")
+        identities = protected_owner.configuration()
+    else:
+        if not isinstance(args.identities_file, Path):
+            parser.error("Operational identities require an explicit protected file")
+        identities = load_config_object(args.identities_file, secret=True)
+    owner_policy = None
+    if args.owner_browser_actor is not None:
+        from .owner_browser import configured_owner_policy
+
+        owner_policy = configured_owner_policy(
+            identities, protected_current_user=args.owner_dpapi_identity is not None,
+        )
+        if owner_policy != {
+            "owner_id": owner, "actor_id": args.owner_browser_actor,
+            "origin": f"http://127.0.0.1:{args.port}",
+        }:
+            parser.error("Owner browser policy does not match the explicit service binding")
     records = identities.get("identities")
     if not isinstance(records, list) or not records:
         raise ValueError("No authenticated identities configured")
@@ -157,6 +218,11 @@ def main() -> None:
             frozenset(classifications),
         )
     model_config = load_config_object(args.model_config) if args.model_config else None
+    if args.owner_dpapi_identity is not None and (
+        set(args.provider) - {"openai"}
+        or (model_config is not None and model_config.get("adapter") != "codex_cli")
+    ):
+        parser.error("Owner acceptance permits only explicitly configured Codex CLI, no fallback")
     runner = build_runner_from_config(model_config)
     if args.asr_model_directory and not args.asr_model_directory.is_absolute():
         parser.error("--asr-model-directory requires an absolute local directory")
@@ -171,6 +237,14 @@ def main() -> None:
         auto_commit_enabled=args.auto_commit,
     )
     assembly: dict[str, Any] = {}
+    if owner_policy is not None:
+        from .auth import TokenAuthenticator
+        from .owner_browser import OwnerBrowserSessions
+
+        assembly["owner_browser_sessions"] = OwnerBrowserSessions(
+            owner_policy["origin"], TokenAuthenticator(tokens),
+            owner_id=owner_policy["owner_id"], actor_id=owner_policy["actor_id"],
+        )
     if args.channel_config:
         from .channel_config import build_channels
         from .channel_runtime import DeferredChannelRuntime
@@ -232,6 +306,7 @@ def main() -> None:
         start_worker=args.run_worker,
         media_processor=media_processor,
         private_web_root=args.private_web_root,
+        learning_viewer_url=args.learning_viewer_url,
         **assembly,
     )
     import uvicorn

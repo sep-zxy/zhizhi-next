@@ -17,7 +17,7 @@ import {
   ToolsPage,
 } from "./workflow-pages";
 import { navigate, routeHref, safeNavigation, useRoute } from "./state";
-import { LocalTestAccess } from "./local-test-access";
+import { BrowserAccess } from "./local-test-access";
 
 declare global {
   interface Window {
@@ -43,13 +43,13 @@ export function WikiApp({ api = defaultApi }: { api?: WikiApi }) {
     () => false,
   );
   const localSession = useSyncExternalStore(
-    api.subscribeLocalTestSession,
-    api.getLocalTestSession,
-    api.getLocalTestSession,
+    api.subscribeBrowserSession,
+    api.getBrowserSession,
+    api.getBrowserSession,
   );
   const route = useRoute();
   const canRetry = useSyncExternalStore(
-    api.subscribeLocalTestSession,
+    api.subscribeBrowserSession,
     api.canRetryAccess,
     () => false,
   );
@@ -58,10 +58,15 @@ export function WikiApp({ api = defaultApi }: { api?: WikiApi }) {
     if (blocked) setSearch("");
   }, [blocked]);
   const [menu, setMenu] = useState(false);
-  const engineering = safeNavigation(
-    window.__WIKI_PRIVATE_CONFIG__?.engineeringUrl,
-    "",
+  const trustedLearning = useSyncExternalStore(
+    api.subscribeBrowserSession,
+    api.getLearningViewerUrl,
+    api.getLearningViewerUrl,
   );
+  const engineering =
+    trustedLearning === undefined
+      ? safeNavigation(window.__WIKI_PRIVATE_CONFIG__?.engineeringUrl, "")
+      : trustedLearning || "";
   const publicUrl = safeNavigation(
     window.__WIKI_PRIVATE_CONFIG__?.publicWikiUrl,
     "",
@@ -150,7 +155,8 @@ export function WikiApp({ api = defaultApi }: { api?: WikiApi }) {
           </a>
           <span className="private-label">
             <Icon name="lock" size={12} />
-            {localSession.status === "authenticated"
+            {localSession.status === "authenticated" &&
+            localSession.fixture === true
               ? "本机隔离测试"
               : "私有工作区"}
           </span>
@@ -243,7 +249,7 @@ export function WikiApp({ api = defaultApi }: { api?: WikiApi }) {
           </p>
         </aside>
         <main className="main" id="main-content" tabIndex={-1}>
-          <LocalTestAccess api={api} blocked={blocked} />
+          <BrowserAccess api={api} blocked={blocked} />
           <Boundary
             key={
               String(blocked) +

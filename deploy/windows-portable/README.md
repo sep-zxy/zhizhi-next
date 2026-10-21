@@ -59,6 +59,34 @@ CI 只打包入口，不运行初始化。必须先完成 Git 成品完整性检
 Windows DPAPI 实测、完整业务、真实模型或全部 E2E 已通过。
 交付 Git 忽略所有运行私有目录；不得强制添加本机状态或提交已跟踪配置的本机修改。
 
+## 独立 owner 验收入口（默认关闭）
+
+这些入口仅封装 `OWNER_DPAPI_ACCEPTANCE.md` 中的既有模块，不表示已经批准或执行真实身份创建。
+先取得明确的 Windows 路径、CurrentUser DPAPI 身份、权限与材料范围批准，再按范围运行：
+
+1. `owner-acceptance-initialize.cmd --approve-owner-acceptance-identity`，可显式追加 `--port`。
+   cmd 不暗含批准；不读/复用 local-test 或个人身份，不覆盖已有目录。
+2. `owner-acceptance-start.cmd` 只读取 `data/owner-acceptance/launch.json` 三键配置，
+   固定平台 state 为 `data/owner-acceptance/platform`，学习 repo 为 `data/owner-acceptance/desktop`，
+   只使用同目录 `desktop.json` 的固定 DPAPI、设备和 loopback 绑定，不合并默认配置。
+   基础入口要求 `model.enabled=false`、`providers=[]`，不启动 worker、Pi、渠道或自动 Writer。
+3. `owner-acceptance-pair.cmd` 从标准输入读取页面的20位一次性码，码不能放命令行、URL、环境变量或日志。
+   工具仅向绑定 loopback 服务批准一次；失败不重试，先查询原页面状态。
+4. 浏览器 profile/cache 独立位于 `data/owner-acceptance`，`stop.cmd` 只停止本版本拥有的进程。
+
+默认 `start.cmd` 与 `local-test-start.cmd` 行为不变，不自动采用 owner 身份。
+该基础入口的 `pairing_required`、配置成功或模型关闭状态都不是业务或真实模型 E2E 通过。
+后续真实模型/独立复核/Writer 需另行冻结并明确批准配置，不能靠修改三键 launch 隐式开启。
+
+## 私有 Wiki 到学习服务的导航
+
+非 local-test 启动会预分配一次 viewer 端口，把规范的 `http://127.0.0.1:<port>/`
+通过 `--learning-viewer-url` 交给平台，再用同一端口启动 viewer 并检查健康。
+不从 launch JSON 接受 URL 或端口覆盖；碰到平台端口冲突或启动失败直接停止，不扫描或自动换址。
+local-test 不启动 viewer，也不传入导航。无身份壳可以声明地址，但仍为 `waiting_auth`。
+健康响应的导航只是配置，不证明已配对、目标鉴权或业务完成；链接不携带任何令牌或正文。
+详见 `LOOPBACK_LEARNING_NAVIGATION.md`。这里的包装单测不等于实际 Windows 跨端口浏览器验收。
+
 ## 限制
 
 - 只支持 Windows x64；云端检查不等于 Windows 运行成功。
@@ -66,6 +94,8 @@ Windows DPAPI 实测、完整业务、真实模型或全部 E2E 已通过。
 - 主应用、统一服务、Pi、动态Wiki、真实账号、ASR各有独立状态，不能互相替代。
 - ASR独立组件和模型有自己的许可证与运行时检查；缺VC++运行时明确报阻塞，不静默系统安装。
 - 所有应用管理的状态在包内，但操作系统自己的日志、Prefetch和安全产品记录不属于应用可控制边界。
+- 启动器对路径及全部既存祖先检查 Windows reparse 属性，未知 tag 也拒绝；属性读取失败关闭。
+  这不是 OS 沙箱或并发恶意路径替换的安全保证，不能将合成路径检查当 Windows 实测。
 
 ## 本地动态发布
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import re
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -26,6 +27,13 @@ def within(path):
  p=Path(path)
  if not p.is_absolute():p=ROOT/p
  for ancestor in [p,*p.parents]:
+  try:attributes=ancestor.lstat()
+  except FileNotFoundError:attributes=None
+  # Symlink/junction helpers do not cover every Windows reparse tag. Reject
+  # the attribute itself on every existing ancestor, including unknown tags.
+  # Other stat errors propagate: inability to inspect a path is not approval.
+  if attributes is not None and getattr(attributes,'st_file_attributes',0)&stat.FILE_ATTRIBUTE_REPARSE_POINT:
+   raise ValueError('Windows reparse points are forbidden in application paths')
   if ancestor.is_symlink() or (hasattr(ancestor,'is_junction') and ancestor.is_junction()):raise ValueError('Links/junctions are forbidden in application paths')
  resolved=p.resolve()
  if not resolved.is_relative_to(ROOT):raise ValueError('Path is outside portable root')
@@ -125,27 +133,72 @@ def browser_path():
     if p.is_file():return p
  return None
 
-def load_config(local_test=False):
- file=within('data/local-test/launch.json' if local_test else 'config/launch.json')
- if local_test and not file.is_file():raise RuntimeError('Explicit local-test initialization is required')
+def load_config(local_test=False,owner_acceptance=False):
+ if local_test and owner_acceptance:raise ValueError('Identity policies cannot be mixed')
+ file=within('data/owner-acceptance/launch.json' if owner_acceptance else
+             'data/local-test/launch.json' if local_test else 'config/launch.json')
+ if (local_test or owner_acceptance) and not file.is_file():raise RuntimeError('Explicit separate identity initialization is required')
  return json.loads(file.read_text(encoding='utf-8')) if file.exists() else {}
 
-def platform_command(config,local_test=False):
+def owner_desktop_config(port):
+ file=within('data/owner-acceptance/desktop.json')
+ if not file.is_file():raise RuntimeError('Owner acceptance desktop configuration is missing')
+ record=json.loads(file.read_text(encoding='utf-8'))
+ if (not isinstance(record,dict)
+     or set(record)!={'service_url','identity_file','identity_format','device_id',
+                      'input_classification','providers','model'}
+     or record.get('service_url')!=f'http://127.0.0.1:{port}'
+     or record.get('identity_file')!='identity.json'
+     or record.get('identity_format')!='zhizhi-owner-acceptance-dpapi-v1'
+     or not isinstance(record.get('device_id'),str)
+     or not re.fullmatch(r'[0-9a-f]{32}',record['device_id'])
+     or record.get('input_classification')!='personal'
+     or record.get('providers')!=[]
+     or record.get('model')!={'enabled':False}
+     or record['model']['enabled'] is not False):
+  raise ValueError('Owner acceptance base launcher requires its exact model-disabled desktop policy')
+ if not within('data/owner-acceptance/desktop').is_dir():raise RuntimeError('Owner acceptance desktop state is missing')
+ return file
+
+def platform_command(config,local_test=False,owner_acceptance=False,learning_viewer_port=None):
  if not isinstance(config,dict):raise ValueError('Invalid launch configuration')
+ if local_test and owner_acceptance:raise ValueError('Identity policies cannot be mixed')
+ if 'learning_viewer_url' in config or 'learning_viewer_port' in config:
+  raise ValueError('Learning navigation is assigned by the launcher, not launch configuration')
  if local_test:
   if (set(config)!={'mode','local_test_identity','platform_port'}
       or config.get('mode')!='local-test'
       or config.get('local_test_identity')!='data/local-test/identity.json'):
    raise ValueError('Local-test configuration cannot include production settings')
- elif 'mode' in config or 'local_test_identity' in config:
-  raise ValueError('Local-test identity requires its separate explicit launcher')
+ elif owner_acceptance:
+  if (set(config)!={'mode','owner_dpapi_identity','platform_port'}
+      or config.get('mode')!='owner-acceptance'
+      or config.get('owner_dpapi_identity')!='data/owner-acceptance/identity.json'):
+   raise ValueError('Owner acceptance configuration cannot include production settings')
+ elif 'mode' in config or 'local_test_identity' in config or 'owner_dpapi_identity' in config:
+  raise ValueError('Isolated identity requires its separate explicit launcher')
  port=config.get('platform_port',8766)
  if type(port) is not int or not 1024 <= port <= 65535:raise ValueError('Invalid platform port')
+ if learning_viewer_port is not None:
+  if (local_test or type(learning_viewer_port) is not int
+      or not 1024 <= learning_viewer_port <= 65535 or learning_viewer_port==port):
+   raise ValueError('Invalid independently assigned learning viewer port')
  private_web=within('app/wiki-private')
  if not within('app/wiki-private/index.html').is_file():raise RuntimeError('Prebuilt private Wiki UI is missing')
  args=[sys.executable,'-B','-s','-X','utf8','-m','ahadiff.knowledge_platform',
-       '--state-directory',str(within('data/local-test/platform' if local_test else 'data/platform')),'--host','127.0.0.1',
+       '--state-directory',str(within('data/owner-acceptance/platform' if owner_acceptance else
+                                     'data/local-test/platform' if local_test else 'data/platform')),'--host','127.0.0.1',
        '--port',str(port),'--private-web-root',str(private_web)]
+ if learning_viewer_port is not None:
+  args.extend(['--learning-viewer-url',f'http://127.0.0.1:{learning_viewer_port}/'])
+ if owner_acceptance:
+  identity=within('data/owner-acceptance/identity.json')
+  if not identity.is_file() or not within('data/owner-acceptance/platform').is_dir():
+   raise RuntimeError('Explicit owner acceptance initialization is incomplete')
+  owner_desktop_config(port)
+  args.extend(['--owner-dpapi-identity',str(identity),'--owner','portable-operational-acceptance',
+               '--owner-browser-actor','portable-acceptance-person'])
+  return args,port,'configured'
  if local_test:
   identity=within('data/local-test/identity.json')
   if not identity.is_file() or not within('data/local-test/platform').is_dir():
@@ -171,7 +224,7 @@ def platform_command(config,local_test=False):
  for provider in config.get('providers',[]):args.extend(['--provider',provider])
  return args,port,'configured'
 
-def start(env,local_test=False):
+def start(env,local_test=False,owner_acceptance=False):
  import msvcrt
  lock_path=within('data/launcher.lock');lock_path.parent.mkdir(parents=True,exist_ok=True)
  lock=lock_path.open('a+b');lock.seek(0);lock.write(b'0');lock.flush();lock.seek(0)
@@ -179,11 +232,14 @@ def start(env,local_test=False):
  except OSError:raise RuntimeError('This package is already running')
  stop=within('data/stop.request')
  if stop.exists():stop.unlink()
- config=load_config(local_test);status={'viewer':'starting','unified_platform':'waiting_auth','pi':'waiting_auth','dynamic_wiki':'not_run','live_e2e':'not_run'}
+ config=load_config(local_test,owner_acceptance);status={'viewer':'starting','unified_platform':'waiting_auth','pi':'waiting_auth','dynamic_wiki':'not_run','live_e2e':'not_run'}
  identities=config.get('identities_file')
- configured=local_test or bool(identities)
+ configured=local_test or owner_acceptance or bool(identities)
  viewer_env=dict(env)
- args,port,authentication_status=platform_command(config,local_test)
+ # Allocate once before platform startup. A collision or later bind failure is
+ # fatal, never a reason to scan ports or advertise a different viewer URL.
+ viewer_port=None if local_test else free_port()
+ args,port,authentication_status=platform_command(config,local_test,owner_acceptance,viewer_port)
  proc=spawn(args,'platform',env);await_health(proc,port,'platform',authentication_status)
  status.update(unified_platform='running_auth_required' if configured else 'waiting_auth',
                platform_url=f'http://127.0.0.1:{port}',
@@ -192,6 +248,10 @@ def start(env,local_test=False):
  if local_test:
   status.update(fixture=True,mode='local-test',browser_authentication='pairing_required',
                 viewer='disabled_in_local_test',pi='disabled_in_local_test')
+ if owner_acceptance:
+  status.update(fixture=False,mode='owner-acceptance',browser_authentication='pairing_required',
+                pi='disabled_in_owner_acceptance',model='disabled',worker='disabled')
+  viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(owner_desktop_config(port))
  if identities:
   # Desktop config is an authorized deployment input, not generated credentials.
   if config.get('desktop_config'):
@@ -199,11 +259,11 @@ def start(env,local_test=False):
    if json.loads(desktop.read_text(encoding='utf-8')).get('service_url')!=status['platform_url']:raise ValueError('Desktop service_url must match this package loopback platform')
    viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(desktop)
  if not local_test:
-  workspace=within('data/viewer-workspace');(workspace/'.ahadiff').mkdir(parents=True,exist_ok=True)
+  workspace=within('data/owner-acceptance/desktop' if owner_acceptance else 'data/viewer-workspace');(workspace/'.ahadiff').mkdir(parents=True,exist_ok=True)
   viewer_env['AHADIFF_VIEWER_DIST']=str(ROOT/'app/viewer')
-  port=free_port();proc=spawn([sys.executable,'-B','-s','-X','utf8','-m','ahadiff','serve','--repo-root',str(workspace),'--port',str(port),'--no-browser'],'viewer',viewer_env,workspace)
-  await_health(proc,port,'viewer')
-  status.update(viewer='running',viewer_url=f'http://127.0.0.1:{port}/',viewer_mode='unified_configured_not_verified' if viewer_env.get('AHADIFF_KNOWLEDGE_CONFIG') else 'standalone_not_unified')
+  proc=spawn([sys.executable,'-B','-s','-X','utf8','-m','ahadiff','serve','--repo-root',str(workspace),'--port',str(viewer_port),'--no-browser'],'viewer',viewer_env,workspace)
+  await_health(proc,viewer_port,'viewer')
+  status.update(viewer='running',viewer_url=f'http://127.0.0.1:{viewer_port}/',viewer_mode='unified_configured_not_verified' if viewer_env.get('AHADIFF_KNOWLEDGE_CONFIG') else 'standalone_not_unified')
  url=status['private_wiki_url']
  if identities and config.get('pi_environment_file'):
   pi_config=json.loads(within(config['pi_environment_file']).read_text(encoding='utf-8'))
@@ -225,8 +285,8 @@ def start(env,local_test=False):
  print('Runtime/UI startup is NOT unified-platform or live-account E2E acceptance.',flush=True)
  browser=BROWSER
  if browser:
-  profile='data/local-test/browser-profile' if local_test else 'browser-profile'
-  cache='data/local-test/browser-cache' if local_test else 'cache/browser'
+  profile='data/owner-acceptance/browser-profile' if owner_acceptance else 'data/local-test/browser-profile' if local_test else 'browser-profile'
+  cache='data/owner-acceptance/browser-cache' if owner_acceptance else 'data/local-test/browser-cache' if local_test else 'cache/browser'
   spawn([str(browser),'--user-data-dir='+str(within(profile)),'--disk-cache-dir='+str(within(cache)),'--no-first-run','--no-default-browser-check','--disable-background-mode',url],'browser',env)
  else:print('No existing Edge/Chrome found. No browser will be installed. URL: '+url,flush=True)
  print('Use stop.cmd or Ctrl+C to stop this package. Authorization status is in reports/status.json.',flush=True)
@@ -291,16 +351,23 @@ def publish(env):
 def parse_arguments(argv=None):
  parser=argparse.ArgumentParser()
  parser.add_argument('action',choices=['start','stop','diagnostics','publish',
-                                     'local-test-start','local-test-initialize','local-test-pair'])
+                                     'local-test-start','local-test-initialize','local-test-pair',
+                                     'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair'])
  parser.add_argument('--approve-local-test-identity',action='store_true')
+ parser.add_argument('--approve-owner-acceptance-identity',action='store_true')
  parser.add_argument('--port',type=int)
  parser.add_argument('--pairing-code')
  args=parser.parse_args(argv)
  if args.action=='local-test-initialize':
   if not args.approve_local_test_identity:parser.error('Explicit --approve-local-test-identity is required')
   if args.port is not None and not 1024 <= args.port <= 65535:parser.error('Invalid local-test port')
- elif args.approve_local_test_identity or args.port is not None:
-  parser.error('Initialization options are only allowed for local-test-initialize')
+  if args.approve_owner_acceptance_identity:parser.error('Identity approvals cannot be mixed')
+ elif args.action=='owner-acceptance-initialize':
+  if not args.approve_owner_acceptance_identity:parser.error('Explicit --approve-owner-acceptance-identity is required')
+  if args.port is not None and not 1024 <= args.port <= 65535:parser.error('Invalid owner acceptance port')
+  if args.approve_local_test_identity:parser.error('Identity approvals cannot be mixed')
+ elif args.approve_local_test_identity or args.approve_owner_acceptance_identity or args.port is not None:
+  parser.error('Initialization options require their separate explicit initializer')
  if args.action=='local-test-pair':
   if not args.pairing_code or not re.fullmatch(r'[A-F0-9]{20}',args.pairing_code):
    parser.error('A 20-character uppercase pairing code is required')
@@ -324,6 +391,24 @@ def run_local_test_identity(args):
   module.main()
  finally:sys.argv=previous
 
+def run_owner_acceptance_identity(args):
+ # No credential or pairing code in argv/environment/output. The approved
+ # backend module independently validates the exact root, identity and DPAPI.
+ if args.action=='owner-acceptance-initialize' and args.approve_owner_acceptance_identity:
+  name='ahadiff.knowledge_platform.owner_identity'
+  arguments=['--approve-owner-acceptance-identity','--port',str(args.port or 8766)]
+ elif args.action=='owner-acceptance-pair':
+  name='ahadiff.knowledge_platform.owner_pairing'
+  arguments=['--owner-dpapi-identity',str(within('data/owner-acceptance/identity.json'))]
+ else:raise ValueError('No explicit owner acceptance identity action')
+ module=importlib.import_module(name)
+ previous=sys.argv
+ try:
+  sys.argv=[name,*arguments]
+  # owner_pairing reads its one-time code directly from the existing stdin.
+  module.main()
+ finally:sys.argv=previous
+
 def main():
  args=parse_arguments()
  if sys.platform!='win32':raise RuntimeError('Windows runtime only')
@@ -337,6 +422,10 @@ def main():
   env=isolated_environment();os.environ.clear();os.environ.update(env)
   run_local_test_identity(args)
   return
+ if args.action in {'owner-acceptance-initialize','owner-acceptance-pair'}:
+  env=isolated_environment();os.environ.clear();os.environ.update(env)
+  run_owner_acceptance_identity(args)
+  return
  global BROWSER, JOB
  BROWSER=browser_path()
  from windows_job import OwnedJob
@@ -345,7 +434,7 @@ def main():
  result=diagnose(env)
  if args.action=='diagnostics':print(json.dumps(result,ensure_ascii=False,indent=2));return
  if args.action=='publish':publish(env);return
- start(env,local_test=args.action=='local-test-start')
+ start(env,local_test=args.action=='local-test-start',owner_acceptance=args.action=='owner-acceptance-start')
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':

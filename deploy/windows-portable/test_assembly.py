@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 import zipfile
@@ -63,6 +64,36 @@ class RuntimeContractTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    mod.ROOT=Path(d);(mod.ROOT/'real').mkdir();(mod.ROOT/'link').symlink_to(mod.ROOT/'real')
    with self.assertRaises(ValueError):mod.within('link/file')
+ def test_reject_unknown_windows_reparse_tag_on_every_existing_ancestor(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.ROOT=Path(d);parent=mod.ROOT/'data';parent.mkdir();file=parent/'state.json';file.write_text('synthetic')
+   original=Path.lstat
+   for suspect in [file,parent,mod.ROOT,mod.ROOT.parent]:
+    def attributes(path):
+     if path==suspect:return SimpleNamespace(st_file_attributes=mod.stat.FILE_ATTRIBUTE_REPARSE_POINT,st_reparse_tag=0x8000FFFE)
+     return original(path)
+    with self.subTest(suspect=suspect),patch.object(Path,'lstat',attributes),\
+         patch.object(Path,'is_symlink',return_value=False),\
+         patch.object(Path,'is_junction',return_value=False,create=True),\
+         self.assertRaisesRegex(ValueError,'reparse'):
+     mod.within(file)
+ def test_uninspectable_existing_ancestor_fails_closed(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.ROOT=Path(d);parent=mod.ROOT/'data';parent.mkdir();original=Path.lstat
+   for error in [PermissionError('synthetic denied'),OSError('synthetic unavailable')]:
+    def attributes(path):
+     if path==parent:raise error
+     return original(path)
+    with self.subTest(error=type(error).__name__),patch.object(Path,'lstat',attributes),self.assertRaises(OSError):
+     mod.within(parent/'not-created.json')
+ def test_new_descendant_is_allowed_only_after_ancestors_are_checked(self):
+  mod=self.load_launcher()
+  with tempfile.TemporaryDirectory() as d:
+   mod.ROOT=Path(d);expected=mod.ROOT/'data'/'not-created.json'
+   self.assertEqual(mod.within(expected),expected)
+   self.assertFalse(expected.parent.exists())
  def test_versioned_git_root_stays_inside_original_authorized_root(self):
   mod=self.load_launcher()
   with tempfile.TemporaryDirectory() as d:

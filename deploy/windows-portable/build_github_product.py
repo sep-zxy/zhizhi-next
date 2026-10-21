@@ -20,39 +20,53 @@ import zipfile
 
 from build_bundle import RUNTIMES, download, json_write, sha256
 
-LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 16, "growth-topics.spec.ts": 1}
+LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1}
+PRIVATE_WIKI_JOURNEYS = {"wiki.spec.ts": 7, "local-test-pairing.spec.ts": 2,
+                         "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6}
 
 
-def verify_learning_report(report_path: Path) -> None:
+def _verify_browser_report(report_path: Path, journeys: dict[str, int], project: str) -> None:
     """Require all selected synthetic browser journeys, never live E2E claims."""
     report = json.loads(report_path.read_text(encoding="utf-8"))
     stats = report.get("stats", {})
     if (report.get("errors") != []
             or any(stats.get(key) != 0 for key in ("skipped", "unexpected", "flaky"))):
-        raise ValueError("Learning browser fixtures contain missing, skipped or failed evidence")
-    counts = {name: 0 for name in LEARNING_JOURNEYS}
+        raise ValueError("Browser fixtures contain missing, skipped or failed evidence")
+    counts = {name: 0 for name in journeys}
+    identifiers = set()
 
     def inspect(suites):
         for suite in suites:
             for spec in suite.get("specs", []):
                 name = Path(spec.get("file", "")).name
                 tests = spec.get("tests", [])
-                if name not in counts or spec.get("ok") is not True or not tests:
-                    raise ValueError("Unexpected or unsuccessful learning browser fixture")
+                identity = spec.get("id")
+                if (name not in counts or spec.get("ok") is not True or len(tests) != 1
+                        or not isinstance(identity, str) or not identity or identity in identifiers):
+                    raise ValueError("Unexpected, duplicate or unsuccessful browser fixture")
+                identifiers.add(identity)
                 for test in tests:
                     results = test.get("results", [])
-                    if (test.get("projectName") != "chromium-desktop"
+                    if (test.get("projectName") != project
                             or test.get("expectedStatus") != "passed"
                             or test.get("status") != "expected" or len(results) != 1
                             or results[0].get("status") != "passed"):
-                        raise ValueError("Learning journey did not pass once on locked Chromium")
+                        raise ValueError("Browser journey did not pass once on locked Chromium")
                     counts[name] += 1
             inspect(suite.get("suites", []))
 
     inspect(report.get("suites", []))
-    if (any(counts[name] < minimum for name, minimum in LEARNING_JOURNEYS.items())
+    if (any(counts[name] < minimum for name, minimum in journeys.items())
             or stats.get("expected") != sum(counts.values())):
-        raise ValueError("Required learning browser journeys were not all collected")
+        raise ValueError("Required browser journeys were not all collected")
+
+
+def verify_learning_report(report_path: Path) -> None:
+    _verify_browser_report(report_path, LEARNING_JOURNEYS, "chromium-desktop")
+
+
+def verify_private_wiki_report(report_path: Path) -> None:
+    _verify_browser_report(report_path, PRIVATE_WIKI_JOURNEYS, "chromium-private")
 
 
 def github_identity(repo: Path) -> dict:
@@ -144,6 +158,7 @@ def build(repo: Path, work: Path) -> dict:
     # Do not propagate the old task-scoped cloud exception into a real CI build.
     env.pop("ZHIZHI_ALLOW_ISOLATED_CLOUD_BUILD", None)
     env.pop("ZHIZHI_BUILD_AUTHORIZATION", None)
+    env.pop("WIKI_BROWSER_EXECUTABLE", None)
 
     def run(name, command, cwd=repo, extra=None, check=None):
         try:
@@ -201,6 +216,8 @@ def build(repo: Path, work: Path) -> dict:
         ["npm", "ci", "--ignore-scripts", "--no-audit", "--fund=false"], private_wiki)
     run("private-wiki-types", ["npm", "run", "typecheck"], private_wiki)
     run("private-wiki-tests", ["npm", "test"], private_wiki)
+    run("private-wiki-owner-asgi-contract",
+        python("tests/integration/check_owner_auth.py"), private_wiki)
     run("private-wiki-domain-capture",
         python("tests/integration/capture_domain_contract.py"), private_wiki)
     run("private-wiki-domain-contract", ["npm", "run", "test:domain-contract"], private_wiki)
@@ -209,9 +226,14 @@ def build(repo: Path, work: Path) -> dict:
     run("private-wiki-production-build", ["npm", "run", "build"], private_wiki)
     run("private-wiki-browser-install",
         ["npx", "--no-install", "playwright", "install", "--with-deps", "chromium"], private_wiki)
-    run("private-wiki-browser-fixtures",
-        ["npm", "run", "test:e2e", "--", "--output", str(evidence / "private-wiki-browser")],
-        private_wiki)
+    private_report = evidence / "private-wiki-browser.json"
+    run("private-wiki-browser-fixtures", [
+        "npx", "--no-install", "playwright", "test",
+        *("tests/e2e/" + name for name in PRIVATE_WIKI_JOURNEYS),
+        "--project=chromium-private", "--forbid-only", "--retries=0",
+        "--reporter=list,json", "--output", str(evidence / "private-wiki-browser"),
+    ], private_wiki, extra={"PLAYWRIGHT_JSON_OUTPUT_FILE": str(private_report)},
+        check=lambda: verify_private_wiki_report(private_report))
 
     pi = repo / "integrations/pi-zhizhi"
     run("pi-locked-install", ["npm", "ci", "--ignore-scripts", "--no-audit", "--fund=false"], pi)

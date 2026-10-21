@@ -9,13 +9,17 @@ import ZhizhiSession from './ZhizhiSession';
 import ZhizhiProjects from './ZhizhiProjects';
 import ZhizhiWriteback from './ZhizhiWriteback';
 import ZhizhiTopics from './ZhizhiTopics';
+import WikiLearningPage from './WikiLearningPage';
+import WikiLearningLibrary from './WikiLearningLibrary';
+import EntryContextPage from './EntryContextPage';
+import { entryReference } from '../api/entry-context';
 import KnowledgeStudy from './KnowledgeStudy';
 import KnowledgeWorkspace from './KnowledgeWorkspace';
 import RadarPracticePanel from './RadarPracticePanel';
 import './KnowledgeWorkspace.css';
 import './ZhizhiWorkspace.css';
 
-const TITLES = {home:'继续你的工程学习', projects:'工程项目与提交证据',library:'学习库',session:'学习会话',understanding:'我的理解',writeback:'把理解变成可复用成果',radar:'关系与学习雷达',candidates:'从工程线索选择学习目标',exercise:'可选练习',cli:'CLI 主入口','topic-management':'学习主题管理'};
+const TITLES = {home:'继续你的工程学习', projects:'工程项目与提交证据',library:'学习库',session:'学习会话',understanding:'我的理解',writeback:'把理解变成可复用成果',radar:'关系与学习雷达',candidates:'从工程线索选择学习目标',exercise:'可选练习',cli:'CLI 主入口','topic-management':'学习主题管理','entry-context':'核对正式知识引用','wiki-learning':'从正式知识开始自由学习'};
 export default function GrowthPage() {
   const [params,setParams] = useSearchParams();
   const view = zhizhiView(params.get('view'));
@@ -48,6 +52,9 @@ export default function GrowthPage() {
     {loading&&<p role="status">正在读取学习记录…</p>}
     {['home','library'].includes(view)&&<div className="zz-toolbar"><Link to={learningUrl('topic-management',projectId)}>学习主题管理</Link><span className="zz-muted">维护学习原话与主题归属，不进入通用知识审核。</span></div>}
     {view==='topic-management'&&<ZhizhiTopics/>}
+    {view==='entry-context'&&<EntryContextPage key={params.get('entry_id')+':'+params.get('revision')} reference={entryReference(params)}/>}
+    {view==='wiki-learning'&&<WikiLearningPage key={params.get('context_id')??''} contextId={params.getAll('context_id').length===1?params.get('context_id')??'':''}/>}
+    {view==='library'&&!cardId&&<WikiLearningLibrary/>}
     {!loading&&index&&view==='home'&&<>
       <div className="zz-grid"><section className="zz-panel"><h2><BookOpen/>{current?.card_id===lastCardId?'继续上次学习':'继续工程学习'}</h2>{current?<><h3>{current.title}</h3><p>{current.front_question}</p><p className="zz-muted">{readingLabel(current)} · 回答与 AI 讲解分开保存</p><Link className="zz-button" to={learningUrl('session',projectId,current.card_id)}>继续学习 <ArrowRight size={16}/></Link></>:<div className="zz-empty"><h3>从自己的项目或笔记开始</h3><p>这里还没有学习材料，不会自动生成“我的理解”。</p><Link className="zz-button" to={learningUrl('projects',projectId)}>选择工程证据</Link></div>}</section>
       <section className="zz-panel"><h2><Lightbulb/>我的下一步</h2><Link className="zz-next" to={learningUrl('library',projectId)}>选择一个架构问题 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('understanding',projectId)}>用自己的话解释机制与边界 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('writeback',projectId)}>核对学习成果与回填状态 <ArrowRight size={16}/></Link></section></div>

@@ -1,17 +1,29 @@
 import { isBackendApiRoute } from '../fixtures/api-routes';
 import { expect, test, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import type { EntryContextLink } from '../../src/api/entry-context';
+import type { WikiLearningContext, WikiLearningSubmission } from '../../src/api/wiki-learning';
 import type { UnderstandingSubmission } from '../../src/api/understanding';
 
 test.use({launchOptions:{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}});
+const wikiId='44444444-4444-4444-8444-444444444444';
+const wikiUrl='/#/growth?view=wiki-learning&context_id='+wikiId;
+const hashText=(value:string)=>createHash('sha256').update(value,'utf8').digest('hex');
 const submissionId='1'.repeat(64);
 const otherCardId='22222222-2222-4222-8222-222222222222';
 const cardId='11111111-1111-4111-8111-111111111111';
 const root='/api/growth/local/knowledge';
+const formalEntry={entry_id:'entry_transaction_boundary',revision:2,title:'指定的正式历史版本',body:'正式 v2 原文：失败重试需要独立边界。',content_hash:createHash('sha256').update('正式 v2 原文：失败重试需要独立边界。','utf8').digest('hex'),evidence_refs:[{source_id:'source-formal',source_revision:1}],data_classification:'personal',classification_labels:['private']};
+const entryUrl='/#/growth?view=entry-context&entry_id='+formalEntry.entry_id+'&revision=2';
 const card={card_id:cardId,concept_id:'concept-1',title:'事务边界学习',front_question:'何时提交，失败如何恢复？',back_answer:'AI 示例讲解，不能代替本人观点。',back_explanation:'事务负责原子性。',card_version:1,followup_mark:'none',learning_stage:'back',project_ids:['p1'],source_commit_shas:['abc123']};
 const baseState={projects:[{project_id:'p1',name:'隔离测试项目',local_processing:true,model_allowed:false,cloud_allowed:false,created_at:'2026-01-01',last_publish_error:null}],bindings:[{binding_id:'b1',project_id:'p1',canonical_local_path:'/fixture',provider_names:[],created_at:'2026-01-01'}],features:[{feature_id:'f1',project_id:'p1',label:'限定范围',base_ref:'main'}],snapshots:[],analysis_runs:[],opportunities:[],topic_proposals:[],growth_tasks:[],local_topics:[],local_topic_projects:[],local_explorations:[]};
-async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSave?:boolean;writeback?:boolean;streamInterrupted?:boolean;bridge?:'unavailable'|'candidate'|'conflict'|'lost'|'retry'|'delayed';noteText?:string;secondCard?:boolean}={}) {
+async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSave?:boolean;writeback?:boolean;streamInterrupted?:boolean;bridge?:'unavailable'|'candidate'|'conflict'|'lost'|'retry'|'delayed';noteText?:string;secondCard?:boolean;entryContext?:'empty'|'conflict'|'lost'|'denied';wiki?:'candidate'|'create-lost'|'note-conflict'|'note-lost'|'submission-lost'|'retry'|'delayed'|'denied';wikiExisting?:boolean}={}) {
   let note=options.noteText??'本人已保存的原话';let saves=0;let publishes=0;const requests:string[]=[];const decisions:unknown[]=[];const completions:unknown[]=[];const chats:Record<string,unknown>[]=[];
+  const wikiPath=root+'/entry-learning-contexts';const wikiSubPath=wikiPath+'/'+wikiId+'/understanding/submissions';
+  let wikiContext:WikiLearningContext|null=options.wikiExisting?{context_id:wikiId,source_kind:'wiki_entry',context_version:1,entry:formalEntry,note_text:'独立自由理解旧稿',note_sha256:hashText('独立自由理解旧稿'),created_at:'2026-10-21',updated_at:'2026-10-21',state:'reading'}:null;
+  let wikiSubmission:WikiLearningSubmission|null=null;let wikiRelease=()=>{};
+  const wikiCreates:Record<string,unknown>[]=[];const wikiNotes:Record<string,unknown>[]=[];const wikiSubmits:Record<string,unknown>[]=[];
+  const contextBodies:Record<string,unknown>[]=[];let linkedContext:EntryContextLink|null=null;let contextCardVersion=1;let contextRevoked=false;
   const submissionBodies:unknown[]=[];let submission:UnderstandingSubmission|null=null;let committed=false;let releaseSubmission=()=>{};
   const submissionsPath=root+'/cards/'+cardId+'/understanding/submissions';
   const conversation=[{role:'user',content_text:'此前我问过事务边界'},{role:'assistant',content_text:'此前会话中的辅助解释'}];
@@ -21,6 +33,8 @@ async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSa
     [root+'/cards/'+cardId+'/chat/stream']:['POST'],[root+'/wiki/drafts/d1']:['PUT'],[root+'/wiki/drafts/d1/publish']:['POST'],
     '/api/growth/local/bindings/b1/commits':['GET'],[root+'/commits/abc123']:['GET'],
     [root+'/cards/'+otherCardId+'/understanding/submissions']:['GET'],[submissionsPath]:['GET','POST'],[submissionsPath+'/'+submissionId]:['GET'],
+    [wikiPath]:['GET','POST'],[wikiPath+'/'+wikiId]:['GET'],[wikiPath+'/'+wikiId+'/note']:['POST'],[wikiSubPath]:['GET','POST'],[wikiSubPath+'/'+submissionId]:['GET'],
+    [root+'/entry-context']:['GET'],[root+'/entry-contexts']:['POST'],[root+'/cards/'+cardId+'/entry-contexts']:['GET'],[root+'/cards/'+otherCardId+'/entry-contexts']:['GET'],
     [root+'/radar/runs']:['POST'],[root+'/radar/r1/decision']:['POST'],[root+'/radar/r1']:['GET'],[root+'/radar/r1/complete']:['POST'],
   };
   const draft=options.writeback?{draft_id:'d1',card_id:cardId,markdown:'新的边界说明',original_markdown:'旧的边界说明',status:'draft'}:null;
@@ -34,7 +48,65 @@ async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSa
     if(url.pathname==='/api/growth/local')return json(options.empty?{...baseState,projects:[],bindings:[],features:[]}:options.streamInterrupted?{...baseState,projects:[{...baseState.projects[0],model_allowed:true}],bindings:[{...baseState.bindings[0],provider_names:['fixture-model']}]}:baseState);
     if(url.pathname===root)return options.failIndex?json({error:'fixture unavailable'},503):json({knowledge_mode:'unified',cards:options.empty?[]:options.secondCard?[{...card,card_id:otherCardId,title:'列表排在前面的另一张卡'},card]:[card],candidates:[],wiki_articles:[],vault_path:''});
     if(url.pathname===root+'/cards/'+otherCardId)return json({card:{...card,card_id:otherCardId,title:'列表排在前面的另一张卡'},learning:{stage:'back',note_text:'另一张卡的原话',answers:{}},sources:[],questions:[],wiki_draft:null,conversation:[]});
-    if(url.pathname===root+'/cards/'+cardId)return json({card,learning:{stage:'back',note_text:note,answers:{}},sources:[{source_ref_id:'source1',relative_path:'service.ts',commit_sha:'abc123',project_id:'p1',excerpt:'事务证据'}],questions:[],wiki_draft:draft,conversation});
+    if(url.pathname===root+'/cards/'+cardId)return json({card:{...card,card_version:contextCardVersion},learning:{stage:'back',note_text:note,answers:{}},sources:[{source_ref_id:'source1',relative_path:'service.ts',commit_sha:'abc123',project_id:'p1',excerpt:'事务证据'}],questions:[],wiki_draft:draft,conversation});
+    if(url.pathname===wikiPath){
+      if(request.method()==='GET'){
+        expect(Object.fromEntries(url.searchParams)).toEqual({limit:'20',offset:'0'});
+        return json({items:wikiContext?[{context_id:wikiId,source_kind:'wiki_entry',context_version:wikiContext.context_version,entry_id:formalEntry.entry_id,revision:2,content_hash:formalEntry.content_hash,title:formalEntry.title,note_sha256:wikiContext.note_sha256,created_at:wikiContext.created_at,updated_at:wikiContext.updated_at,state:'reading'}]:[],has_more:false});
+      }
+      const body=request.postDataJSON();wikiCreates.push(body);
+      expect(body).toEqual({request_id:expect.any(String),entry_id:formalEntry.entry_id,revision:2,expected_content_hash:formalEntry.content_hash});expect(body.request_id).toMatch(/^[a-f0-9-]{36}$/);
+      wikiContext??={context_id:wikiId,source_kind:'wiki_entry',context_version:1,entry:formalEntry,note_text:'',note_sha256:hashText(''),created_at:'2026-10-21',updated_at:'2026-10-21',state:'reading'};
+      if(options.wiki==='create-lost')return route.abort('failed');
+      await new Promise(resolve=>setTimeout(resolve,120));return json(wikiContext);
+    }
+    if(url.pathname===wikiPath+'/'+wikiId){expect(wikiContext).not.toBeNull();return contextRevoked||options.wiki==='denied'?json({error:'wiki-source-secret-sentinel'},403):json(wikiContext);}
+    if(url.pathname===wikiPath+'/'+wikiId+'/note'){
+      expect(wikiContext).not.toBeNull();const body=request.postDataJSON();wikiNotes.push(body);
+      expect(body).toEqual({request_id:expect.any(String),expected_context_version:wikiContext!.context_version,note_text:expect.any(String)});expect(body.request_id).toMatch(/^[a-f0-9-]{36}$/);
+      if(options.wiki==='note-conflict'&&wikiNotes.length===1){wikiContext={...wikiContext!,context_version:2,note_text:'另一端保存的本人原话',note_sha256:hashText('另一端保存的本人原话')};return json({error:'CONTEXT_VERSION_STALE'},409);}
+      wikiContext={...wikiContext!,context_version:wikiContext!.context_version+(body.note_text===wikiContext!.note_text?0:1),note_text:body.note_text,note_sha256:hashText(body.note_text)};
+      if(options.wiki==='note-lost')return route.abort('failed');
+      await new Promise(resolve=>setTimeout(resolve,120));return json(wikiContext);
+    }
+    if(url.pathname===wikiSubPath){
+      if(contextRevoked)return json({error:'wiki-source-secret-sentinel'},403);
+      if(request.method()==='GET')return json({items:wikiSubmission?[wikiSubmission]:[],has_more:false});
+      expect(wikiContext).not.toBeNull();const body=request.postDataJSON();wikiSubmits.push(body);
+      const text=wikiSubmission&&wikiSubmission.note_sha256===body.note_sha256?wikiSubmission.user_text:wikiContext!.note_text;
+      const version=wikiSubmission&&wikiSubmission.note_sha256===body.note_sha256?wikiSubmission.context_version:wikiContext!.context_version;
+      expect(body).toEqual({context_version:version,note_sha256:hashText(text)});
+      wikiSubmission={submission_id:submissionId,context_id:wikiId,context_version:version,note_sha256:body.note_sha256,user_text:text,delivery_state:'pending',outcome_id:null,task_id:null,remote_state:'not_submitted',task:null,change:null,error:null};
+      if(options.wiki==='submission-lost')return route.abort('failed');
+      if(options.wiki==='retry')wikiSubmission=wikiSubmits.length===1?{...wikiSubmission,remote_state:'unknown',error:{code:'NETWORK_ERROR',retryable:true}}:{...wikiSubmission,delivery_state:'acknowledged',remote_state:'available',outcome_id:'free-outcome-1',task_id:'free-task-1',task:{task_id:'free-task-1',kind:'knowledge.generate',state:'queued'}};
+      if(options.wiki==='delayed')await new Promise<void>(resolve=>{wikiRelease=resolve;});else await new Promise(resolve=>setTimeout(resolve,120));
+      return json(wikiSubmission,202);
+    }
+    if(url.pathname===wikiSubPath+'/'+submissionId){
+      if(contextRevoked)return json({error:'wiki-source-secret-sentinel'},403);
+      expect(wikiSubmission).not.toBeNull();
+      if(options.wiki==='candidate')wikiSubmission={...wikiSubmission!,delivery_state:'acknowledged',remote_state:'available',outcome_id:'free-outcome-1',task_id:'free-task-1',task:{task_id:'free-task-1',kind:'knowledge.generate',state:'succeeded'},change:{change_id:'free-change-1',state:committed?'committed':'needs_ai_review',entry_id:'independent_understanding_entry',base_revision:0,committed_revision:committed?1:null,title:'本人独立理解候选',path:'understandings/free.md',original_markdown:'',candidate_markdown:'从本人原话整理的独立解释',evidence_refs:[{learning_outcome_id:'free-outcome-1',source_id:'source-formal',revision:2}]}};
+      return json(wikiSubmission);
+    }
+    if(url.pathname===root+'/entry-context'){
+
+      expect(Object.fromEntries(url.searchParams)).toEqual({entry_id:formalEntry.entry_id,revision:'2'});
+      if(options.entryContext==='denied'||contextRevoked)return json({error:'private-entry-secret-sentinel'},403);
+      return json({entry:formalEntry,cards:options.entryContext==='empty'?[]:[{card_id:cardId,card_version:contextCardVersion,title:card.title}]});
+    }
+    if(url.pathname===root+'/entry-contexts'){
+      const body=request.postDataJSON();contextBodies.push(body);
+      expect(body).toEqual({request_id:expect.any(String),entry_id:formalEntry.entry_id,revision:2,expected_content_hash:formalEntry.content_hash,target_card_id:cardId,expected_card_version:contextCardVersion});
+      expect(body.request_id).toMatch(/^[a-f0-9-]{36}$/);
+      if(options.entryContext==='conflict'&&contextBodies.length===1){contextCardVersion=2;return json({error:'CARD_VERSION_STALE'},409);}
+      linkedContext={context_id:'33333333-3333-4333-8333-333333333333',entry_id:formalEntry.entry_id,revision:2,content_hash:formalEntry.content_hash,card_id:cardId,card_version:contextCardVersion,created_at:'2026-10-21',state:'linked'};
+      if(options.entryContext==='lost')return route.abort('failed');
+      await new Promise(resolve=>setTimeout(resolve,120));return json(linkedContext);
+    }
+    if(url.pathname.endsWith('/entry-contexts')&&url.pathname.startsWith(root+'/cards/')){
+      if(contextRevoked)return json({error:'private-entry-secret-sentinel'},403);
+      return json({items:linkedContext&&url.pathname===root+'/cards/'+cardId+'/entry-contexts'?[{...linkedContext,entry:formalEntry}]:[],has_more:false});
+    }
     if(url.pathname===root+'/cards/'+otherCardId+'/understanding/submissions')return json({items:[],has_more:false});
     if(url.pathname===submissionsPath){
       if(options.bridge==='unavailable')return json({error:'sentinel-private-upstream-secret'},404);
@@ -70,7 +142,7 @@ async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSa
     if(url.pathname===root+'/radar/r1/complete'){completions.push(request.postDataJSON());return json({state:'pending',published:false,suggestion_id:'r1'});}
     return json({error:'fixture route not implemented: '+url.pathname},404);
   });
-  return {saves:()=>saves,publishes:()=>publishes,requests,decisions,completions,chats,submissionBodies,releaseSubmission:()=>releaseSubmission(),confirmWrite:()=>{committed=true;}};
+  return {wikiCreates,wikiNotes,wikiSubmits,wikiRelease:()=>wikiRelease(),saves:()=>saves,publishes:()=>publishes,requests,decisions,completions,chats,submissionBodies,contextBodies,revokeContext:()=>{contextRevoked=true;},releaseSubmission:()=>releaseSubmission(),confirmWrite:()=>{committed=true;}};
 }
 test('专域首页与空态不制造设计示例数据',async({page})=>{await serve(page,{empty:true});await page.goto('/#/growth?view=home');await expect(page.getByRole('heading',{name:'继续你的工程学习'})).toBeVisible();await expect(page.getByText('从自己的项目或笔记开始')).toBeVisible();const nav=page.locator('#growth-navigation');await expect(nav.getByRole('link')).toHaveCount(6);await expect(nav).not.toContainText('收件箱');await expect(nav).not.toContainText('重要确认');await expect(page.getByText('SQLite 单写与 Git CAS')).toHaveCount(0);});
 test('API 错误不是空成功',async({page})=>{await serve(page,{failIndex:true});await page.goto('/#/growth?view=library');await expect(page.getByRole('alert')).toContainText('读取未完成');await expect(page.getByText('还没有符合条件的材料')).toHaveCount(0);});
@@ -186,4 +258,156 @@ test('理解提交迟到响应不能覆盖后来打开的另一张卡',async({pa
   await expect(page.getByText('另一张卡的原话',{exact:true})).toBeVisible();
   await expect(page.getByText('submission_id: '+submissionId,{exact:false})).toHaveCount(0);
   await expect(submit).toBeEnabled();expect(calls.submissionBodies).toHaveLength(1);
+});
+
+test('正式历史版本只读预览并显式关联既有卡，原话保持独立',async({page})=>{
+  const calls=await serve(page);await page.goto(entryUrl);
+  await expect(page.getByLabel('正式版本只读正文')).toHaveText(formalEntry.body);expect(calls.contextBodies).toEqual([]);
+  const attach=page.getByRole('button',{name:'确认关联此正式版本',exact:true});await expect(attach).toBeDisabled();
+  await page.getByRole('combobox',{name:'关联到已有学习卡',exact:true}).selectOption(cardId);await expect(attach).toBeDisabled();
+  await page.getByRole('checkbox',{name:'我已核对这个正式版本与目标学习卡，确认只添加引用',exact:true}).check();await attach.dblclick();
+  await expect(page.getByText('指定正式版本已关联。未创建新卡、未提交模型、未替换你的理解。',{exact:true})).toBeVisible();expect(calls.contextBodies).toHaveLength(1);
+  await page.getByRole('link',{name:'回到这张学习卡',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'我的理解',exact:true})).toHaveValue('本人已保存的原话');
+  const refs=page.getByRole('region',{name:'关联的正式知识版本',exact:true});await refs.getByText('指定的正式历史版本 · 正式版本 v2',{exact:true}).click();
+  await expect(page.getByLabel('关联的正式正文 v2')).toHaveText(formalEntry.body);
+  await page.reload();await expect(refs.getByText('指定的正式历史版本 · 正式版本 v2',{exact:true})).toBeVisible();expect(calls.contextBodies).toHaveLength(1);
+  calls.revokeContext();await refs.getByRole('button',{name:'重新验证正式引用',exact:true}).click();
+  await expect(refs.getByRole('alert')).toContainText('不显示缓存正文');await expect(page.getByLabel('关联的正式正文 v2')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('private-entry-secret-sentinel');
+  await expect(page.getByRole('textbox',{name:'我的理解',exact:true})).toHaveValue('本人已保存的原话');expect(calls.saves()).toBe(0);
+  expect(calls.requests.some(path=>path.endsWith('/chat/stream')||path.endsWith('/analysis')||path.endsWith('/complete'))).toBe(false);
+});
+test('正式版本没有既有卡时不自动建卡，也不提供假完成',async({page})=>{
+  const calls=await serve(page,{entryContext:'empty'});await page.goto(entryUrl);
+  await expect(page.getByLabel('正式版本只读正文')).toHaveText(formalEntry.body);
+  await expect(page.getByText('暂无可关联的既有学习卡。',{exact:false})).toBeVisible();
+  await expect(page.getByRole('button',{name:'确认关联此正式版本',exact:true})).toHaveCount(0);expect(calls.contextBodies).toEqual([]);expect(calls.saves()).toBe(0);
+});
+test('正式引用卡版本冲突后必须重新预览与确认，不能复用旧批准',async({page})=>{
+  const calls=await serve(page,{entryContext:'conflict'});await page.goto(entryUrl);
+  const choose=page.getByRole('combobox',{name:'关联到已有学习卡',exact:true});await choose.selectOption(cardId);
+  const approval=page.getByRole('checkbox',{name:'我已核对这个正式版本与目标学习卡，确认只添加引用',exact:true});await approval.check();
+  await page.getByRole('button',{name:'确认关联此正式版本',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('不会自动重试');await expect(page.getByLabel('正式版本只读正文')).toHaveCount(0);expect(calls.contextBodies).toHaveLength(1);
+  await page.getByRole('button',{name:'重新读取精确版本与关联',exact:true}).click();
+  await expect(choose).toContainText('v2');await expect(approval).not.toBeChecked();
+  await expect(page.getByRole('button',{name:'确认关联此正式版本',exact:true})).toBeDisabled();
+  await approval.check();await page.getByRole('button',{name:'确认关联此正式版本',exact:true}).click();
+  await expect(page.getByText('指定正式版本已关联。未创建新卡、未提交模型、未替换你的理解。',{exact:true})).toBeVisible();
+  expect(calls.contextBodies.map(body=>body.expected_card_version)).toEqual([1,2]);expect(calls.contextBodies[0].request_id).not.toBe(calls.contextBodies[1].request_id);
+});
+test('正式引用关联响应丢失后只读恢复，不自动重复关联',async({page})=>{
+  const calls=await serve(page,{entryContext:'lost'});await page.goto(entryUrl);
+  await page.getByRole('combobox',{name:'关联到已有学习卡',exact:true}).selectOption(cardId);
+  await page.getByRole('checkbox',{name:'我已核对这个正式版本与目标学习卡，确认只添加引用',exact:true}).check();
+  await page.getByRole('button',{name:'确认关联此正式版本',exact:true}).click();await expect(page.getByRole('alert')).toContainText('未能确认');
+  await page.getByRole('button',{name:'重新读取精确版本与关联',exact:true}).click();
+  await expect(page.getByText('指定正式版本已关联。未创建新卡、未提交模型、未替换你的理解。',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'确认关联此正式版本',exact:true})).toBeDisabled();expect(calls.contextBodies).toHaveLength(1);
+});
+test('正式版本拒绝访问不展示正文，也不把错误详情带到页面',async({page})=>{
+  const calls=await serve(page,{entryContext:'denied'});await page.goto(entryUrl);
+  await expect(page.getByRole('alert')).toContainText('不显示缓存正文');await expect(page.getByLabel('正式版本只读正文')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('private-entry-secret-sentinel');expect(calls.contextBodies).toEqual([]);
+});
+test('条目深链缺少明确版本时不请求 latest 或关联',async({page})=>{
+  const calls=await serve(page);await page.goto('/#/growth?view=entry-context&entry_id='+formalEntry.entry_id);
+  await expect(page.getByRole('alert')).toContainText('不会猜测条目或读取最新版');
+  expect(calls.requests.some(path=>path.includes('/entry-context'))).toBe(false);expect(calls.contextBodies).toEqual([]);
+});
+
+test('无工程卡也可明确开始自由学习，原话到独立候选并从学习库恢复',async({page})=>{
+  const calls=await serve(page,{empty:true,entryContext:'empty',wiki:'candidate'});await page.goto(entryUrl);
+  const start=page.getByRole('button',{name:'从当前正式版本开始自由学习',exact:true});await expect(start).toBeEnabled();expect(calls.wikiCreates).toEqual([]);
+  await start.dblclick();await expect(page).toHaveURL(new RegExp('view=wiki-learning&context_id='+wikiId));expect(calls.wikiCreates).toHaveLength(1);
+  await expect(page.getByLabel('自由学习正式原文')).toHaveText(formalEntry.body);
+  const answer=page.getByRole('textbox',{name:'自由学习本人原话',exact:true});await expect(answer).toHaveValue('');
+  const note='  我理解的失败边界\n不是复制来源正文  ';await answer.fill(note);await page.getByRole('button',{name:'保存自由学习原话',exact:true}).dblclick();
+  await expect(page.getByText('本人原话已保存，尚未提交生成、复核或公开。',{exact:true})).toBeVisible();expect(calls.wikiNotes).toHaveLength(1);expect(calls.wikiSubmits).toEqual([]);
+  const submit=page.getByRole('button',{name:'提交自由理解，生成并复核候选',exact:true});await expect(submit).toBeEnabled();await submit.dblclick();
+  await expect(page.getByText('已保存到本机待发，尚未确认服务受理。',{exact:true})).toBeVisible();expect(calls.wikiSubmits).toEqual([{context_version:2,note_sha256:hashText(note)}]);
+  await page.getByRole('button',{name:'刷新自由理解提交',exact:true}).click();
+  await expect(page.getByLabel('自由理解候选差异')).toContainText('从本人原话整理的独立解释');await expect(page.getByText('候选等待独立复核，尚未确认正式写入。',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('自由学习正式原文')).toHaveText(formalEntry.body);await expect(answer).toHaveValue(note);expect(calls.contextBodies).toEqual([]);expect(calls.saves()).toBe(0);
+  calls.confirmWrite();await page.getByRole('button',{name:'刷新自由理解提交',exact:true}).click();await expect(page.getByText('已确认正式写入，不代表公开。',{exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'返回学习库'}).click();await page.getByRole('region',{name:'来自正式知识的自由学习',exact:true}).getByRole('link',{name:'继续自由学习',exact:true}).click();
+  await expect(answer).toHaveValue(note);await page.reload();await expect(answer).toHaveValue(note);await expect(submit).toBeDisabled();expect(calls.wikiCreates).toHaveLength(1);expect(calls.wikiSubmits).toHaveLength(1);
+  expect(calls.requests.some(path=>path.includes('/cards/')||path.endsWith('/complete')||path.endsWith('/chat/stream'))).toBe(false);
+});
+
+test('自由学习创建响应丢失后只读查回同一来源，不自动重建',async({page})=>{
+  const calls=await serve(page,{entryContext:'empty',wiki:'create-lost'});await page.goto(entryUrl);
+  await page.getByRole('button',{name:'从当前正式版本开始自由学习',exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();expect(calls.wikiCreates).toHaveLength(1);
+  await page.getByRole('button',{name:'重新读取精确版本与关联',exact:true}).click();await expect(page.getByText('已通过只读恢复找到这份自由学习记录。',{exact:false})).toBeVisible();
+  await expect(page.getByRole('button',{name:'从当前正式版本开始自由学习',exact:true})).toBeDisabled();await page.getByRole('link',{name:'继续自由学习',exact:true}).click();
+  await expect(page.getByLabel('自由学习正式原文')).toHaveText(formalEntry.body);expect(calls.wikiCreates).toHaveLength(1);expect(calls.wikiNotes).toEqual([]);expect(calls.wikiSubmits).toEqual([]);
+});
+
+test('自由原话 CAS 冲突保留输入，重新读取并确认后才使用新版本',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'note-conflict'});await page.goto(wikiUrl);
+  const answer=page.getByRole('textbox',{name:'自由学习本人原话',exact:true});await expect(answer).toHaveValue('独立自由理解旧稿');await answer.fill('冲突时仍属于本人的新输入');
+  const save=page.getByRole('button',{name:'保存自由学习原话',exact:true});await save.click();await expect(page.getByRole('alert')).toContainText('原话输入保留');await expect(answer).toHaveCount(0);await expect(page.locator('body')).not.toContainText('冲突时仍属于本人的新输入');
+  await page.reload();await expect(answer).toHaveValue('冲突时仍属于本人的新输入');await expect(save).toBeDisabled();expect(calls.wikiNotes).toHaveLength(1);
+  await page.getByText('服务已保存的本人原话 · v2',{exact:true}).click();await expect(page.getByText('另一端保存的本人原话',{exact:true})).toBeVisible();
+  await page.getByRole('checkbox',{name:'已核对服务端原话，以当前版本保存我的输入',exact:true}).check();await save.click();
+  await expect(page.getByText('本人原话已保存，尚未提交生成、复核或公开。',{exact:true})).toBeVisible();expect(calls.wikiNotes).toHaveLength(2);expect(calls.wikiNotes[1]).toMatchObject({expected_context_version:2,note_text:'冲突时仍属于本人的新输入'});expect(calls.wikiSubmits).toEqual([]);
+});
+
+test('自由原话保存失联后 GET 核对已保存版本，不能自动重放',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'note-lost'});await page.goto(wikiUrl);
+  const answer=page.getByRole('textbox',{name:'自由学习本人原话',exact:true});await expect(answer).toHaveValue('独立自由理解旧稿');await answer.fill('已持久化但回执丢失的本人解释');await page.getByRole('button',{name:'保存自由学习原话',exact:true}).click();
+  await expect(page.getByRole('alert')).toBeVisible();await expect(answer).toHaveCount(0);await expect(page.locator('body')).not.toContainText('已持久化但回执丢失的本人解释');
+  await page.getByRole('button',{name:'重新读取自由学习',exact:true}).click();await expect(page.getByText('已重新核对服务保存的原话。',{exact:true})).toBeVisible();await expect(answer).toHaveValue('已持久化但回执丢失的本人解释');
+  await expect(page.getByRole('button',{name:'保存自由学习原话',exact:true})).toBeDisabled();expect(calls.wikiNotes).toHaveLength(1);expect(calls.wikiSubmits).toEqual([]);
+});
+
+test('自由理解提交失联只 GET 恢复不可变快照，不借用工程卡',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'submission-lost'});await page.goto(wikiUrl);
+  const submit=page.getByRole('button',{name:'提交自由理解，生成并复核候选',exact:true});await expect(submit).toBeEnabled();await submit.click();await expect(page.getByRole('alert')).toContainText('原话输入保留');await expect(submit).toHaveCount(0);
+  await page.getByRole('button',{name:'重新读取自由学习',exact:true}).click();await expect(page.getByText('已保存到本机待发，尚未确认服务受理。',{exact:true})).toBeVisible();await expect(submit).toBeDisabled();
+  expect(calls.wikiSubmits).toEqual([{context_version:1,note_sha256:hashText('独立自由理解旧稿')}]);expect(calls.submissionBodies).toEqual([]);expect(calls.wikiNotes).toEqual([]);
+});
+
+test('自由理解重递旧版本快照，不被后来保存的解释替换',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'retry'});await page.goto(wikiUrl);
+  const submit=page.getByRole('button',{name:'提交自由理解，生成并复核候选',exact:true});await expect(submit).toBeEnabled();await submit.click();await expect(page.getByRole('button',{name:'重试递送这份自由理解',exact:true})).toBeVisible();
+  const answer=page.getByRole('textbox',{name:'自由学习本人原话',exact:true});await answer.fill('后来新增的独立解释');await page.getByRole('button',{name:'保存自由学习原话',exact:true}).click();await expect(page.getByText('本人原话已保存，尚未提交生成、复核或公开。',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'重试递送这份自由理解',exact:true}).click();await expect(page.getByText('已受理，等待生成或读取候选；尚未确认正式写入。',{exact:true})).toBeVisible();
+  expect(calls.wikiSubmits).toHaveLength(2);expect(calls.wikiSubmits[1]).toEqual(calls.wikiSubmits[0]);await expect(answer).toHaveValue('后来新增的独立解释');await expect(page.getByText('这份提交保留此前原话，不会被当前编辑替换。',{exact:true})).toBeVisible();
+});
+
+test('自由学习来源撤权不显示缓存正文或本人原话，仍保留草稿待重新授权',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true});await page.goto(wikiUrl);await expect(page.getByLabel('自由学习正式原文')).toHaveText(formalEntry.body);
+  const answer=page.getByRole('textbox',{name:'自由学习本人原话',exact:true});await answer.fill('撤权后仍应保留的本人输入');calls.revokeContext();await page.getByRole('button',{name:'重新读取自由学习',exact:true}).click();
+  await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByLabel('自由学习正式原文')).toHaveCount(0);await expect(answer).toHaveCount(0);await expect(page.locator('body')).not.toContainText('撤权后仍应保留的本人输入');await expect(page.locator('body')).not.toContainText('独立自由理解旧稿');await expect(page.locator('body')).not.toContainText('wiki-source-secret-sentinel');await expect(page.getByRole('region',{name:'自由理解提交与候选',exact:true})).toHaveCount(0);expect(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).text,'zhizhi:wiki-understanding:'+wikiId)).toBe('撤权后仍应保留的本人输入');expect(calls.wikiNotes).toEqual([]);
+});
+
+test('自由理解迟到提交不覆盖导航后的其他学习页',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'delayed'});await page.goto(wikiUrl);
+  const submit=page.getByRole('button',{name:'提交自由理解，生成并复核候选',exact:true});await expect(submit).toBeEnabled();await submit.click();await expect.poll(()=>calls.wikiSubmits.length).toBe(1);
+  await page.getByRole('link',{name:'返回学习库'}).click();await page.getByRole('link',{name:'事务边界学习',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'我的理解',exact:true})).toHaveValue('本人已保存的原话');
+  const response=page.waitForResponse(value=>value.url().endsWith('/entry-learning-contexts/'+wikiId+'/understanding/submissions')&&value.request().method()==='POST');calls.wikiRelease();await (await response).finished();
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
+  await expect(page).toHaveURL(new RegExp('view=session.*card='+cardId));await expect(page.getByRole('textbox',{name:'我的理解',exact:true})).toHaveValue('本人已保存的原话');await expect(page.getByRole('region',{name:'自由理解提交与候选',exact:true})).toHaveCount(0);expect(calls.wikiSubmits).toHaveLength(1);expect(calls.saves()).toBe(0);
+});
+
+
+test('未授权打开自由学习时不把本机缓存原话放进 DOM',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'denied'});
+  await page.addInitScript(({key,text})=>localStorage.setItem(key,JSON.stringify({text,version:1})),{key:'zhizhi:wiki-understanding:'+wikiId,text:'缓存中尚未授权显示的本人私密原话'});
+  await page.goto(wikiUrl);await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('textbox',{name:'自由学习本人原话',exact:true})).toHaveCount(0);await expect(page.getByLabel('自由学习正式原文')).toHaveCount(0);await expect(page.getByRole('region',{name:'自由理解提交与候选',exact:true})).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('缓存中尚未授权显示的本人私密原话');expect(calls.wikiNotes).toEqual([]);expect(calls.wikiSubmits).toEqual([]);
+});
+
+
+test('候选刷新失去授权时连同缓存原话一起撤出 DOM',async({page})=>{
+  const calls=await serve(page,{wikiExisting:true,wiki:'candidate'});await page.goto(wikiUrl);
+  const submit=page.getByRole('button',{name:'提交自由理解，生成并复核候选',exact:true});await expect(submit).toBeEnabled();await submit.click();
+  await expect(page.getByText('已保存到本机待发，尚未确认服务受理。',{exact:true})).toBeVisible();await page.getByRole('button',{name:'刷新自由理解提交',exact:true}).click();await expect(page.getByLabel('自由理解候选差异')).toBeVisible();
+  calls.revokeContext();await page.getByRole('button',{name:'刷新自由理解提交',exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('textbox',{name:'自由学习本人原话',exact:true})).toHaveCount(0);await expect(page.getByLabel('自由学习正式原文')).toHaveCount(0);await expect(page.getByLabel('自由理解候选差异')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('独立自由理解旧稿');await expect(page.locator('body')).not.toContainText('从本人原话整理的独立解释');expect(calls.wikiSubmits).toHaveLength(1);
 });

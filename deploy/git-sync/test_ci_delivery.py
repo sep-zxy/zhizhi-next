@@ -43,7 +43,12 @@ def fixture(root):
                  "codex-diagnostic.cmd", "app/backend/ahadiff/knowledge_platform/model/diagnostic_probe.py",
                  "local-test-initialize.cmd", "local-test-pair.cmd", "local-test-start.cmd",
                  "app/backend/ahadiff/knowledge_platform/local_test_identity.py",
-                 "app/backend/ahadiff/knowledge_platform/browser_sessions.py"):
+                 "app/backend/ahadiff/knowledge_platform/browser_sessions.py",
+                 "owner-acceptance-initialize.cmd", "owner-acceptance-pair.cmd", "owner-acceptance-start.cmd",
+                 "app/backend/ahadiff/knowledge_platform/owner_identity.py",
+                 "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
+                 "app/backend/ahadiff/knowledge_platform/owner_browser.py",
+                 "app/backend/ahadiff/knowledge_platform/local_protection.py"):
         write(bundle / name, b"SYNTHETIC OFFLINE TEST BYTES, NOT A PRODUCT")
     write(bundle / "config/launch.json", {
         "owner": None, "identities_file": None, "model_config": None,
@@ -67,6 +72,24 @@ def fixture(root):
 
 
 class CandidateTests(unittest.TestCase):
+    def test_owner_acceptance_runtime_components_are_mandatory(self):
+        names = ("owner-acceptance-initialize.cmd", "owner-acceptance-pair.cmd", "owner-acceptance-start.cmd",
+                 "app/backend/ahadiff/knowledge_platform/owner_identity.py",
+                 "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
+                 "app/backend/ahadiff/knowledge_platform/owner_browser.py",
+                 "app/backend/ahadiff/knowledge_platform/local_protection.py")
+        for name in names:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                bundle, receipt = fixture(Path(tmp))
+                (bundle / name).unlink()
+                manifest = bundle / "provenance/distribution.json"
+                record = json.loads(manifest.read_text())
+                record["files"].pop(name)
+                write(manifest, record)
+                receipt["distribution_sha256"] = ci.sha(manifest)
+                with self.assertRaisesRegex(ValueError, "required runnable components"):
+                    ci.validate_bundle(bundle, receipt, SOURCE)
+
     def test_pristine_stage_roundtrip_preserves_bytes_and_nonfinal_status(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -120,6 +143,19 @@ class CandidateTests(unittest.TestCase):
                 if status is not None:
                     receipt["phases"].append({"phase": "viewer-learning-browser-fixtures",
                                               "status": status})
+                with self.subTest(status=status), self.assertRaisesRegex(ValueError, "gate"):
+                    ci.validate_bundle(bundle, receipt, SOURCE)
+
+    def test_private_wiki_owner_contract_cannot_be_missing_or_failed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle, original = fixture(Path(tmp))
+            name = "private-wiki-owner-asgi-contract"
+            self.assertIn(name, ci.REQUIRED_PHASES)
+            for status in (None, "failed", "skipped"):
+                receipt = copy.deepcopy(original)
+                receipt["phases"] = [phase for phase in receipt["phases"] if phase["phase"] != name]
+                if status is not None:
+                    receipt["phases"].append({"phase": name, "status": status})
                 with self.subTest(status=status), self.assertRaisesRegex(ValueError, "gate"):
                     ci.validate_bundle(bundle, receipt, SOURCE)
 

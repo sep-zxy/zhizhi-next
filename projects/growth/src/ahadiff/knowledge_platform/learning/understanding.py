@@ -131,8 +131,11 @@ async def _view(backend: RemoteKnowledgeBackend, record: dict[str, Any]) -> dict
     failure = record.get("error") or {}
     view: dict[str, Any] = {
         "submission_id": _submission_id(record),
-        "card_id": metadata["card_id"],
-        "card_version": metadata["card_version"],
+        **(
+            {"context_id": metadata["context_id"], "context_version": metadata["context_version"]}
+            if metadata.get("submission_kind") == "wiki_entry_understanding"
+            else {"card_id": metadata["card_id"], "card_version": metadata["card_version"]}
+        ),
         "note_sha256": metadata["note_sha256"],
         "user_text": payload["user_text"],
         "delivery_state": record["state"],

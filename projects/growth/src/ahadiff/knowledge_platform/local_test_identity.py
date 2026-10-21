@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import ctypes
 import hashlib
 import hmac
 import http.client
@@ -82,47 +81,13 @@ def _test_root() -> Path:
 
 
 def _dpapi(data: bytes, *, decrypt: bool = False) -> bytes:
-    """Current-user DPAPI, UI forbidden, no machine-wide protection."""
-    if sys.platform != "win32":
-        raise LocalTestIdentityError("WINDOWS_REQUIRED")
-    from ctypes import wintypes
+    """Preserve the isolated test entropy and fixed diagnostics."""
+    from .local_protection import LocalProtectionError, protect_current_user
 
-    class Blob(ctypes.Structure):
-        _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_ubyte))]
-
-    source_buffer = ctypes.create_string_buffer(data)
-    entropy_buffer = ctypes.create_string_buffer(_ENTROPY)
-    source = Blob(len(data), ctypes.cast(source_buffer, ctypes.POINTER(ctypes.c_ubyte)))
-    entropy = Blob(
-        len(_ENTROPY), ctypes.cast(entropy_buffer, ctypes.POINTER(ctypes.c_ubyte))
-    )
-    output = Blob()
-    # LOAD_LIBRARY_SEARCH_SYSTEM32: do not load a same-named DLL from the package.
-    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True, winmode=0x800)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True, winmode=0x800)
-    operation = crypt32.CryptUnprotectData if decrypt else crypt32.CryptProtectData
-    operation.argtypes = [
-        ctypes.POINTER(Blob), ctypes.c_void_p if decrypt else wintypes.LPCWSTR,
-        ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD,
-        ctypes.POINTER(Blob),
-    ]
-    operation.restype = wintypes.BOOL
-    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
-    kernel32.LocalFree.restype = ctypes.c_void_p
     try:
-        if not operation(
-            ctypes.byref(source), None, ctypes.byref(entropy), None, None,
-            0x1, ctypes.byref(output),  # CRYPTPROTECT_UI_FORBIDDEN, not LOCAL_MACHINE.
-        ):
-            raise LocalTestIdentityError("LOCAL_PROTECTION_FAILED")
-        if not output.data or not 0 < output.size <= 32768:
-            raise LocalTestIdentityError("LOCAL_PROTECTION_INVALID")
-        return ctypes.string_at(output.data, output.size)
-    finally:
-        ctypes.memset(source_buffer, 0, len(data))
-        if output.data:
-            ctypes.memset(output.data, 0, output.size)
-            kernel32.LocalFree(ctypes.cast(output.data, ctypes.c_void_p))
+        return protect_current_user(data, entropy_bytes=_ENTROPY, decrypt=decrypt)
+    except LocalProtectionError as exc:
+        raise LocalTestIdentityError(exc.args[0]) from None
 
 
 def _canonical(value: Any) -> bytes:

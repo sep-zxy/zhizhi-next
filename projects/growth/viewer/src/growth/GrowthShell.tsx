@@ -27,7 +27,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
   const menuButton = useRef<HTMLButtonElement>(null);
   const requested = new URLSearchParams(location.search).get('view') ?? 'overview';
   const canonicalView = zhizhiView(requested);
-  const activeView = ['session','exercise','candidates','topic-management'].includes(canonicalView) ? 'library' : canonicalView;
+  const activeView = ['session','exercise','candidates','topic-management','entry-context','wiki-learning'].includes(canonicalView) ? 'library' : canonicalView;
   const currentLabel = location.pathname === '/settings'
     ? '设置' : NAV.find((item) => item.view === activeView)?.label ?? '知识卡';
   const projectQuery = projectId ? '&project=' + encodeURIComponent(projectId) : '';

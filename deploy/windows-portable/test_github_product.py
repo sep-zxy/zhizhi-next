@@ -19,16 +19,24 @@ product = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(product)
 
 
-def learning_report_fixture():
+def browser_report_fixture(journeys, project):
     return {
-        "errors": [], "stats": {"expected": sum(product.LEARNING_JOURNEYS.values()),
+        "errors": [], "stats": {"expected": sum(journeys.values()),
                                  "skipped": 0, "unexpected": 0, "flaky": 0},
         "suites": [{"specs": [{
-            "file": name, "ok": True, "title": f"synthetic journey {index}",
-            "tests": [{"projectName": "chromium-desktop", "expectedStatus": "passed",
+            "file": name, "ok": True, "title": f"synthetic journey {index}", "id": f"{name}:{index}",
+            "tests": [{"projectName": project, "expectedStatus": "passed",
                        "status": "expected", "results": [{"status": "passed"}]}],
-        } for index in range(count)]} for name, count in product.LEARNING_JOURNEYS.items()],
+        } for index in range(count)]} for name, count in journeys.items()],
     }
+
+
+def learning_report_fixture():
+    return browser_report_fixture(product.LEARNING_JOURNEYS, "chromium-desktop")
+
+
+def private_report_fixture():
+    return browser_report_fixture(product.PRIVATE_WIKI_JOURNEYS, "chromium-private")
 
 
 class GitHubProductTests(unittest.TestCase):
@@ -107,12 +115,39 @@ class GitHubProductTests(unittest.TestCase):
         for phase in ("private-wiki-locked-install", "private-wiki-types",
                       "private-wiki-tests", "private-wiki-production-build",
                       "private-wiki-domain-capture", "private-wiki-domain-contract",
+                      "private-wiki-owner-asgi-contract",
                       "private-wiki-browser-install", "private-wiki-browser-fixtures"):
             self.assertIn(phase, text)
         self.assertIn('"--private-wiki", private_wiki / "dist"', text)
         assembly = (HERE / "assemble_product.py").read_text()
         self.assertIn("app/'wiki-private'", assembly)
         self.assertIn("'http':'/wiki/'", assembly)
+
+    def test_owner_asgi_failure_stops_before_private_product_build(self):
+        repo = HERE.resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "product"
+            calls = []
+
+            def run(command, **kwargs):
+                calls.append(command)
+                if "--project=chromium-desktop" in command:
+                    Path(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"]).write_text(
+                        json.dumps(learning_report_fixture()), encoding="utf-8")
+                if "tests/integration/check_owner_auth.py" in command:
+                    self.assertEqual(kwargs["cwd"], repo / "projects/wiki-private")
+                    raise subprocess.CalledProcessError(1, "synthetic owner contract")
+
+            with patch.object(product, "github_identity", return_value={}), \
+                    patch.object(product.subprocess, "run", side_effect=run), \
+                    self.assertRaises(subprocess.CalledProcessError):
+                product.build(repo, output)
+            self.assertEqual(calls[-1], [sys.executable, "tests/integration/check_owner_auth.py"])
+            phases = json.loads((output / "evidence/build-phases.json").read_text())
+            self.assertEqual(phases[-1]["phase"], "private-wiki-owner-asgi-contract")
+            self.assertEqual(phases[-1]["status"], "failed")
+            self.assertNotIn("private-wiki-production-build", [phase["phase"] for phase in phases])
+            self.assertFalse((output / "bundle").exists())
 
     def test_learning_report_requires_every_selected_journey_and_real_pass(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -155,10 +190,123 @@ class GitHubProductTests(unittest.TestCase):
             report = learning_report_fixture()
             extra = copy.deepcopy(report["suites"][0]["specs"][0])
             extra["title"] = "synthetic additional reviewed journey"
+            extra["id"] = "synthetic-additional-unique-id"
             report["suites"][0]["specs"].append(extra)
             report["stats"]["expected"] += 1
             path.write_text(json.dumps(report), encoding="utf-8")
             product.verify_learning_report(path)
+
+    def test_formal_entry_reference_journeys_cannot_reuse_the_previous_seventeen_report(self):
+        self.assertEqual(product.LEARNING_JOURNEYS,
+                         {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            report = learning_report_fixture()
+            report["suites"][0]["specs"] = report["suites"][0]["specs"][:16]
+            report["stats"]["expected"] = 17
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not all collected"):
+                product.verify_learning_report(path)
+
+    def test_private_wiki_requires_all_four_specs_and_its_own_single_project_report(self):
+        self.assertEqual(product.PRIVATE_WIKI_JOURNEYS, {
+            "wiki.spec.ts": 7, "local-test-pairing.spec.ts": 2,
+            "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6,
+        })
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "private.json"
+            good = private_report_fixture()
+            path.write_text(json.dumps(good))
+            product.verify_private_wiki_report(path)
+            mutations = {
+                "old nine only": lambda r: r.update(suites=r["suites"][:2], stats={**r["stats"], "expected": 9}),
+                "missing action": lambda r: r["suites"][2]["specs"].pop(),
+                "missing owner": lambda r: r["suites"][3]["specs"].pop(),
+                "skipped": lambda r: r["stats"].update(skipped=1),
+                "failed": lambda r: r["stats"].update(unexpected=1),
+                "flaky": lambda r: r["stats"].update(flaky=1),
+                "runner error": lambda r: r.update(errors=[{"message": "synthetic"}]),
+                "same spec counted twice": lambda r: r["suites"][0]["specs"].__setitem__(1, copy.deepcopy(r["suites"][0]["specs"][0])),
+                "missing stable ID": lambda r: r["suites"][0]["specs"][0].pop("id"),
+                "extra project": lambda r: r["suites"][0]["specs"][0]["tests"].append(copy.deepcopy(r["suites"][0]["specs"][0]["tests"][0])),
+            }
+            for name, mutate in mutations.items():
+                report = copy.deepcopy(good)
+                mutate(report)
+                path.write_text(json.dumps(report))
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    product.verify_private_wiki_report(path)
+            for mutation in ({"projectName": "chromium-desktop"}, {"expectedStatus": "failed"},
+                             {"status": "skipped"}, {"results": []},
+                             {"results": [{"status": "failed"}, {"status": "passed"}]},
+                             {"results": [{"status": "skipped"}]}):
+                report = copy.deepcopy(good)
+                report["suites"][0]["specs"][0]["tests"][0].update(mutation)
+                path.write_text(json.dumps(report))
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    product.verify_private_wiki_report(path)
+            path.write_text(json.dumps(learning_report_fixture()))
+            with self.assertRaises(ValueError):
+                product.verify_private_wiki_report(path)
+
+    def test_private_wiki_browser_failure_stops_before_assembly_and_uses_locked_browser(self):
+        repo = HERE.resolve().parents[1]
+        for failure in ("command", "missing report", "skipped report"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp) / "product"
+                calls = []
+
+                def run(command, **kwargs):
+                    calls.append(command)
+                    if "--project=chromium-desktop" in command:
+                        Path(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"]).write_text(json.dumps(learning_report_fixture()))
+                    if "--project=chromium-private" not in command:
+                        return
+                    self.assertNotIn("WIKI_BROWSER_EXECUTABLE", kwargs["env"])
+                    self.assertEqual(kwargs["cwd"], repo / "projects/wiki-private")
+                    if failure == "command":
+                        raise subprocess.CalledProcessError(1, "synthetic private fixture")
+                    if failure == "skipped report":
+                        report = private_report_fixture()
+                        report["stats"]["skipped"] = 1
+                        Path(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"]).write_text(json.dumps(report))
+
+                with patch.object(product, "github_identity", return_value={}), \
+                        patch.object(product.subprocess, "run", side_effect=run), \
+                        patch.object(product.shutil, "copyfile"), \
+                        patch.dict(os.environ, {"WIKI_BROWSER_EXECUTABLE": "SYNTHETIC-UNTRUSTED-PATH"}), \
+                        self.assertRaises((OSError, ValueError, subprocess.CalledProcessError)):
+                    product.build(repo, output)
+                self.assertEqual(calls[-1][:4], ["npx", "--no-install", "playwright", "test"])
+                for name in product.PRIVATE_WIKI_JOURNEYS:
+                    self.assertIn("tests/e2e/" + name, calls[-1])
+                for flag in ("--retries=0", "--forbid-only", "--reporter=list,json"):
+                    self.assertIn(flag, calls[-1])
+                phases = json.loads((output / "evidence/build-phases.json").read_text())
+                self.assertEqual(phases[-1]["phase"], "private-wiki-browser-fixtures")
+                self.assertEqual(phases[-1]["status"], "failed")
+                self.assertNotIn("assemble-windows-product", [phase["phase"] for phase in phases])
+                self.assertFalse((output / "bundle").exists())
+
+    def test_free_learning_cannot_reuse_the_previous_twenty_three_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            report = learning_report_fixture()
+            report["suites"][0]["specs"] = report["suites"][0]["specs"][:22]
+            report["stats"]["expected"] = 23
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not all collected"):
+                product.verify_learning_report(path)
+
+    def test_free_learning_cannot_reuse_the_previous_thirty_one_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            report = learning_report_fixture()
+            report["suites"][0]["specs"] = report["suites"][0]["specs"][:30]
+            report["stats"]["expected"] = 31
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not all collected"):
+                product.verify_learning_report(path)
 
     def test_learning_journey_failure_stops_before_product_build(self):
         repo = HERE.resolve().parents[1]

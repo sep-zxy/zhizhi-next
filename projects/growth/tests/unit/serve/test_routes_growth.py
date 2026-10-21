@@ -264,7 +264,7 @@ def test_local_growth_route_captures_git_change_and_persists(tmp_path: Path) -> 
             )
         legacy.execute("PRAGMA user_version=5")
     with GrowthLocalRepository(legacy_path) as migrated:
-        assert migrated.connection.execute("PRAGMA user_version").fetchone()[0] == 31
+        assert migrated.connection.execute("PRAGMA user_version").fetchone()[0] == 33
         assert migrated.connection.execute(
             "SELECT snapshot_id FROM snapshots WHERE snapshot_id=?",
             (captured.json()["snapshot_id"],),

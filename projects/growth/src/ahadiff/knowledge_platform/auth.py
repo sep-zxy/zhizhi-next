@@ -176,8 +176,10 @@ class DomainAuthenticationMiddleware:
 
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
         try:
+            if sum(key.lower() == b"authorization" for key, _ in scope.get("headers", [])) > 1:
+                raise DomainError("UNAUTHENTICATED", "Ambiguous bearer credential", status_code=401)
             authorization = headers.get(b"authorization", b"").decode("latin-1")
-            if authorization or self.browser_authenticator is None:
+            if b"authorization" in headers or self.browser_authenticator is None:
                 # An explicit invalid bearer never silently falls back to a cookie.
                 actor = self.authenticator.authenticate(authorization)
             else:

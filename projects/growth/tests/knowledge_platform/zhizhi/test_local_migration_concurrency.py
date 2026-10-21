@@ -21,7 +21,7 @@ def test_concurrent_first_open_serializes_all_migrations_and_preserves_rows(tmp_
             return ledger.connection.execute("PRAGMA user_version").fetchone()[0]
 
     with ThreadPoolExecutor(max_workers=6) as pool:
-        assert list(pool.map(open_ledger, range(6))) == [31] * 6
+        assert list(pool.map(open_ledger, range(6))) == [33] * 6
     with GrowthLocalRepository(path) as ledger:
         assert ledger.connection.execute("SELECT count(*) FROM projects").fetchone()[0] == 6
         columns = [

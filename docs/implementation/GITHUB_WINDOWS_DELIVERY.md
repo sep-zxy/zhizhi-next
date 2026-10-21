@@ -26,14 +26,15 @@
 - Viewer 的锁定依赖、类型检查、单测和 GitHub 真实构建。
 - Viewer 的 `pnpm test` 仅为 Vitest，不能代替页面旅程。生产构建之前另有必需
   `viewer-learning-browser-fixtures`：原锁 Playwright，固定 `chromium-desktop`，执行
-  `zhizhi-domain.spec.ts`（至少 16 项）和 `growth-topics.spec.ts`（至少 1 项），
+  `zhizhi-domain.spec.ts`（至少 22 项）和 `growth-topics.spec.ts`（至少 1 项），
   零重试且禁止 `.only`。JSON 报告必须证明两文件完整收集、每项真实通过，
   skipped/flaky/expected-failure 不算通过；缺失或失败阶段不能发布。
   JSON、失败 trace 和截图保留在原有 CI evidence，均为模拟 API 的合成 UI 旅程，
   不代表 Windows、真实领域后端、模型或渠道 E2E。没有扩大旧 15 项浏览器/视口矩阵。
   最低覆盖包括继续原会话、流中断保留原话，以及本人理解经候选/diff/复核到写入状态、
   409版本冲突、丢响应GET恢复、显式重递原快照，以及跨卡迟到响应隔离。
-  新增审阅旅程可继续增加，不把17当上限。
+  新增6项覆盖正式条目精确修订预览、显式学习引用、过期/冲突与跨条目隔离等边界；
+  仅 `--list` 收集或旧17项报告不足以通过新门禁。新增审阅旅程可继续增加，不把23当上限。
 - 私有 Wiki 使用 `projects/wiki-private` 独立 package-lock：`npm ci --ignore-scripts`、typecheck、test、build，输出 `app/wiki-private` 并供 `/wiki/` 挂载。缺项目、锁、构建或入口立即失败；公开 Wiki 与学习 Viewer 保留独立。静态打包不证明身份桥已贯通。
 - GitHub 安装该锁内 Playwright 的官方 Chromium，执行私有 Wiki 浏览器 fixture，失败截图与 trace 写入 CI evidence。浏览器 fixture 不冒充真实身份 API、Windows 或模型 E2E。
 - Pi 按原 lock 安装/编译、移除构建器并保留 Windows x64 native 及许可证。
@@ -109,5 +110,20 @@ launcher 先验证 Windows/固定根/完整 distribution，再设置隔离环境
 生成真实凭据、启动 Windows 浏览器或构建生产产物。真实验证仍等待 GitHub 候选经 Git 同步。
 
 ## 本地证据与待完成项
+
+自由学习已审阅旅程将学习最低数提升为 `zhizhi-domain.spec.ts` 32 + `growth-topics.spec.ts` 1。
+旧17、23或31项报告均不足，33项收集本身仍不代表浏览器执行通过；私有 Wiki 独立门禁不受替代。
+
+私有 Wiki 除单元、领域响应捕获和浏览器旅程外，还必须运行
+`tests/integration/check_owner_auth.py` 的 `private-wiki-owner-asgi-contract` 阶段。
+它检查真实临时 ASGI 的 owner 会话协议、权限拒绝和丢失 proof 边界，但只使用合成内存身份；
+不持久保存会话或凭据，不是实际 owner 初始化、Windows 或真实浏览器认证通过。
+该阶段缺失、失败或跳过均禁止发布候选，也不能以学习 viewer 的旅程替代。
+
+私有 Wiki 浏览器门禁独立固定为 `chromium-private` 单项目，四文件最低28项：
+`wiki.spec.ts` 7、`local-test-pairing.spec.ts` 2、`v1-actions.spec.ts` 13、`owner-access.spec.ts` 6。
+必须保留 JSON 报告，每个唯一 spec ID 仅一个项目、一次实际通过，零 skip/xfail/flaky、零 runner error；
+旧9项或学习23项报告不能替代。GitHub 清除本机浏览器覆盖，使用该 app 锁定 Playwright 的官方 Chromium，
+`--forbid-only --retries=0`，项目配置禁止复用未知 webServer。上述28项仍是合成 API 浏览器旅程，非真实模型或 Windows E2E。
 
 本地测试仅证明打包/校验代码的拒绝路径、哈希、来源和原子更新前置条件。GitHub 下载、完整构建、首次候选 Git 发布和 Windows 运行需要真实执行并保留各自 receipt。没有通过这些步骤，不得把本文件当作完成报告。

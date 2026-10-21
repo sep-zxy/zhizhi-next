@@ -484,7 +484,7 @@ class GrowthLocalRepository:
         self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA journal_mode=WAL")
         version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-        if version > 31:
+        if version > 33:
             raise RuntimeError(f"本地成长库版本过新：{version}")
         if version == 0:
             with self.connection:
@@ -810,6 +810,69 @@ class GrowthLocalRepository:
                     "ALTER TABLE local_explorations ADD COLUMN title TEXT"
                 )
                 self.connection.execute("PRAGMA user_version=31")
+        if version <= 31:
+            try:
+                self.connection.executescript("""
+                    BEGIN IMMEDIATE;
+                    CREATE TABLE knowledge_entry_contexts (
+                        context_id TEXT PRIMARY KEY,
+                        backend_scope TEXT NOT NULL,
+                        authority_key TEXT NOT NULL,
+                        entry_id TEXT NOT NULL,
+                        entry_revision INTEGER NOT NULL CHECK(entry_revision > 0),
+                        content_hash TEXT NOT NULL,
+                        card_id TEXT NOT NULL REFERENCES knowledge_cards(card_id),
+                        card_version INTEGER NOT NULL CHECK(card_version > 0),
+                        created_at TEXT NOT NULL,
+                        UNIQUE(authority_key, entry_id, entry_revision, card_id, card_version)
+                    );
+                    CREATE TABLE knowledge_entry_context_requests (
+                        authority_key TEXT NOT NULL,
+                        request_id TEXT NOT NULL,
+                        input_hash TEXT NOT NULL,
+                        context_id TEXT NOT NULL REFERENCES knowledge_entry_contexts(context_id),
+                        PRIMARY KEY(authority_key, request_id)
+                    );
+                    PRAGMA user_version=32;
+                    COMMIT;
+                """)
+            except sqlite3.Error:
+                self.connection.rollback()
+                raise
+
+        if version <= 32:
+            try:
+                self.connection.executescript("""
+                    BEGIN IMMEDIATE;
+                    CREATE TABLE wiki_entry_learning_contexts (
+                        context_id TEXT PRIMARY KEY,
+                        backend_scope TEXT NOT NULL,
+                        authority_key TEXT NOT NULL,
+                        entry_id TEXT NOT NULL,
+                        entry_revision INTEGER NOT NULL CHECK(entry_revision > 0),
+                        content_hash TEXT NOT NULL,
+                        context_version INTEGER NOT NULL CHECK(context_version > 0),
+                        note_text TEXT NOT NULL,
+                        note_sha256 TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        UNIQUE(authority_key,entry_id,entry_revision)
+                    );
+                    CREATE TABLE wiki_entry_learning_requests (
+                        authority_key TEXT NOT NULL,
+                        operation TEXT NOT NULL,
+                        request_id TEXT NOT NULL,
+                        input_hash TEXT NOT NULL,
+                        context_id TEXT NOT NULL REFERENCES wiki_entry_learning_contexts(context_id),
+                        response_json TEXT NOT NULL,
+                        PRIMARY KEY(authority_key,operation,request_id)
+                    );
+                    PRAGMA user_version=33;
+                    COMMIT;
+                """)
+            except sqlite3.Error:
+                self.connection.rollback()
+                raise
 
     def _backfill_publication_links(self) -> None:
         """Keep v11 approved publications subject to v12 project switches."""

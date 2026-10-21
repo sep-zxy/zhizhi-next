@@ -14,12 +14,13 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .auth import Actor, DomainAuthenticationMiddleware, TokenAuthenticator
-from .browser_sessions import LocalTestBrowserSessions, local_test_actor
+from .browser_sessions import LocalTestBrowserSessions, LoopbackBrowserSessions, local_test_actor
 from .core_routes import create_core_routes
 from .domain import DomainService
 from .errors import DomainError
 from .intake import IntakeService, create_intake_routes
 from .model import DisabledModelRunner
+from .navigation import learning_viewer_url as validated_learning_viewer_url
 from .private_web import create_private_wiki_mount
 from .relations import RelationService, create_relation_routes
 from .search import create_read_routes
@@ -27,6 +28,8 @@ from .workflow import KnowledgeWorkflow, WorkflowSettings
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    from .owner_browser import OwnerBrowserSessions
 
 
 class TraceMiddleware:
@@ -46,7 +49,7 @@ class ExactCallbackAuthentication:
 
     def __init__(
         self, app: Any, authenticator: TokenAuthenticator, callback_path: str | None = None,
-        browser_sessions: LocalTestBrowserSessions | None = None,
+        browser_sessions: LoopbackBrowserSessions | None = None,
     ) -> None:
         self.app = app
         self.callback_path = callback_path
@@ -87,7 +90,9 @@ def _unique_routes(routes: list[Route]) -> None:
             claimed.add(pair)
 
 
-def _unauthenticated_shell(private_web_root: Path | None) -> Starlette:
+def _unauthenticated_shell(
+    private_web_root: Path | None, learning_viewer_url: str | None = None
+) -> Starlette:
     """Serve only a generic shell; never initialize a ledger, worker or identity."""
     async def health(request: Any) -> JSONResponse:
         return JSONResponse(
@@ -96,7 +101,9 @@ def _unauthenticated_shell(private_web_root: Path | None) -> Starlette:
                 "service": "zhizhi-knowledge",
                 "authentication_status": "waiting_auth",
                 "browser_authentication_status": "waiting_auth",
+                "browser_authentication_mode": "disabled",
                 "private_wiki_enabled": private_web_root is not None,
+                "learning_viewer_url": learning_viewer_url,
                 "worker_enabled": False,
                 "channel_worker_enabled": False,
                 "channel_status": "disabled",
@@ -134,7 +141,9 @@ def create_application(
     channel_supervisor: Any = None,
     media_processor: Any = None,
     private_web_root: str | Path | None = None,
+    learning_viewer_url: str | None = None,
     local_test_browser_sessions: LocalTestBrowserSessions | None = None,
+    owner_browser_sessions: OwnerBrowserSessions | None = None,
 ) -> Starlette:
     """Create a fail-closed application; no implicit login, token or publication.
 
@@ -145,20 +154,29 @@ def create_application(
     from .portable import require_portable_path, validate_portable_runtime
 
     validate_portable_runtime(state_directory)
+    learning_viewer_url = validated_learning_viewer_url(learning_viewer_url)
     web_root = (
         require_portable_path(private_web_root) if private_web_root is not None else None
     )
+    if local_test_browser_sessions is not None and owner_browser_sessions is not None:
+        raise ValueError("Test and owner browser policies are mutually exclusive")
+    browser_sessions = local_test_browser_sessions or owner_browser_sessions
+    if learning_viewer_url is not None and (
+        local_test_browser_sessions is not None
+        or (browser_sessions is not None and learning_viewer_url == browser_sessions.origin + "/")
+    ):
+        raise ValueError("Learning navigation requires its own non-test service")
     if not tokens:
         if start_worker or any(
             value is not None
             for value in (
                 model_runner, workflow_settings, wechat_adapter, domain,
                 intake_service, channel_supervisor, media_processor,
-                local_test_browser_sessions,
+                browser_sessions,
             )
         ):
             raise ValueError("Unauthenticated shell cannot install backend services")
-        return _unauthenticated_shell(web_root)
+        return _unauthenticated_shell(web_root, learning_viewer_url)
     if local_test_browser_sessions is not None:
         if list(tokens.values()) != [local_test_actor()]:
             raise ValueError("Local test browser sessions require the isolated test identity only")
@@ -172,10 +190,16 @@ def create_application(
             raise ValueError("Local test browser sessions cannot install background services")
     root = Path(state_directory).expanduser().resolve()
     authenticator = TokenAuthenticator(tokens)
-    if local_test_browser_sessions is not None:
+    if owner_browser_sessions is not None:
+        owner_browser_sessions.validate_identities(tokens.values())
+        if any(actor.owner_id != owner_browser_sessions.owner_id for actor in tokens.values()):
+            raise ValueError("Owner browser application requires a single configured owner")
+        if workflow_settings and workflow_settings.owner_id != owner_browser_sessions.owner_id:
+            raise ValueError("Owner browser policy must match the workflow owner")
+    if browser_sessions is not None:
         # Both approval and API authentication use this exact configured source.
         # A separately constructed controller cannot smuggle another bearer in.
-        local_test_browser_sessions.bind_authenticator(authenticator)
+        browser_sessions.bind_authenticator(authenticator)
     if start_worker and workflow_settings is None:
         raise ValueError("Worker operation requires an explicit owner and policy")
     service = domain or DomainService(
@@ -199,12 +223,17 @@ def create_application(
     )
     routes = (
         create_core_routes(service)
-        + create_intake_routes(service, runner, intake_service=intake)
+        + create_intake_routes(
+            service,
+            runner,
+            intake_service=intake,
+            allow_text_attachments=local_test_browser_sessions is None,
+        )
         + create_read_routes(service, runner)
         + create_relation_routes(RelationService(service))
     )
-    if local_test_browser_sessions is not None:
-        routes.extend(local_test_browser_sessions.routes())
+    if browser_sessions is not None:
+        routes.extend(browser_sessions.routes())
     callback_path = None
     if wechat_adapter is not None:
         from .channels.wechat_kf import create_wechat_kf_routes
@@ -224,7 +253,11 @@ def create_application(
                 "service": "zhizhi-knowledge",
                 "authentication_status": "configured",
                 "browser_authentication_status": (
-                    "configured" if local_test_browser_sessions is not None else "waiting_auth"
+                    "configured" if browser_sessions is not None else "waiting_auth"
+                ),
+                "learning_viewer_url": learning_viewer_url,
+                "browser_authentication_mode": (
+                    browser_sessions.authentication_mode if browser_sessions else "disabled"
                 ),
                 "private_wiki_enabled": web_root is not None,
                 "worker_enabled": start_worker,
@@ -284,7 +317,7 @@ def create_application(
                 ExactCallbackAuthentication,
                 authenticator=authenticator,
                 callback_path=callback_path,
-                browser_sessions=local_test_browser_sessions,
+                browser_sessions=browser_sessions,
             ),
         ],
         lifespan=lifespan,

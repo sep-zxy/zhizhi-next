@@ -17,11 +17,17 @@ def create_intake_routes(
     model_runner: ModelRunner | None = None,
     *,
     intake_service: IntakeService | None = None,
+    allow_text_attachments: bool = True,
 ) -> list[Route]:
     """Register authenticated intake, preview query and explicit keep/discard endpoints."""
     from .routes import create_intake_routes as create
 
-    return create(domain, model_runner, intake_service=intake_service)
+    return create(
+        domain,
+        model_runner,
+        intake_service=intake_service,
+        allow_text_attachments=allow_text_attachments,
+    )
 
 
 def __getattr__(name: str) -> object:

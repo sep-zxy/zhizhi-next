@@ -7,6 +7,7 @@ Run through uv with the integrated growth source and its locked test dependencie
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -108,6 +109,23 @@ async def main() -> None:
                 assert captures["task"]["body"]["data"]["state"] == "waiting_auth"
                 assert captures["tasks"]["body"]["data"]["has_more"] is False
                 assert len(captures["reviews"]["body"]["data"]) == 1
+                async def post_capture(name: str, path: str, body: dict) -> dict:
+                    response = await client.post("/api/knowledge/v1" + path, json=body,
+                        headers={"Idempotency-Key": "fixture-" + name})
+                    assert response.status_code == (202 if path == "/intakes" else 200), (name, response.status_code, response.json())
+                    captures[name] = {"status": response.status_code, "body": response.json()}
+                    return response.json()["data"]
+
+                await post_capture("evidence", "/evidence/read", {"source_id": source["source_id"],
+                    "source_revision": source["revision"], "content_hash": source["content_hash"]})
+                outcome = domain.submit_learning_outcome({"device_id": "synthetic-device", "session_id": "synthetic-session", "version": 1, "user_text": "Synthetic user's own words.", "result": {}}, actor=owner, idempotency_key="fixture-learning")
+                await post_capture("learning_evidence", "/evidence/read", {"learning_outcome_id": outcome["outcome_id"], "content_hash": outcome["content_hash"]})
+                resumed = await post_capture("task_resume", f"/tasks/{task['task_id']}/resume", {"expected_revision": 2})
+                await post_capture("task_cancel", f"/tasks/{task['task_id']}/cancel", {"expected_revision": resumed["revision"]})
+                temporary = await post_capture("new_intake", "/intakes", {"text": "Original synthetic material.", "data_classification": "personal"})
+                await post_capture("supplement", f"/intakes/{temporary['intake_id']}/supplement", {"expected_preview_revision": 0, "text": "Supplemented synthetic material.", "private_note": "Synthetic private note, not source text."})
+                await post_capture("text_attachment", f"/intakes/{temporary['intake_id']}/text-attachment", {"expected_preview_revision": 1, "filename": "synthetic.md", "content_type": "text/markdown", "content_base64": base64.b64encode(b"\xef\xbb\xbf# Synthetic file\r\n").decode("ascii"), "private_note": "Separate synthetic file note."})
+                await post_capture("user_proposal", "/changes", {"entry_id": entry_id, "base_revision": 1, "title": "Isolated durable evidence", "body": evidence + "\n\nA synthetic proposed correction.", "operation": "update", "evidence_refs": [{"source_id": source["source_id"]}]})
         finally:
             domain.close()
     target = Path("test-results/domain-contract.json")

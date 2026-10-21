@@ -113,6 +113,7 @@ from .routes_growth_knowledge import (
     growth_knowledge_complete,
     growth_knowledge_decision,
     growth_knowledge_discussion,
+    growth_knowledge_entry_context,
     growth_knowledge_explanation_confirm,
     growth_knowledge_flip,
     growth_knowledge_learning,
@@ -120,11 +121,11 @@ from .routes_growth_knowledge import (
     growth_knowledge_material_generate,
     growth_knowledge_material_preview,
     growth_knowledge_note,
-    growth_knowledge_understanding,
     growth_knowledge_revise,
     growth_knowledge_split,
     growth_knowledge_sync_conflict_resolve,
     growth_knowledge_sync_conflicts,
+    growth_knowledge_understanding,
     growth_knowledge_vault,
     growth_knowledge_wiki_articles,
     growth_knowledge_wiki_draft,
@@ -213,6 +214,7 @@ from .routes_stats import (
 )
 from .routes_tasks import cancel_task, get_task, list_tasks, task_progress_sse
 from .routes_watch import get_watch_status
+from .routes_wiki_learning import wiki_entry_learning
 from .static import mount_viewer_static
 
 if TYPE_CHECKING:
@@ -357,6 +359,23 @@ def create_app(state: ServeState, *, viewer_dist: Path | None = None) -> Starlet
                   growth_knowledge_understanding, methods=["POST", "GET"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/understanding/submissions/"
                   "{submission_id:str}", growth_knowledge_understanding, methods=["GET"]),
+            Route("/api/growth/local/knowledge/entry-context",
+                  growth_knowledge_entry_context, methods=["GET"]),
+            Route("/api/growth/local/knowledge/entry-contexts",
+                  growth_knowledge_entry_context, methods=["POST"]),
+            Route("/api/growth/local/knowledge/entry-learning-contexts",
+                  wiki_entry_learning, methods=["POST", "GET"]),
+            Route("/api/growth/local/knowledge/entry-learning-contexts/{context_id:uuid}",
+                  wiki_entry_learning, methods=["GET"]),
+            Route("/api/growth/local/knowledge/entry-learning-contexts/{context_id:uuid}/note",
+                  wiki_entry_learning, methods=["POST"]),
+            Route("/api/growth/local/knowledge/entry-learning-contexts/{context_id:uuid}/"
+                  "understanding/submissions", wiki_entry_learning, methods=["GET", "POST"]),
+            Route("/api/growth/local/knowledge/entry-learning-contexts/{context_id:uuid}/"
+                  "understanding/submissions/{submission_id:str}", wiki_entry_learning,
+                  methods=["GET"]),
+            Route("/api/growth/local/knowledge/cards/{card_id:uuid}/entry-contexts",
+                  growth_knowledge_entry_context, methods=["GET"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/chat",
                   growth_knowledge_chat, methods=["POST"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/chat/stream",

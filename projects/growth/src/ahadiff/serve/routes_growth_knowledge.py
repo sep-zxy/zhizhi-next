@@ -34,6 +34,9 @@ from ahadiff.knowledge_platform.learning.desktop import (
 from ahadiff.knowledge_platform.learning.understanding import (
     read_submission, read_submissions, submit_understanding,
 )
+from ahadiff.knowledge_platform.learning.entry_context import (
+    attach_context, preview_context, read_contexts,
+)
 
 from ._errors import error_response
 from .auth import require_write_token, serve_state
@@ -112,6 +115,15 @@ class _NoteInput(_Input):
 class _UnderstandingInput(_Input):
     card_version: int = Field(ge=1, strict=True)
     note_sha256: str = Field(pattern=r"^[a-f0-9]{64}$", strict=True)
+
+
+class _EntryContextInput(_Input):
+    request_id: uuid.UUID
+    entry_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    revision: int = Field(ge=1, strict=True)
+    expected_content_hash: str = Field(pattern=r"^[a-f0-9]{64}$", strict=True)
+    target_card_id: uuid.UUID
+    expected_card_version: int = Field(ge=1, strict=True)
 
 
 class _ChatInput(_Input):
@@ -566,6 +578,37 @@ async def growth_knowledge_understanding(request: Any) -> JSONResponse:
     except (ValueError, sqlite3.IntegrityError):
         return JSONResponse({"error": {"code": "INVALID_INPUT", "retryable": False,
             "detail": "无法核验该卡片或请求参数。"}}, status_code=422)
+
+
+async def growth_knowledge_entry_context(request: Any) -> JSONResponse:
+    """Read an exact formal revision or explicitly attach it to a real existing card."""
+    require_write_token(request)
+    path = serve_state(request).state_dir / "growth.sqlite"
+    try:
+        if request.method == "POST":
+            body = await _parse(request, _EntryContextInput)
+            if isinstance(body, JSONResponse):
+                return body
+            result = await attach_context(path, body.model_dump(mode="json"))
+        elif "card_id" in request.path_params:
+            if request.query_params:
+                raise ValueError("Unsupported query")
+            result = await read_contexts(path, _card_id(request))
+        else:
+            query = request.query_params
+            if set(query) != {"entry_id", "revision"} or len(query.multi_items()) != 2:
+                raise ValueError("Exact revision required")
+            if not query["revision"].isascii() or not query["revision"].isdigit():
+                raise ValueError("Invalid revision")
+            result = await preview_context(path, query["entry_id"], int(query["revision"]))
+        return JSONResponse(result)
+    except BackendError as exc:
+        return JSONResponse({"error": {"code": exc.code, "retryable": exc.retryable,
+            "detail": "正式版本读取或学习关联未完成，请按错误代码处理。"}},
+            status_code=exc.status_code or (503 if exc.retryable else 409))
+    except (ValueError, sqlite3.IntegrityError):
+        return JSONResponse({"error": {"code": "INVALID_INPUT", "retryable": False,
+            "detail": "无法核验该正式版本或学习卡参数。"}}, status_code=422)
 
 
 async def growth_knowledge_chat(request: Any) -> JSONResponse:

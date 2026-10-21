@@ -1,3 +1,9 @@
+import { TextAttachmentForm } from "./text-attachment";
+import {
+  SupplementForm,
+  SupplementHistory,
+  TaskControls,
+} from "./material-actions";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PAGE_SIZE, WikiApiError, safeCode, type WikiApi } from "./api";
 import {
@@ -293,8 +299,17 @@ function TaskDetail({ api, id }: { api: WikiApi; id: string }) {
                     </a>
                   )}
                   <p className="muted">
-                    本页不显示租约凭据、原始模型输入输出或服务器错误原文。恢复与取消尚未接入，不能假装已执行。
+                    本页不显示租约凭据、原始模型输入输出或服务器错误原文。
                   </p>
+                  <TaskControls
+                    key={data.task_id + ":" + data.revision}
+                    api={api}
+                    task={data}
+                    reload={() => {
+                      task.reload();
+                      events.reload();
+                    }}
+                  />
                   {text(model.status) && (
                     <p className="muted small">
                       诊断类别仅用于定位执行阶段，不代表已核实根因。
@@ -360,7 +375,7 @@ function TaskDetail({ api, id }: { api: WikiApi; id: string }) {
 }
 
 export function InboxPage({ api }: { api: WikiApi }) {
-  const localTest = api.getLocalTestSession().status === "authenticated";
+  const localTest = api.isFixtureSession();
   const [page, setPage] = useState(0);
   const [state, setState] = useState("");
   const [open, setOpen] = useState(false);
@@ -430,7 +445,7 @@ export function InboxPage({ api }: { api: WikiApi }) {
         actions={
           <button
             className="button primary"
-            disabled={localTest}
+            disabled={localTest || !api.canPerform("knowledge:write")}
             onClick={() => setOpen(!open)}
             aria-expanded={open}
           >
@@ -438,6 +453,9 @@ export function InboxPage({ api }: { api: WikiApi }) {
           </button>
         }
       />
+      {!api.canPerform("knowledge:write") && (
+        <Notice>当前 Owner 会话没有投递权限。</Notice>
+      )}
       {localTest && (
         <Notice tone="warning" title="合成测试会话不投递真实链接">
           测试账本初始为空。完整写入链需要另行准备固定的公开合成种子；此处不会暗造来源，也不会把
@@ -630,6 +648,7 @@ function IntakeContent({
     new Date(item.expires_at).getTime() <= now;
   const revision = item.preview_revision;
   const available =
+    api.canPerform("knowledge:write") &&
     !!revision &&
     !expired &&
     !!item.expires_at &&
@@ -772,7 +791,7 @@ function IntakeContent({
               </a>
             )}
             <p className="muted small">
-              不自动加载远程图片或视频。补充材料入口尚未接入，不能假装已取得缺失内容。
+              不自动加载远程图片或视频。补料只接受明确提交的文本，不会补造缺失内容。
             </p>
           </section>
           <section className="panel">
@@ -834,6 +853,9 @@ function IntakeContent({
           </section>
         </aside>
       </div>
+      <SupplementHistory item={item} />
+      <SupplementForm api={api} item={item} reload={reload} />
+      <TextAttachmentForm api={api} item={item} reload={reload} />
     </>
   );
 }
@@ -973,6 +995,7 @@ function ReviewContent({
     return () => window.clearInterval(timer);
   }, []);
   const reviewable =
+    api.canPerform("knowledge:review") &&
     ["needs_user", "needs_ai_review", "approved"].includes(change.state) &&
     ["create", "update", "delete"].includes(change.operation);
   const bound =
@@ -1171,7 +1194,7 @@ function ReviewContent({
           </div>
           {!reviewable && (
             <p className="muted">
-              当前状态不能在此作出决定，请刷新或查看相关任务。
+              当前状态或会话权限不能在此作出决定，请核对权限、刷新或查看相关任务。
             </p>
           )}
         </>

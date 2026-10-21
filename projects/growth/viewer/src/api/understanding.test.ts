@@ -69,6 +69,7 @@ describe('开放理解持久提交契约', () => {
     expect(understandingChangeLabel({ ...confirmed, change: { ...change, state: 'no_change' } })).toContain('不等于正式写入');
     for (const state of ['approved', 'surprise', 'committed', 'indexed']) expect(understandingChangeLabel({ ...confirmed, change: { ...change, state } })).not.toContain('已确认正式写入');
     expect(understandingChangeLabel({ ...confirmed, change: { ...change, state: 'committed', committed_revision: 4 } })).toBe('已确认正式写入，不代表公开。');
+    expect(understandingChangeLabel({ ...confirmed, remote_state: 'not_submitted', change: { ...change, state: 'committed', committed_revision: 4 } })).not.toContain('已确认正式写入');
     expect(understandingChangeLabel({ ...confirmed, remote_state: 'unknown', change: { ...change, state: 'committed', committed_revision: 4 } })).toContain('远端状态未确认');
   });
   it('失败摘要不接受或回显服务异常和秘密', () => {

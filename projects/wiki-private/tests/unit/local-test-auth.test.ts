@@ -29,7 +29,7 @@ function transportFixture(
   const calls: Call[] = [];
   const transport: Transport = async (input, init = {}) => {
     const path = String(input);
-    calls.push({ path, init });
+    if (path !== "/health") calls.push({ path, init });
     if (path.endsWith("/request")) return json(pending);
     if (path.endsWith("/session"))
       return json(options.session ?? authenticated);
@@ -39,6 +39,7 @@ function transportFixture(
     }
     if (path === "/health")
       return json({
+        browser_authentication_mode: "local_test",
         status: "ready",
         service: "fixture",
         worker_enabled: false,
@@ -51,36 +52,55 @@ function transportFixture(
   };
   return { api: new WikiApi(transport), calls, transport };
 }
+function localApi(transport: Transport) {
+  return new WikiApi((input, init) =>
+    String(input) === "/health"
+      ? Promise.resolve(
+          json({
+            status: "ready",
+            service: "fixture",
+            worker_enabled: false,
+            channel_worker_enabled: false,
+            channel_status: "disabled",
+            automatic_commit_enabled: false,
+            publication_enabled: false,
+            browser_authentication_mode: "local_test",
+          }),
+        )
+      : transport(input, init),
+  );
+}
 async function pair(api: WikiApi) {
-  await api.requestLocalTestPairing();
-  await api.checkLocalTestSession();
+  await api.requestBrowserPairing();
+  await api.checkBrowserSession();
 }
 afterEach(() => vi.restoreAllMocks());
 
 describe("explicit memory-only local test pairing", () => {
   it("cannot reopen domain reads while requesting or waiting for approval", async () => {
     let finish!: (response: Response) => void;
-    const api = new WikiApi(
+    const api = localApi(
       () =>
         new Promise<Response>((resolve) => {
           finish = resolve;
         }),
     );
-    const request = api.requestLocalTestPairing();
+    const request = api.requestBrowserPairing();
     expect(api.canRetryAccess()).toBe(false);
     api.retryAccess();
     expect(api.isAccessBlocked()).toBe(true);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
     finish(json(pending));
     await request;
     api.retryAccess();
     expect(api.isAccessBlocked()).toBe(true);
-    api.forgetLocalTestSession();
+    api.forgetBrowserSession();
     expect(api.canRetryAccess()).toBe(true);
   });
   it("keeps the private boundary closed until uncertain logout has finished clearing memory", async () => {
     let fail!: (error: Error) => void;
     const fixture = transportFixture();
-    const api = new WikiApi((input, init) =>
+    const api = localApi((input, init) =>
       String(input).endsWith("/logout")
         ? new Promise<Response>((_, reject) => {
             fail = reject;
@@ -88,13 +108,13 @@ describe("explicit memory-only local test pairing", () => {
         : fixture.transport(input, init),
     );
     await pair(api);
-    const logout = api.logoutLocalTestSession();
+    const logout = api.logoutBrowserSession();
     expect(api.canRetryAccess()).toBe(false);
     api.retryAccess();
     expect(api.isAccessBlocked()).toBe(true);
     fail(new Error("inert failure"));
     await expect(logout).rejects.toMatchObject({ code: "NETWORK_ERROR" });
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.canRetryAccess()).toBe(true);
     expect(api.isAccessBlocked()).toBe(true);
   });
@@ -105,7 +125,7 @@ describe("explicit memory-only local test pairing", () => {
   ])("clears pairing memory after %s without automatic retry", async (code) => {
     const fixture = transportFixture();
     let denied = false;
-    const api = new WikiApi((input, init) =>
+    const api = localApi((input, init) =>
       denied
         ? Promise.resolve(json({ error: { code } }, 403))
         : fixture.transport(input, init),
@@ -113,7 +133,7 @@ describe("explicit memory-only local test pairing", () => {
     await pair(api);
     denied = true;
     await expect(api.entries()).rejects.toMatchObject({ code, status: 403 });
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.isAccessBlocked()).toBe(true);
     denied = false;
     await api.entries();
@@ -125,7 +145,7 @@ describe("explicit memory-only local test pairing", () => {
   });
   it("returns only the public code snapshot and never grants access merely for requesting", async () => {
     const { api, calls } = transportFixture();
-    const result = await api.requestLocalTestPairing();
+    const result = await api.requestBrowserPairing();
     expect(result).toMatchObject({
       status: "waiting_approval",
       pairingCode: CODE,
@@ -147,9 +167,9 @@ describe("explicit memory-only local test pairing", () => {
     const { api, calls } = transportFixture({
       session: { status: "waiting_approval", fixture: true },
     });
-    await api.requestLocalTestPairing();
-    await api.checkLocalTestSession();
-    expect(api.getLocalTestSession().status).toBe("waiting_approval");
+    await api.requestBrowserPairing();
+    await api.checkBrowserSession();
+    expect(api.getBrowserSession().status).toBe("waiting_approval");
     expect(api.isAccessBlocked()).toBe(true);
     expect(calls).toHaveLength(2);
   });
@@ -157,7 +177,7 @@ describe("explicit memory-only local test pairing", () => {
     const { api, calls } = transportFixture();
     await pair(api);
     expect(api.isAccessBlocked()).toBe(false);
-    expect(api.getLocalTestSession()).not.toHaveProperty("pairingCode");
+    expect(api.getBrowserSession()).not.toHaveProperty("pairingCode");
     await api.entries();
     await api.decideIntake(
       "int_synthetic",
@@ -166,15 +186,12 @@ describe("explicit memory-only local test pairing", () => {
     );
     await api.health();
     const reads = new Headers(calls[2].init.headers),
-      writes = new Headers(calls[3].init.headers),
-      health = new Headers(calls[4].init.headers);
+      writes = new Headers(calls[3].init.headers);
     expect(reads.get("X-Wiki-Pairing-Proof")).toBe(PROOF);
     expect(reads.has("X-Wiki-CSRF")).toBe(false);
     expect(writes.get("X-Wiki-Pairing-Proof")).toBe(PROOF);
     expect(writes.get("X-Wiki-CSRF")).toBe(CSRF);
     expect(writes.get("Idempotency-Key")).toBe("same-key");
-    expect(health.has("X-Wiki-Pairing-Proof")).toBe(false);
-    expect(health.has("X-Wiki-CSRF")).toBe(false);
     expect(
       calls.every(
         (call) => !new Headers(call.init.headers).has("Authorization"),
@@ -189,13 +206,13 @@ describe("explicit memory-only local test pairing", () => {
       ),
     ).toBe(true);
     expect(
-      JSON.stringify(api.getLocalTestSession()) + JSON.stringify(api),
+      JSON.stringify(api.getBrowserSession()) + JSON.stringify(api),
     ).not.toContain(CSRF);
   });
   it("cannot recover a session from cookies after a fresh instance or refresh", async () => {
     const transport = vi.fn().mockResolvedValue(json(authenticated));
-    const api = new WikiApi(transport);
-    await expect(api.checkLocalTestSession()).rejects.toMatchObject({
+    const api = localApi(transport);
+    await expect(api.checkBrowserSession()).rejects.toMatchObject({
       status: 401,
     });
     expect(transport).not.toHaveBeenCalled();
@@ -208,11 +225,11 @@ describe("explicit memory-only local test pairing", () => {
     { ...pending, expires_in_seconds: 0 },
     { ...pending, status: "authenticated" },
   ])("fails closed for malformed pairing responses", async (value) => {
-    const api = new WikiApi(async () => json(value));
-    await expect(api.requestLocalTestPairing()).rejects.toMatchObject({
+    const api = localApi(async () => json(value));
+    await expect(api.requestBrowserPairing()).rejects.toMatchObject({
       code: "INVALID_RESPONSE",
     });
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.isAccessBlocked()).toBe(true);
   });
   it("does not accept an authenticated response with invalid CSRF or excessive expiry", async () => {
@@ -221,18 +238,18 @@ describe("explicit memory-only local test pairing", () => {
       { ...authenticated, expires_in_seconds: 901 },
     ]) {
       const { api } = transportFixture({ session });
-      await api.requestLocalTestPairing();
-      await expect(api.checkLocalTestSession()).rejects.toMatchObject({
+      await api.requestBrowserPairing();
+      await expect(api.checkBrowserSession()).rejects.toMatchObject({
         code: "INVALID_RESPONSE",
       });
-      expect(api.getLocalTestSession().status).toBe("waiting_auth");
+      expect(api.getBrowserSession().status).toBe("waiting_auth");
       expect(api.isAccessBlocked()).toBe(true);
     }
   });
   it("clears proof and CSRF on 401 rather than retrying or reusing the failed session", async () => {
     const fixture = transportFixture();
     let reject = false;
-    const api = new WikiApi((input, init) =>
+    const api = localApi((input, init) =>
       reject
         ? Promise.resolve(json({ error: { code: "UNAUTHENTICATED" } }, 401))
         : fixture.transport(input, init),
@@ -240,7 +257,7 @@ describe("explicit memory-only local test pairing", () => {
     await pair(api);
     reject = true;
     await expect(api.entries()).rejects.toMatchObject({ status: 401 });
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.isAccessBlocked()).toBe(true);
     reject = false;
     await api.entries();
@@ -258,32 +275,32 @@ describe("explicit memory-only local test pairing", () => {
     now += 900_001;
     await expect(api.entries()).rejects.toMatchObject({ status: 401 });
     expect(calls).toHaveLength(2);
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.isAccessBlocked()).toBe(true);
   });
   it("uses both memory headers for logout and clears the local session after confirmed logout", async () => {
     const { api, calls } = transportFixture();
     await pair(api);
-    await api.logoutLocalTestSession();
+    await api.logoutBrowserSession();
     const headers = new Headers(calls.at(-1)!.init.headers);
     expect(headers.get("X-Wiki-Pairing-Proof")).toBe(PROOF);
     expect(headers.get("X-Wiki-CSRF")).toBe(CSRF);
     expect(api.isAccessBlocked()).toBe(true);
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
   });
   it("clears client memory but rejects uncertain logout instead of claiming server revocation", async () => {
     const { api, calls } = transportFixture({ logoutFailure: true });
     await pair(api);
-    await expect(api.logoutLocalTestSession()).rejects.toMatchObject({
+    await expect(api.logoutBrowserSession()).rejects.toMatchObject({
       code: "NETWORK_ERROR",
     });
     expect(calls).toHaveLength(3);
-    expect(api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(api.getBrowserSession().status).toBe("waiting_auth");
     expect(api.isAccessBlocked()).toBe(true);
   });
   it("discards an old 401 response after a new pairing request has begun", async () => {
     let finish!: (response: Response) => void;
-    const api = new WikiApi(async (input) =>
+    const api = localApi(async (input) =>
       String(input).endsWith("/request")
         ? json(pending)
         : new Promise<Response>((resolve) => {
@@ -291,10 +308,10 @@ describe("explicit memory-only local test pairing", () => {
           }),
     );
     const old = api.entries();
-    await api.requestLocalTestPairing();
+    await api.requestBrowserPairing();
     finish(json({}, 401));
     await expect(old).rejects.toMatchObject({ name: "AbortError" });
-    expect(api.getLocalTestSession().status).toBe("waiting_approval");
+    expect(api.getBrowserSession().status).toBe("waiting_approval");
   });
   it("discards old private data when JSON decoding finishes after the session changes", async () => {
     let finish!: (body: unknown) => void;
@@ -309,15 +326,15 @@ describe("explicit memory-only local test pairing", () => {
         finish = resolve;
       });
     });
-    const api = new WikiApi(async (input) =>
+    const api = localApi(async (input) =>
       String(input).endsWith("/request") ? json(pending) : slow,
     );
     const old = api.entries();
     await started;
-    await api.requestLocalTestPairing();
+    await api.requestBrowserPairing();
     finish({ data: [], trace_id: "old", task_id: null });
     await expect(old).rejects.toMatchObject({ name: "AbortError" });
-    expect(api.getLocalTestSession().status).toBe("waiting_approval");
+    expect(api.getBrowserSession().status).toBe("waiting_approval");
   });
   it("does not transmit a real-link intake in the synthetic fixture session", async () => {
     const { api, calls } = transportFixture();

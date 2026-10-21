@@ -4,6 +4,7 @@ import {
   parsePage,
   parseChange,
   parseEntry,
+  parseEvidence,
   parseEvent,
   parseHealth,
   parseHit,
@@ -12,13 +13,22 @@ import {
   parseTask,
   text,
   type Envelope,
+  type BrowserAuthMode,
   type Metadata,
+  type EvidenceRef,
 } from "./contracts";
 
 export type Transport = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+export interface TextAttachmentUpload {
+  expected_preview_revision: number;
+  filename: string;
+  content_type: "text/plain" | "text/markdown";
+  content_base64: string;
+  private_note: string;
+}
 export class WikiApiError extends Error {
   constructor(
     public readonly code: string,
@@ -35,6 +45,8 @@ export function errorLabel(code: string, status = 0): string {
     return "尚未连接已认证的私有会话。请在受信任的服务入口完成连接后重试。";
   if (code === "LOCAL_TEST_LINKS_DISABLED")
     return "本机测试会话只用于合成数据验收，真实链接投递尚未开放。";
+  if (code === "LOCAL_TEST_WRITES_DISABLED")
+    return "本机合成验收会话不接收真实材料或知识修改。";
   if (status === 403) return "当前身份没有访问此内容的权限。未展示受限内容。";
   if (status === 404)
     return "此内容不存在、不可访问，或当前服务尚未提供该接口。";
@@ -51,6 +63,20 @@ export function errorLabel(code: string, status = 0): string {
         PROJECTION_STALE: "读取期间知识版本发生变化，请重试。",
         IDEMPOTENCY_CONFLICT: "请求内容与已有请求不一致，请先核对已有结果。",
         INVALID_STATE: "当前状态不允许此操作，请刷新查看最新状态。",
+        INTAKE_EXPIRED: "临时材料已到期，请重新提交，不会保存这次补料。",
+        TASK_RUNNING: "当前解析仍在执行，请等待其结束后再补充。",
+        SUPPLEMENT_LIMIT: "本条临时材料已达到补充次数上限。",
+        RECONCILIATION_REQUIRED: "前次执行结果需要对账，不能直接恢复或取消。",
+        LOCAL_TEST_WRITES_DISABLED:
+          "本机合成验收会话不接收真实材料或知识修改。",
+        ATTACHMENT_INVALID_NAME: "文件名不能包含路径或控制字符。",
+        ATTACHMENT_UNSUPPORTED:
+          "仅支持 UTF-8 的 .txt/.md 文本文件，不接受归档、二进制或其他格式。",
+        ATTACHMENT_TOO_LARGE: "文本文件必须为 1 至 100,000 字节。",
+        ATTACHMENT_INVALID_UTF8:
+          "文件不是有效 UTF-8 文本，不会猜测或转换编码。",
+        ATTACHMENT_INVALID: "文件内容或编码无法验证，尚未上传。",
+        ATTACHMENT_READ_FAILED: "无法读取所选文本文件，请重新选择。",
         LOCAL_TEST_LINKS_DISABLED:
           "本机测试会话只用于合成数据验收，真实链接投递尚未开放。",
       } as Record<string, string>
@@ -67,14 +93,29 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 export const PAGE_SIZE = 100;
-const LOCAL_AUTH = "/api/knowledge/v1/auth/local-test";
-const SECRET_VALUE = /^[A-Za-z0-9_-]{32,128}$/;
-export type LocalTestSession = Readonly<{
+const AUTH_PREFIX = {
+  local_test: "/api/knowledge/v1/auth/local-test",
+  owner_loopback: "/api/knowledge/v1/auth/owner",
+} as const;
+export type BrowserScope =
+  | "knowledge:read"
+  | "knowledge:write"
+  | "knowledge:review";
+const OWNER_SCOPES: readonly BrowserScope[] = [
+  "knowledge:read",
+  "knowledge:write",
+  "knowledge:review",
+];
+const SECRET_VALUE = /^[A-Za-z0-9_-]{32,128}(?![\s\S])/;
+export type BrowserSession = Readonly<{
+  mode?: Exclude<BrowserAuthMode, "disabled">;
+  fixture?: boolean;
+  scopes?: readonly BrowserScope[];
   status: "waiting_auth" | "waiting_approval" | "authenticated";
   pairingCode?: string;
   expiresAt: number;
 }>;
-const NO_LOCAL_SESSION: LocalTestSession = Object.freeze({
+const NO_LOCAL_SESSION: BrowserSession = Object.freeze({
   status: "waiting_auth",
   expiresAt: 0,
 });
@@ -86,7 +127,9 @@ export class WikiApi {
   #csrf = "";
   #authEpoch = 0;
   #authBusy = false;
-  #localSession: LocalTestSession = NO_LOCAL_SESSION;
+  #browserMode: BrowserAuthMode = "disabled";
+  #learningViewerUrl: string | null | undefined;
+  #localSession: BrowserSession = NO_LOCAL_SESSION;
   private readonly sessionListeners = new Set<() => void>();
   private accessBlocked = false;
   private readonly accessListeners = new Set<() => void>();
@@ -96,38 +139,65 @@ export class WikiApi {
   readonly isAccessBlocked = () => this.accessBlocked;
   readonly canRetryAccess = () =>
     !this.#authBusy && this.#localSession.status === "waiting_auth";
-  readonly getLocalTestSession = () => this.#localSession;
-  readonly subscribeLocalTestSession = (listener: () => void) => {
+  readonly getBrowserSession = () => this.#localSession;
+  readonly getBrowserMode = () => this.#browserMode;
+  readonly getLearningViewerUrl = () => this.#learningViewerUrl;
+  readonly isFixtureSession = () =>
+    this.#localSession.status === "authenticated" &&
+    this.#localSession.mode === "local_test";
+  readonly canPerform = (scope: BrowserScope) =>
+    this.#browserMode !== "owner_loopback" ||
+    (this.#localSession.status === "authenticated" &&
+      this.#localSession.mode === "owner_loopback" &&
+      this.#localSession.scopes?.includes(scope) === true);
+  private authPrefix() {
+    if (this.#browserMode === "disabled")
+      throw new WikiApiError("BROWSER_AUTH_DISABLED", 401);
+    return AUTH_PREFIX[this.#browserMode];
+  }
+  readonly subscribeBrowserSession = (listener: () => void) => {
     this.sessionListeners.add(listener);
     return () => {
       this.sessionListeners.delete(listener);
     };
   };
-  private setLocalTestSession(value: LocalTestSession) {
+  private setBrowserSession(value: BrowserSession) {
     this.#localSession = Object.freeze(value);
     for (const listener of this.sessionListeners) listener();
   }
-  private setLocalTestAuthBusy(value: boolean) {
+  private setBrowserAuthBusy(value: boolean) {
     this.#authBusy = value;
     for (const listener of this.sessionListeners) listener();
   }
-  forgetLocalTestSession() {
+  forgetBrowserSession() {
     this.#authEpoch += 1;
     this.#pairingProof = "";
     this.#csrf = "";
-    this.setLocalTestSession(NO_LOCAL_SESSION);
+    this.setBrowserSession(NO_LOCAL_SESSION);
     this.setAccessBlocked(true);
   }
-  expireLocalTestSession() {
+  expireBrowserSession() {
     if (
       this.#localSession.expiresAt &&
       this.#localSession.expiresAt <= Date.now()
     )
-      this.forgetLocalTestSession();
+      this.forgetBrowserSession();
   }
   private localAuthValue(raw: unknown) {
     const value = fields(raw);
-    if (value.fixture !== true) throw new WikiApiError("INVALID_RESPONSE", 200);
+    const owner = this.#browserMode === "owner_loopback";
+    if (
+      this.#browserMode === "disabled" ||
+      (owner
+        ? value.fixture !== false ||
+          value.authentication_mode !== "owner_loopback"
+        : value.fixture !== true ||
+          (value.authentication_mode !== undefined &&
+            value.authentication_mode !== "local_test"))
+    )
+      throw new WikiApiError("INVALID_RESPONSE", 200);
+    if (value.status !== "authenticated" && value.scopes !== undefined)
+      throw new WikiApiError("INVALID_RESPONSE", 200);
     return value;
   }
   private localAuthTtl(value: unknown, maximum: number) {
@@ -140,14 +210,16 @@ export class WikiApi {
       throw new WikiApiError("INVALID_RESPONSE", 200);
     return Date.now() + value * 1000;
   }
-  async requestLocalTestPairing(): Promise<LocalTestSession> {
+  async requestBrowserPairing(): Promise<BrowserSession> {
     if (this.#authBusy) throw new WikiApiError("LOCAL_AUTH_BUSY", 409);
-    this.setLocalTestAuthBusy(true);
-    this.forgetLocalTestSession();
+    this.setBrowserAuthBusy(true);
+    this.forgetBrowserSession();
     const epoch = this.#authEpoch;
     try {
+      await this.health(AbortSignal.timeout(15000));
+      const prefix = this.authPrefix();
       const value = this.localAuthValue(
-        await this.raw(LOCAL_AUTH + "/request", {
+        await this.raw(prefix + "/request", {
           method: "POST",
           body: "{}",
           signal: AbortSignal.timeout(15000),
@@ -158,45 +230,68 @@ export class WikiApi {
       const expiresAt = this.localAuthTtl(value.expires_in_seconds, 120);
       if (
         value.status !== "waiting_approval" ||
-        !/^[A-F0-9]{20}$/.test(text(value.pairing_code)) ||
+        !/^[A-F0-9]{20}(?![\s\S])/.test(text(value.pairing_code)) ||
         !SECRET_VALUE.test(text(value.pairing_proof))
       )
         throw new WikiApiError("INVALID_RESPONSE", 200);
       this.#pairingProof = text(value.pairing_proof);
-      this.setLocalTestSession({
+      this.setBrowserSession({
         status: "waiting_approval",
+        mode: this.#browserMode as Exclude<BrowserAuthMode, "disabled">,
+        fixture: this.#browserMode === "local_test",
         pairingCode: text(value.pairing_code),
         expiresAt,
       });
       return this.#localSession;
     } catch (error) {
-      if (epoch === this.#authEpoch) this.forgetLocalTestSession();
+      if (epoch === this.#authEpoch) this.forgetBrowserSession();
       throw error;
     } finally {
-      this.setLocalTestAuthBusy(false);
+      this.setBrowserAuthBusy(false);
     }
   }
-  async checkLocalTestSession(): Promise<LocalTestSession> {
+  async checkBrowserSession(): Promise<BrowserSession> {
     if (this.#authBusy) throw new WikiApiError("LOCAL_AUTH_BUSY", 409);
-    this.expireLocalTestSession();
+    this.expireBrowserSession();
     if (!this.#pairingProof) throw new WikiApiError("UNAUTHENTICATED", 401);
-    this.setLocalTestAuthBusy(true);
+    this.setBrowserAuthBusy(true);
     const epoch = this.#authEpoch;
     try {
       const value = this.localAuthValue(
-        await this.raw(LOCAL_AUTH + "/session", {
+        await this.raw(this.authPrefix() + "/session", {
           signal: AbortSignal.timeout(15000),
         }),
       );
       if (epoch !== this.#authEpoch)
         throw new WikiApiError("LOCAL_SESSION_CHANGED", 409);
-      if (value.status === "waiting_auth") this.forgetLocalTestSession();
+      if (value.status === "waiting_auth") this.forgetBrowserSession();
       else if (value.status === "authenticated") {
         const expiresAt = this.localAuthTtl(value.expires_in_seconds, 900);
         if (!SECRET_VALUE.test(text(value.csrf_token)))
           throw new WikiApiError("INVALID_RESPONSE", 200);
+        const owner = this.#browserMode === "owner_loopback";
+        let scopes: readonly BrowserScope[] | undefined;
+        if (owner) {
+          if (
+            !Array.isArray(value.scopes) ||
+            !value.scopes.includes("knowledge:read") ||
+            new Set(value.scopes).size !== value.scopes.length ||
+            value.scopes.some(
+              (scope) => !OWNER_SCOPES.includes(scope as BrowserScope),
+            )
+          )
+            throw new WikiApiError("INVALID_RESPONSE", 200);
+          scopes = Object.freeze([...value.scopes]) as readonly BrowserScope[];
+        } else if (value.scopes !== undefined)
+          throw new WikiApiError("INVALID_RESPONSE", 200);
         this.#csrf = text(value.csrf_token);
-        this.setLocalTestSession({ status: "authenticated", expiresAt });
+        this.setBrowserSession({
+          status: "authenticated",
+          expiresAt,
+          mode: owner ? "owner_loopback" : "local_test",
+          fixture: !owner,
+          ...(scopes ? { scopes } : {}),
+        });
         this.setAccessBlocked(false);
       } else if (
         value.status !== "waiting_approval" ||
@@ -211,22 +306,22 @@ export class WikiApi {
         error.code === "INVALID_RESPONSE" &&
         epoch === this.#authEpoch
       )
-        this.forgetLocalTestSession();
+        this.forgetBrowserSession();
       throw error;
     } finally {
-      this.setLocalTestAuthBusy(false);
+      this.setBrowserAuthBusy(false);
     }
   }
-  async logoutLocalTestSession(): Promise<void> {
+  async logoutBrowserSession(): Promise<void> {
     if (this.#authBusy) throw new WikiApiError("LOCAL_AUTH_BUSY", 409);
-    this.expireLocalTestSession();
+    this.expireBrowserSession();
     if (!this.#pairingProof || !this.#csrf)
       throw new WikiApiError("UNAUTHENTICATED", 401);
-    this.setLocalTestAuthBusy(true);
+    this.setBrowserAuthBusy(true);
     this.setAccessBlocked(true);
     try {
       const value = this.localAuthValue(
-        await this.raw(LOCAL_AUTH + "/logout", {
+        await this.raw(this.authPrefix() + "/logout", {
           method: "POST",
           body: "{}",
           signal: AbortSignal.timeout(15000),
@@ -235,8 +330,8 @@ export class WikiApi {
       if (value.status !== "waiting_auth")
         throw new WikiApiError("INVALID_RESPONSE", 200);
     } finally {
-      this.forgetLocalTestSession();
-      this.setLocalTestAuthBusy(false);
+      this.forgetBrowserSession();
+      this.setBrowserAuthBusy(false);
     }
   }
   readonly subscribeAccess = (listener: () => void) => {
@@ -256,7 +351,7 @@ export class WikiApi {
   }
   private async raw(path: string, init: RequestInit = {}): Promise<unknown> {
     const hadProof = !!this.#pairingProof;
-    this.expireLocalTestSession();
+    this.expireBrowserSession();
     if (hadProof && !this.#pairingProof)
       throw new WikiApiError("UNAUTHENTICATED", 401);
     const epoch = this.#authEpoch;
@@ -288,7 +383,7 @@ export class WikiApi {
     // A cancelled route must not invalidate a newer explicitly retried session.
     if (init.signal?.aborted || epoch !== this.#authEpoch)
       throw new DOMException("Aborted", "AbortError");
-    if (response.status === 401) this.forgetLocalTestSession();
+    if (response.status === 401) this.forgetBrowserSession();
     const responseEpoch = this.#authEpoch;
     let body: unknown;
     try {
@@ -310,7 +405,7 @@ export class WikiApi {
           "BROWSER_REQUEST_REJECTED",
         ].includes(text(error.code))
       )
-        this.forgetLocalTestSession();
+        this.forgetBrowserSession();
       throw new WikiApiError(
         safeCode(error.code),
         response.status,
@@ -324,8 +419,16 @@ export class WikiApi {
     path: string,
     parse: (v: unknown) => T,
     signal?: AbortSignal,
+    requestBody?: Metadata,
   ): Promise<Envelope<T>> {
-    const body = fields(await this.raw("/api/knowledge/v1" + path, { signal }));
+    const body = fields(
+      await this.raw("/api/knowledge/v1" + path, {
+        signal,
+        ...(requestBody
+          ? { method: "POST", body: JSON.stringify(requestBody) }
+          : {}),
+      }),
+    );
     if (
       !Object.prototype.hasOwnProperty.call(body, "data") ||
       typeof body.trace_id !== "string"
@@ -348,6 +451,13 @@ export class WikiApi {
     key: string,
     parse: (v: unknown) => T,
   ): Promise<Envelope<T>> {
+    this.expireBrowserSession();
+    if (
+      !this.canPerform(
+        path.endsWith("/decisions") ? "knowledge:review" : "knowledge:write",
+      )
+    )
+      throw new WikiApiError("FORBIDDEN", 403);
     const result = fields(
       await this.raw("/api/knowledge/v1" + path, {
         method: "POST",
@@ -366,7 +476,8 @@ export class WikiApi {
         task_id: typeof result.task_id === "string" ? result.task_id : null,
         trace_id: result.trace_id,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof WikiApiError) throw error;
       throw new WikiApiError(
         "INVALID_RESPONSE",
         200,
@@ -382,10 +493,153 @@ export class WikiApi {
     );
   }
   entry(id: string, revision?: number, signal?: AbortSignal) {
+    if (
+      revision !== undefined &&
+      (!Number.isSafeInteger(revision) || revision < 1)
+    )
+      return Promise.reject(new WikiApiError("INVALID_INPUT", 422));
     return this.read(
       "/entries/" + segment(id) + (revision ? "?revision=" + revision : ""),
-      parseEntry,
+      (raw) => {
+        const value = parseEntry(raw);
+        if (
+          value.entry_id !== id ||
+          (revision !== undefined && value.revision !== revision)
+        )
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+        return value;
+      },
       signal,
+    );
+  }
+  evidence(ref: EvidenceRef, signal?: AbortSignal) {
+    return this.read(
+      "/evidence/read",
+      (raw) => {
+        const value = parseEvidence(raw);
+        if (
+          (ref.source_id && value.source_id !== ref.source_id) ||
+          (ref.external_document_id &&
+            value.document_id !== ref.external_document_id) ||
+          (ref.learning_outcome_id &&
+            value.outcome_id !== ref.learning_outcome_id) ||
+          (ref.content_hash && value.content_hash !== ref.content_hash) ||
+          (ref.source_revision !== undefined &&
+            value.revision !== ref.source_revision)
+        )
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+        return value;
+      },
+      signal,
+      { ...ref },
+    );
+  }
+  proposeChange(body: Metadata, key: string) {
+    if (this.isFixtureSession())
+      return Promise.reject(
+        new WikiApiError("LOCAL_TEST_WRITES_DISABLED", 403),
+      );
+    return this.write("/changes", body, key, (raw) => {
+      const change = parseChange(raw);
+      for (const name of [
+        "entry_id",
+        "base_revision",
+        "operation",
+        "title",
+        "body",
+      ] as const) {
+        if (body[name] !== undefined && body[name] !== change[name])
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+      }
+      return change;
+    });
+  }
+  controlTask(
+    id: string,
+    action: "resume" | "cancel",
+    revision: number,
+    key: string,
+  ) {
+    return this.write(
+      "/tasks/" + segment(id) + "/" + action,
+      { expected_revision: revision },
+      key,
+      (raw) => {
+        const value = parseTask(raw);
+        if (
+          value.task_id !== id ||
+          value.revision !== revision + 1 ||
+          value.state !== (action === "resume" ? "queued" : "cancelled")
+        )
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+        return value;
+      },
+    );
+  }
+  supplementIntake(
+    id: string,
+    body: {
+      expected_preview_revision: number;
+      text: string;
+      private_note: string;
+    },
+    key: string,
+  ) {
+    if (this.isFixtureSession())
+      return Promise.reject(
+        new WikiApiError("LOCAL_TEST_WRITES_DISABLED", 403),
+      );
+    return this.write(
+      "/intakes/" + segment(id) + "/supplement",
+      body,
+      key,
+      (raw) => {
+        const value = parseIntake(raw);
+        if (
+          value.intake_id === id &&
+          ["discarded", "expired"].includes(value.state)
+        )
+          throw new WikiApiError(
+            value.state === "expired" ? "PREVIEW_EXPIRED" : "INVALID_STATE",
+            409,
+          );
+        if (
+          value.intake_id !== id ||
+          value.preview_revision !== body.expected_preview_revision + 1 ||
+          value.state !== "partial"
+        )
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+        return value;
+      },
+    );
+  }
+  uploadTextAttachment(id: string, body: TextAttachmentUpload, key: string) {
+    if (this.isFixtureSession())
+      return Promise.reject(
+        new WikiApiError("LOCAL_TEST_WRITES_DISABLED", 403),
+      );
+    return this.write(
+      "/intakes/" + segment(id) + "/text-attachment",
+      { ...body },
+      key,
+      (raw) => {
+        const value = parseIntake(raw);
+        if (
+          value.intake_id === id &&
+          ["discarded", "expired"].includes(value.state)
+        )
+          throw new WikiApiError(
+            value.state === "expired" ? "PREVIEW_EXPIRED" : "INVALID_STATE",
+            409,
+          );
+        if (
+          value.intake_id !== id ||
+          value.preview_revision !== body.expected_preview_revision + 1 ||
+          value.state !== "partial"
+        )
+          throw new WikiApiError("INVALID_RESPONSE", 200);
+        return value;
+      },
     );
   }
   search(query: string, signal?: AbortSignal) {
@@ -488,8 +742,33 @@ export class WikiApi {
   }
   async health(signal?: AbortSignal) {
     try {
-      return parseHealth(await this.raw("/health", { signal }));
+      const health = parseHealth(await this.raw("/health", { signal }));
+      const mode = health.browser_authentication_mode;
+      if (this.#learningViewerUrl !== health.learning_viewer_url) {
+        this.#learningViewerUrl = health.learning_viewer_url;
+        for (const listener of this.sessionListeners) listener();
+      }
+      if (mode !== this.#browserMode) {
+        const active = this.#localSession.status !== "waiting_auth";
+        this.#browserMode = mode;
+        if (active) this.forgetBrowserSession();
+        else for (const listener of this.sessionListeners) listener();
+      }
+      return health;
     } catch (error) {
+      if (
+        signal?.aborted ||
+        (error instanceof DOMException && error.name === "AbortError")
+      )
+        throw error;
+      if (
+        !(error instanceof WikiApiError) ||
+        error.code === "INVALID_RESPONSE"
+      ) {
+        this.#browserMode = "disabled";
+        this.#learningViewerUrl = null;
+        this.forgetBrowserSession();
+      }
       if (error instanceof WikiApiError || signal?.aborted) throw error;
       throw new WikiApiError("INVALID_RESPONSE", 200);
     }
@@ -502,7 +781,7 @@ export class WikiApi {
     },
     key: string,
   ) {
-    if (this.#localSession.status === "authenticated")
+    if (this.isFixtureSession())
       return Promise.reject(new WikiApiError("LOCAL_TEST_LINKS_DISABLED", 403));
     return this.write("/intakes", body, key, parseIntake);
   }

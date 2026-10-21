@@ -5,8 +5,22 @@ export interface EvidenceRef {
   source_revision?: number;
   claim_ids?: string[];
   learning_outcome_id?: string;
+  external_document_id?: string;
   content_hash?: string;
-  locator?: Metadata;
+  locator?: Metadata | string;
+  quote?: string;
+}
+export interface Evidence {
+  kind: "source" | "external_document" | "learning";
+  source_id?: string;
+  document_id?: string;
+  outcome_id?: string;
+  revision?: number;
+  content_hash: string;
+  title: string;
+  text: string | null;
+  text_basis: string;
+  body_complete: boolean | null;
 }
 export interface Entry {
   entry_id: string;
@@ -92,7 +106,20 @@ export interface Intake {
   updated_at: string;
   preview?: Metadata;
 }
+export type BrowserAuthMode = "disabled" | "local_test" | "owner_loopback";
+export function isTrustedLearningViewer(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{3,4})\/$/.exec(value);
+  return (
+    !!match &&
+    match[0] === value &&
+    Number(match[1]) >= 1024 &&
+    Number(match[1]) <= 65535
+  );
+}
 export interface Health {
+  learning_viewer_url?: string | null;
+  browser_authentication_mode: BrowserAuthMode;
   status: string;
   service: string;
   worker_enabled: boolean;
@@ -142,12 +169,47 @@ function refs(value: unknown): EvidenceRef[] {
           typeof v.source_revision === "number"
             ? integer(v.source_revision)
             : undefined,
-        claim_ids: strings(v.claim_ids),
+        claim_ids: v.claim_ids === undefined ? undefined : strings(v.claim_ids),
         learning_outcome_id: text(v.learning_outcome_id) || undefined,
+        external_document_id: text(v.external_document_id) || undefined,
         content_hash: text(v.content_hash) || undefined,
-        locator: fields(v.locator),
+        locator:
+          v.locator === undefined
+            ? undefined
+            : typeof v.locator === "string"
+              ? v.locator
+              : fields(v.locator),
+        quote: text(v.quote) || undefined,
       }))
     : [];
+}
+export function parseEvidence(raw: unknown): Evidence {
+  const v = record(raw);
+  if (
+    !["source", "external_document", "learning"].includes(text(v.kind)) ||
+    (v.text !== null && typeof v.text !== "string")
+  )
+    throw new Error("INVALID_RESPONSE");
+  const idField =
+    v.kind === "source"
+      ? "source_id"
+      : v.kind === "learning"
+        ? "outcome_id"
+        : "document_id";
+  required(v[idField]);
+  return {
+    kind: v.kind as Evidence["kind"],
+    source_id: text(v.source_id) || undefined,
+    document_id: text(v.document_id) || undefined,
+    outcome_id: text(v.outcome_id) || undefined,
+    revision: v.revision === undefined ? undefined : integer(v.revision),
+    content_hash: required(v.content_hash),
+    title: text(v.title),
+    text: v.text as string | null,
+    text_basis: required(v.text_basis),
+    body_complete:
+      typeof v.body_complete === "boolean" ? v.body_complete : null,
+  };
 }
 export function parseEntry(raw: unknown): Entry {
   const v = record(raw);
@@ -268,6 +330,21 @@ export function parseIntake(raw: unknown): Intake {
 }
 export function parseHealth(raw: unknown): Health {
   const v = record(raw);
+  const mode =
+    v.browser_authentication_mode === undefined
+      ? "disabled"
+      : v.browser_authentication_mode;
+  if (
+    v.learning_viewer_url !== undefined &&
+    v.learning_viewer_url !== null &&
+    !isTrustedLearningViewer(v.learning_viewer_url)
+  )
+    throw new Error("INVALID_RESPONSE");
+  if (
+    typeof mode !== "string" ||
+    !["disabled", "local_test", "owner_loopback"].includes(mode)
+  )
+    throw new Error("INVALID_RESPONSE");
   for (const field of [
     "worker_enabled",
     "channel_worker_enabled",
@@ -276,6 +353,8 @@ export function parseHealth(raw: unknown): Health {
   ])
     if (typeof v[field] !== "boolean") throw new Error("INVALID_RESPONSE");
   return {
+    browser_authentication_mode: mode as BrowserAuthMode,
+    learning_viewer_url: v.learning_viewer_url as string | null | undefined,
     status: required(v.status),
     service: required(v.service),
     worker_enabled: v.worker_enabled as boolean,

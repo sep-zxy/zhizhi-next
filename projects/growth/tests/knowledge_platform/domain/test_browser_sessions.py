@@ -278,8 +278,11 @@ def test_application_uses_only_verified_cookie_and_never_falls_back_from_bad_bea
             )
             assert unauthorized_write.status_code == 403
             authorized_write = await browser.post(
-                "/api/knowledge/v1/tasks/missing/resume", json={},
-                headers={"Origin": ORIGIN, "X-Wiki-CSRF": status.json()["csrf_token"]},
+                "/api/knowledge/v1/tasks/missing/resume", json={"expected_revision": 1},
+                headers={
+                    "Origin": ORIGIN, "X-Wiki-CSRF": status.json()["csrf_token"],
+                    "Idempotency-Key": "missing-task-resume",
+                },
             )
             assert authorized_write.status_code == 404  # Auth passed, no fake task exists.
     try:

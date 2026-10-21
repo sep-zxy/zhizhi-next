@@ -42,6 +42,8 @@ def test_unconfigured_application_does_not_initialize_domain_or_fabricate_ready(
         "status": "waiting_auth", "service": "zhizhi-knowledge",
         "authentication_status": "waiting_auth",
         "browser_authentication_status": "waiting_auth",
+        "browser_authentication_mode": "disabled",
+        "learning_viewer_url": None,
         "private_wiki_enabled": True, "worker_enabled": False,
         "channel_worker_enabled": False, "channel_status": "disabled",
         "automatic_commit_enabled": False, "publication_enabled": False,

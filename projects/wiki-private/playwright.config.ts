@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: false,
+  projects: [{ name: "chromium-private", use: { browserName: "chromium" } }],
   workers: 1,
   timeout: 30_000,
   reporter: [["list"]],
@@ -18,6 +19,6 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     url: "http://127.0.0.1:5184/wiki/",
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.GITHUB_ACTIONS,
   },
 });

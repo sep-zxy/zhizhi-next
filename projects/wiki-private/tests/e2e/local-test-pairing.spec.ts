@@ -13,54 +13,75 @@ test("fixture: explicit local pairing, secret-free UI, empty ledger and confirme
     requested = 0;
   const protectedReads: Record<string, string>[] = [];
   let logoutHeaders: Record<string, string> = {};
-  await page.route("**/api/knowledge/v1/**", async (route) => {
-    const request = route.request(),
-      path = new URL(request.url()).pathname;
-    const reply = (body: unknown, status = 200) =>
+  await page.route(
+    (url) => url.pathname.startsWith("/api/knowledge/v1/"),
+    async (route) => {
+      const request = route.request(),
+        path = new URL(request.url()).pathname;
+      const reply = (body: unknown, status = 200) =>
+        route.fulfill({
+          status,
+          contentType: "application/json",
+          body: JSON.stringify(body),
+        });
+      if (path.endsWith("/auth/local-test/request")) {
+        requested++;
+        return reply({
+          status: "waiting_approval",
+          pairing_code: code,
+          pairing_proof: proof,
+          expires_in_seconds: 120,
+          fixture: true,
+        });
+      }
+      if (path.endsWith("/auth/local-test/session")) {
+        expect(request.headers()["x-wiki-pairing-proof"]).toBe(proof);
+        if (!approved)
+          return reply({ status: "waiting_approval", fixture: true });
+        authenticated = true;
+        return reply({
+          status: "authenticated",
+          csrf_token: csrf,
+          expires_in_seconds: 900,
+          fixture: true,
+        });
+      }
+      if (path.endsWith("/auth/local-test/logout")) {
+        logoutHeaders = request.headers();
+        authenticated = false;
+        return reply({ status: "waiting_auth", fixture: true });
+      }
+      if (!authenticated)
+        return reply({ error: { code: "UNAUTHENTICATED" } }, 401);
+      protectedReads.push(request.headers());
+      return reply({
+        data:
+          path.endsWith("/intakes") || path.endsWith("/tasks")
+            ? { items: [], has_more: false }
+            : [],
+        task_id: null,
+        trace_id: "fixture",
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/health",
+    (route) =>
       route.fulfill({
-        status,
         contentType: "application/json",
-        body: JSON.stringify(body),
-      });
-    if (path.endsWith("/auth/local-test/request")) {
-      requested++;
-      return reply({
-        status: "waiting_approval",
-        pairing_code: code,
-        pairing_proof: proof,
-        expires_in_seconds: 120,
-        fixture: true,
-      });
-    }
-    if (path.endsWith("/auth/local-test/session")) {
-      expect(request.headers()["x-wiki-pairing-proof"]).toBe(proof);
-      if (!approved)
-        return reply({ status: "waiting_approval", fixture: true });
-      authenticated = true;
-      return reply({
-        status: "authenticated",
-        csrf_token: csrf,
-        expires_in_seconds: 900,
-        fixture: true,
-      });
-    }
-    if (path.endsWith("/auth/local-test/logout")) {
-      logoutHeaders = request.headers();
-      authenticated = false;
-      return reply({ status: "waiting_auth", fixture: true });
-    }
-    if (!authenticated)
-      return reply({ error: { code: "UNAUTHENTICATED" } }, 401);
-    protectedReads.push(request.headers());
-    return reply({
-      data:
-        path.endsWith("/intakes") || path.endsWith("/tasks")
-          ? { items: [], has_more: false }
-          : [],
-      task_id: null,
-      trace_id: "fixture",
-    });
-  });
+        body: JSON.stringify({
+          status: "ready",
+          service: "synthetic",
+          worker_enabled: false,
+          channel_worker_enabled: false,
+          channel_status: "disabled",
+          automatic_commit_enabled: false,
+          publication_enabled: false,
+          browser_authentication_mode: "local_test",
+          learning_viewer_url: null,
+        }),
+      }),
+  );
   await page.goto("#/home");
   await expect(
     page.getByRole("button", { name: "申请本机测试配对码" }),
@@ -107,17 +128,39 @@ test("fixture: explicit local pairing, secret-free UI, empty ledger and confirme
 test("fixture: default-disabled pairing remains unavailable without a code or authenticated success", async ({
   page,
 }) => {
-  await page.route("**/api/knowledge/v1/**", (route) =>
-    route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: JSON.stringify({ error: { code: "UNAUTHENTICATED" } }),
-    }),
+  await page.route(
+    (url) => url.pathname.startsWith("/api/knowledge/v1/"),
+    (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "UNAUTHENTICATED" } }),
+      }),
+  );
+  await page.route(
+    (url) => url.pathname === "/health",
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          service: "synthetic",
+          worker_enabled: false,
+          channel_worker_enabled: false,
+          channel_status: "disabled",
+          automatic_commit_enabled: false,
+          publication_enabled: false,
+          browser_authentication_mode: "disabled",
+          learning_viewer_url: null,
+        }),
+      }),
   );
   await page.goto("#/home");
-  await page.getByRole("button", { name: "申请本机测试配对码" }).click();
   await expect(
-    page.getByText(/当前服务未提供可用的本机测试配对/),
+    page.getByRole("button", { name: "申请本机测试配对码" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("浏览器认证未启用", { exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("一次性配对码")).toHaveCount(0);
   await expect(

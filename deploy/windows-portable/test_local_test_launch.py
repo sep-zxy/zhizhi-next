@@ -140,10 +140,13 @@ class LocalTestLauncherTests(unittest.TestCase):
             with patch.dict(sys.modules, {"msvcrt": fake_msvcrt}), \
                     patch.object(module, "spawn") as spawn, \
                     patch.object(module, "await_health") as health, \
+                    patch.object(module, "free_port") as allocate, \
                     patch.object(module.time, "sleep", side_effect=lambda _: stop.write_text("stop")), \
                     contextlib.redirect_stdout(io.StringIO()):
                 module.start({}, True)
             self.assertEqual([call.args[1] for call in spawn.call_args_list], ["platform", "browser"])
+            allocate.assert_not_called()
+            self.assertNotIn("--learning-viewer-url", spawn.call_args_list[0].args[0])
             health.assert_called_once_with(spawn.return_value, 8766, "platform", "configured")
             browser = spawn.call_args_list[1].args[0]
             self.assertIn("--user-data-dir=" + str(root / "data/local-test/browser-profile"), browser)

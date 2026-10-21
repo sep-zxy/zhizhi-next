@@ -25,6 +25,19 @@ function fixture(
     const path = String(input),
       headers = new Headers(init.headers);
     calls.push({ path, headers });
+    if (path === "/health")
+      return json({
+        status: "ready",
+        service: "fixture",
+        worker_enabled: false,
+        channel_worker_enabled: false,
+        channel_status: "disabled",
+        automatic_commit_enabled: false,
+        publication_enabled: false,
+        browser_authentication_mode: options.disabled
+          ? "disabled"
+          : "local_test",
+      });
     if (path.endsWith("/request")) {
       if (options.disabled)
         return json({ error: { code: "UNAUTHENTICATED" } }, 401);
@@ -170,10 +183,15 @@ describe("local-test pairing UI fixtures", () => {
     const user = userEvent.setup(),
       server = fixture({ disabled: true });
     render(<WikiApp api={server.api} />);
-    await user.click(
-      await screen.findByRole("button", { name: "申请本机测试配对码" }),
+    await screen.findByText("浏览器认证未启用");
+    const button = await screen.findByRole("button", {
+      name: "申请本机测试配对码",
+    });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await user.click(button);
+    expect(server.calls.some((call) => call.path.includes("/auth/"))).toBe(
+      false,
     );
-    await screen.findByText(/当前服务未提供可用的本机测试配对/);
     expect(screen.queryByLabelText("一次性配对码")).toBeNull();
     expect(screen.queryByText("已连接本机测试身份")).toBeNull();
   });
@@ -231,7 +249,7 @@ describe("local-test pairing UI fixtures", () => {
     );
     await screen.findByText(/服务端注销未得到确认/);
     expect(screen.queryByText(/服务已确认注销本次测试会话/)).toBeNull();
-    expect(server.api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(server.api.getBrowserSession().status).toBe("waiting_auth");
   });
   it("hides an expired pairing code on foreground expiry check without sending another request", async () => {
     let now = Date.now();
@@ -250,6 +268,6 @@ describe("local-test pairing UI fixtures", () => {
     });
     expect(screen.queryByLabelText("一次性配对码")).toBeNull();
     expect(server.calls).toHaveLength(before);
-    expect(server.api.getLocalTestSession().status).toBe("waiting_auth");
+    expect(server.api.getBrowserSession().status).toBe("waiting_auth");
   });
 });

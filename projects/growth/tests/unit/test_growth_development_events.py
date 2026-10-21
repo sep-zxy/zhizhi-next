@@ -52,7 +52,7 @@ def test_targeted_event_requires_matching_head_and_reuses_capture(tmp_path: Path
     account_id, device_id, other_device = (uuid.uuid4() for _ in range(3))
     event_id, stale_id, foreign_target_id = (uuid.uuid4() for _ in range(3))
     with GrowthLocalRepository(tmp_path / "growth.sqlite") as ledger:
-        assert ledger.connection.execute("PRAGMA user_version").fetchone()[0] == 31
+        assert ledger.connection.execute("PRAGMA user_version").fetchone()[0] == 33
         project_id = ledger.create_project("文档权限", trace_id=str(uuid.uuid4()))
         binding_id = ledger.bind_repo(project_id, repo, trace_id=str(uuid.uuid4()))
         feature_id = ledger.start_feature(

@@ -1,4 +1,4 @@
-"""Explicit loopback-only test pairing; never a production or implicit identity."""
+"""Shared loopback pairing primitive with a separately restricted test policy."""
 
 from __future__ import annotations
 
@@ -60,13 +60,18 @@ class _Session:
     proof_digest: str
 
 
-class LocalTestBrowserSessions:
-    """Memory-only session grants proven by the approved test bearer on loopback.
+class LoopbackBrowserSessions:
+    """Memory-only session grants proven by an explicitly selected bearer on loopback.
 
     Constructing this boundary is explicit deployment configuration. It neither
     reads identity files nor issues a bearer token. A cookie with no approved
     pairing remains unauthenticated; owner headers and source IP never grant access.
     """
+
+    cookie_name = COOKIE_NAME
+    auth_prefix = AUTH_PREFIX
+    fixture = True
+    authentication_mode = "local_test"
 
     def __init__(
         self,
@@ -87,7 +92,7 @@ class LocalTestBrowserSessions:
         except ValueError:
             valid = False
         if not valid:
-            raise ValueError("Local test sessions require an exact loopback HTTP origin")
+            raise ValueError("Browser sessions require an exact loopback HTTP origin")
         self.origin = origin
         self.host = url.netloc
         self.authenticator = authenticator
@@ -101,7 +106,7 @@ class LocalTestBrowserSessions:
     def bind_authenticator(self, authenticator: TokenAuthenticator) -> None:
         """Trusted factory binding revokes any state from an earlier identity source."""
         if self._bound:
-            raise ValueError("A local test session controller belongs to one application")
+            raise ValueError("A browser session controller belongs to one application")
         self.authenticator = authenticator
         self._pending.clear()
         self._codes.clear()
@@ -112,7 +117,7 @@ class LocalTestBrowserSessions:
     @staticmethod
     def _deny(code: str = "UNAUTHENTICATED", *, status: int = 401) -> DomainError:
         return DomainError(
-            code, "Local test browser authentication is unavailable", status_code=status
+            code, "Browser authentication is unavailable", status_code=status
         )
 
     @staticmethod
@@ -124,7 +129,7 @@ class LocalTestBrowserSessions:
                 "host", "origin", "cookie", "authorization", "x-wiki-csrf",
                 "x-wiki-pairing-proof", "sec-fetch-site"
             }:
-                raise LocalTestBrowserSessions._deny("BROWSER_REQUEST_REJECTED", status=403)
+                raise LoopbackBrowserSessions._deny("BROWSER_REQUEST_REJECTED", status=403)
             result[name] = value.decode("latin-1")
         return result
 
@@ -145,10 +150,13 @@ class LocalTestBrowserSessions:
             or headers.get("sec-fetch-site") not in {None, "same-origin", "none"}
         ):
             raise self._deny("BROWSER_ORIGIN_REJECTED", status=403)
+        # Exempt auth endpoints must not ignore an explicitly invalid bearer.
+        # A valid credential still does not replace the cookie proof or CSRF.
+        if "authorization" in headers:
+            self.authenticator.authenticate(headers["authorization"])
         return headers
 
-    @staticmethod
-    def _cookie(headers: dict[str, str]) -> str | None:
+    def _cookie(self, headers: dict[str, str]) -> str | None:
         raw = headers.get("cookie", "")
         if len(raw) > 4096:
             return None
@@ -157,7 +165,7 @@ class LocalTestBrowserSessions:
             cookies.load(raw)
         except CookieError:
             return None
-        morsel = cookies.get(COOKIE_NAME)
+        morsel = cookies.get(self.cookie_name)
         value = morsel.value if morsel is not None else None
         return value if value is not None and _COOKIE_VALUE.fullmatch(value) else None
 
@@ -180,10 +188,11 @@ class LocalTestBrowserSessions:
         if not _COOKIE_VALUE.fullmatch(proof) or not hmac.compare_digest(
             _digest(proof), expected
         ):
-            raise LocalTestBrowserSessions._deny()
+            raise LoopbackBrowserSessions._deny()
 
-    @staticmethod
-    def _response(value: dict[str, Any], *, cookie: str | None = None) -> JSONResponse:
+    def _response(self, value: dict[str, Any], *, cookie: str | None = None) -> JSONResponse:
+        if not self.fixture:
+            value = {**value, "fixture": False, "authentication_mode": self.authentication_mode}
         response = JSONResponse(value)
         response.headers.update(
             {
@@ -197,7 +206,7 @@ class LocalTestBrowserSessions:
             # No Max-Age/Expires: browser-session cookie, server TTL still 15 min.
             # This deliberately limited mode is HTTP loopback, never remote HTTP.
             response.set_cookie(
-                COOKIE_NAME, cookie, httponly=True, samesite="strict", path=COOKIE_PATH
+                self.cookie_name, cookie, httponly=True, samesite="strict", path=COOKIE_PATH
             )
         return response
 
@@ -252,15 +261,13 @@ class LocalTestBrowserSessions:
         self._codes[code_key] = key
         return self._response(
             {"status": "waiting_approval", "pairing_code": code,
-             "pairing_proof": proof, "expires_in_seconds": 120, "fixture": True},
+             "pairing_proof": proof, "expires_in_seconds": 120, "fixture": self.fixture},
             cookie=cookie,
         )
 
     async def approve_pairing(self, request: Request) -> JSONResponse:
         headers = self._validate_request(request.scope, require_origin=False)
-        actor = self.authenticator.authenticate(headers.get("authorization"))
-        if actor != local_test_actor():
-            raise self._deny("TEST_IDENTITY_REQUIRED", status=403)
+        actor = self.approval_actor(self.authenticator.authenticate(headers.get("authorization")))
         body = await self._body(request)
         code = body.get("pairing_code")
         if (
@@ -274,7 +281,11 @@ class LocalTestBrowserSessions:
         if pending is None or pending.approved_actor is not None:
             raise self._deny("PAIRING_UNAVAILABLE", status=409)
         pending.approved_actor = actor
-        return self._response({"status": "pairing_approved", "fixture": True})
+        return self._response({"status": "pairing_approved", "fixture": self.fixture})
+
+    def approval_actor(self, actor: Actor) -> Actor:
+        """Policies must explicitly select and narrow an existing authenticated user."""
+        raise self._deny("BROWSER_POLICY_REQUIRED", status=403)
 
     async def session_status(self, request: Request) -> JSONResponse:
         headers = self._validate_request(request.scope, require_origin=False)
@@ -300,12 +311,14 @@ class LocalTestBrowserSessions:
             else:
                 return self._response(
                     {"status": "waiting_approval" if pending is not None else "waiting_auth",
-                     "fixture": True}
+                     "fixture": self.fixture}
                 )
         self._prove(headers, session.proof_digest)
         return self._response(
             {"status": "authenticated", "csrf_token": session.csrf,
-             "expires_in_seconds": max(0, int(session.expires - self.clock())), "fixture": True},
+             "expires_in_seconds": max(0, int(session.expires - self.clock())),
+             "fixture": self.fixture,
+             **({"scopes": sorted(session.actor.scopes)} if not self.fixture else {})},
             cookie=replacement,
         )
 
@@ -315,17 +328,16 @@ class LocalTestBrowserSessions:
         cookie = self._cookie(headers)
         if cookie is not None:
             self._sessions.pop(_digest(cookie), None)
-        response = self._response({"status": "waiting_auth", "fixture": True})
-        response.delete_cookie(COOKIE_NAME, httponly=True, samesite="strict", path=COOKIE_PATH)
+        response = self._response({"status": "waiting_auth", "fixture": self.fixture})
+        response.delete_cookie(self.cookie_name, httponly=True, samesite="strict", path=COOKIE_PATH)
         return response
 
-    @staticmethod
-    def is_auth_endpoint(scope: Mapping[str, Any]) -> bool:
+    def is_auth_endpoint(self, scope: Mapping[str, Any]) -> bool:
         """Only these exact routes perform their own independent authentication."""
         return (scope.get("path"), scope.get("method")) in {
-            (AUTH_PREFIX + "/request", "POST"), (AUTH_PREFIX + "/approve", "POST"),
-            (AUTH_PREFIX + "/session", "GET"), (AUTH_PREFIX + "/session", "HEAD"),
-            (AUTH_PREFIX + "/logout", "POST"),
+            (self.auth_prefix + "/request", "POST"), (self.auth_prefix + "/approve", "POST"),
+            (self.auth_prefix + "/session", "GET"), (self.auth_prefix + "/session", "HEAD"),
+            (self.auth_prefix + "/logout", "POST"),
         }
 
     def routes(self) -> list[Route]:
@@ -340,10 +352,19 @@ class LocalTestBrowserSessions:
                     return response
             return wrapped
 
-        prefix = AUTH_PREFIX
+        prefix = self.auth_prefix
         return [
             Route(prefix + "/request", endpoint(self.request_pairing), methods=["POST"]),
             Route(prefix + "/approve", endpoint(self.approve_pairing), methods=["POST"]),
             Route(prefix + "/session", endpoint(self.session_status), methods=["GET"]),
             Route(prefix + "/logout", endpoint(self.logout), methods=["POST"]),
         ]
+
+
+class LocalTestBrowserSessions(LoopbackBrowserSessions):
+    """Only the isolated synthetic test identity; never an operational owner session."""
+
+    def approval_actor(self, actor: Actor) -> Actor:
+        if actor != local_test_actor():
+            raise self._deny("TEST_IDENTITY_REQUIRED", status=403)
+        return actor

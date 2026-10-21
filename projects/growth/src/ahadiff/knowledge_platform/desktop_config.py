@@ -30,6 +30,7 @@ def configure_desktop(
         "model",
         "providers",
         "input_classification",
+        "identity_format",
     }
     if set(config) - allowed:
         raise ValueError("Unknown desktop configuration field")
@@ -39,8 +40,25 @@ def configure_desktop(
     identity_path = Path(config["identity_file"])
     if not identity_path.is_absolute():
         identity_path = path.parent / identity_path
+    identity_format = config.get("identity_format", "protected-json")
+    if identity_format not in {"protected-json", "zhizhi-owner-acceptance-dpapi-v1"}:
+        raise ValueError("Unknown desktop identity protection format")
+    if identity_format == "zhizhi-owner-acceptance-dpapi-v1" and (
+        set(string_list(config.get("providers", []), "Providers")) - {"openai"}
+        or config.get("input_classification", "personal") not in {"public", "personal"}
+        or (config.get("model", {}).get("enabled") is True
+            and config["model"].get("adapter") != "codex_cli")
+    ):
+        raise ValueError("Owner acceptance permits only explicit Codex CLI, no fallback")
 
     def token_provider() -> str:
+        if identity_format == "zhizhi-owner-acceptance-dpapi-v1":
+            from .owner_identity import load_desktop_owner_identity
+
+            return load_desktop_owner_identity(
+                identity_path, state_directory=state_directory,
+                service_url=config["service_url"], device_id=device_id,
+            ).token
         identity = load_config_object(identity_path, secret=True)
         token = identity.get("token")
         if not isinstance(token, str) or len(token) < 24:

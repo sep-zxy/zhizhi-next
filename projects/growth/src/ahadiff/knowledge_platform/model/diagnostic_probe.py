@@ -54,7 +54,10 @@ async def probe_codex(
     allowed only through this Python test interface and remains marked fixture.
     """
     started = time.monotonic()
-    runner = CodexModelRunner(config, collect_process_diagnostics=True)
+    runner = CodexModelRunner(
+        config, collect_process_diagnostics=True,
+        collect_notification_diagnostics=model_smoke,
+    )
     report: dict[str, Any] = {
         "schema_version": 1,
         "mode": "fixed_public_model_smoke" if model_smoke else "host_only",

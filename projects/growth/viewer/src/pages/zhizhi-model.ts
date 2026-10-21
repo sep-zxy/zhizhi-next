@@ -1,8 +1,8 @@
 import type { KnowledgeCard, KnowledgeIndex, WikiDraft } from '../api/knowledge';
-export type ZhizhiView = 'home' | 'projects' | 'library' | 'session' | 'understanding' | 'writeback' | 'radar' | 'candidates' | 'exercise' | 'cli' | 'topic-management';
+export type ZhizhiView = 'home' | 'projects' | 'library' | 'session' | 'understanding' | 'writeback' | 'radar' | 'candidates' | 'exercise' | 'cli' | 'topic-management' | 'entry-context' | 'wiki-learning';
 const aliases: Record<string, ZhizhiView> = {today:'home',overview:'home',cards:'library',learning:'candidates',pending:'candidates',wiki:'writeback',review:'library',discuss:'library',topics:'topic-management',settings:'topic-management'};
 export function zhizhiView(value: string | null): ZhizhiView {
-  const names: ZhizhiView[] = ['home','projects','library','session','understanding','writeback','radar','candidates','exercise','cli','topic-management'];
+  const names: ZhizhiView[] = ['home','projects','library','session','understanding','writeback','radar','candidates','exercise','cli','topic-management','entry-context','wiki-learning'];
   return aliases[value ?? ''] ?? (names.includes(value as ZhizhiView) ? value as ZhizhiView : 'home');
 }
 export function learningCards(index: KnowledgeIndex | null, project: string, query = ''): KnowledgeCard[] {

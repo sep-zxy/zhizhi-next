@@ -158,3 +158,50 @@ def coded_failure_diagnostic(
     else:
         kind, summary = "policy", "policy_rejected"
     return ModelFailure(stage=stage, kind=kind, summary=summary, exit_code=exit_code)
+
+
+def notification_diagnostic(message: Any) -> dict[str, Any]:
+    """Fixed-vocabulary hint for an exec error item, never text or an allow rule.
+
+    alpha.11 erases ConfigWarning/Warning/DeprecationNotice/ModelRerouted kinds
+    when mapping them into ErrorItem.message. Pattern hints cannot recover the
+    actual upstream type and MUST NOT be used to continue a rejected turn.
+    """
+    present = isinstance(message, str)
+    raw = message.encode("utf-8", errors="replace") if present else b""
+    lowered = raw[:8192].decode("utf-8", errors="ignore").lower()
+    code = "unknown_notification"
+    if lowered.startswith("model rerouted:"):
+        code = "model_reroute_notice"
+    elif lowered.startswith("credential masking is inactive because sandboxing is disabled."):
+        code = "credential_masking_sandbox_disabled"
+    elif lowered.startswith(
+        "credential masking is inactive because the network proxy is disabled."
+    ):
+        code = "credential_masking_proxy_disabled"
+    elif lowered.startswith("credential masking is inactive because shell environment overrides"):
+        code = "credential_masking_environment_conflict"
+    elif (lowered.startswith("configured value for ")
+          and "is disallowed by requirements; falling back" in lowered):
+        code = "required_configuration_override"
+    elif lowered.startswith("under-development features enabled:"):
+        code = "unstable_features_notice"
+    elif lowered.startswith("in-process app-server event stream lagged; dropped "):
+        code = "event_stream_loss_notice"
+    elif lowered.startswith("`--dangerously-bypass-hook-trust` is enabled."):
+        code = "hook_trust_bypass_notice"
+    elif lowered.startswith("invalid global instructions"):
+        code = "invalid_global_instructions_notice"
+    elif " is deprecated" in lowered:
+        code = "deprecation_text_notice"
+    return {
+        "classifier_version": 1,
+        "rule_id": "codex_exec_notice_v1:" + code,
+        "code": code,
+        "evidence": "bounded_text_pattern_hint",
+        "upstream_kind": "not_preserved_by_exec_jsonl",
+        "message_present": present,
+        "input_utf8_bytes": len(raw),
+        "inspected_utf8_bytes": min(len(raw), 8192),
+        "truncated": len(raw) > 8192,
+    }

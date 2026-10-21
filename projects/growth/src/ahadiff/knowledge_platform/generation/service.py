@@ -327,6 +327,28 @@ class GenerationService:
                         "task_id": task_id,
                         "reason": "SUGGESTED_ENTRY_ID_INVALID",
                     }
+        # An explicitly created source-learning context owns a separate personal
+        # understanding target. A model title/alias must never redirect it back
+        # into the source formal entry (nor any unrelated catalogue entry).
+        independent = [
+            outcome
+            for outcome in outcomes
+            if outcome.get("metadata", {}).get("submission_kind") == "wiki_entry_understanding"
+        ]
+        if independent and (
+            len(independent) != len(outcomes)
+            or len(suggested_ids) != 1
+            or any(
+                item.get("metadata", {}).get("source_entry_id") in suggested_ids
+                for item in independent
+            )
+            or (entry_id is not None and entry_id not in suggested_ids)
+        ):
+            return {
+                "status": "needs_evidence",
+                "task_id": task_id,
+                "reason": "INDEPENDENT_UNDERSTANDING_TARGET_REQUIRED",
+            }
         # Exact target selection lives here. No fuzzy title match silently overwrites.
         old = self.domain.get_entry(entry_id, actor=actor) if entry_id else None
         catalogue: list[dict[str, Any]] = []
@@ -342,9 +364,14 @@ class GenerationService:
             concept_matches = [
                 entry
                 for entry in catalogue
-                if trusted_concepts & set(entry.get("metadata", {}).get("concept_ids", []))
-                or entry.get("metadata", {}).get("concept_id") in trusted_concepts
-                or entry["entry_id"] in suggested_ids
+                if entry["entry_id"] in suggested_ids
+                or (
+                    not independent
+                    and (
+                        trusted_concepts & set(entry.get("metadata", {}).get("concept_ids", []))
+                        or entry.get("metadata", {}).get("concept_id") in trusted_concepts
+                    )
+                )
             ]
             if len(concept_matches) > 1 or len(suggested_ids) > 1:
                 return {
@@ -401,7 +428,9 @@ class GenerationService:
                     break
                 documents.append(document)
         derivative_candidate = bool(documents) and len(documents) == len(evidence_refs)
-        model_catalogue = catalogue[:100]
+        # Free-learning submission authorizes its own explanation, not unrelated
+        # private catalogue excerpts or the referenced formal source body.
+        model_catalogue = [] if independent else catalogue[:100]
         if derivative_candidate:
             documents = list({document["document_id"]: document for document in documents}.values())
             evidence_refs = [dict(document["evidence_ref"]) for document in documents]
@@ -548,7 +577,7 @@ class GenerationService:
                     "reason": issues[0],
                     "publication_issues": issues,
                 }
-        if old is None:
+        if old is None and not independent:
             names = normalized_title(output["title"])
             concept_ids = set(output.get("concept_ids", []))
             candidates = [

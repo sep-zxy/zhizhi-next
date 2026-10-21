@@ -21,6 +21,80 @@ def lease_deadline(seconds: int) -> str:
 class TaskMethods:
     """DomainService implementation mixin; all state writes use its shared store."""
 
+    def control_task(
+        self,
+        task_id: str,
+        action: str,
+        expected_revision: int,
+        *,
+        actor: Actor,
+        idempotency_key: str,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Explicit user control; replay precedes state checks and never steals a lease."""
+        authenticated(actor, "knowledge:write")
+        if actor.kind != "user":
+            raise DomainError(
+                "FORBIDDEN", "Task control requires the authenticated user", status_code=403
+            )
+        if action not in {"resume", "cancel"}:
+            raise invalid("Unsupported task control")
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise invalid("expected_revision must be a positive integer")
+        waiting = {
+            "waiting_auth",
+            "waiting_quota",
+            "waiting_user",
+            "waiting_review",
+            "waiting_input",
+            "blocked",
+            "partial",
+            "retry_wait",
+        }
+
+        def control(connection: Any) -> dict[str, Any]:
+            task = self._protect_read(
+                connection,
+                self.store.get(connection, "task", task_id, actor.owner_id),
+                actor,
+            )
+            self._check_revision(task, {"expected_revision": expected_revision})
+            allowed = waiting if action == "resume" else waiting | {"queued"}
+            if task["state"] not in allowed:
+                raise DomainError(
+                    "INVALID_STATE",
+                    "Only non-running eligible tasks can be controlled",
+                    status_code=409,
+                )
+            if task.get("reconciliation_required"):
+                raise DomainError(
+                    "RECONCILIATION_REQUIRED",
+                    "Reconcile uncertain effects before task control",
+                    status_code=409,
+                )
+            task.update(
+                state="queued" if action == "resume" else "cancelled",
+                next_run_at=None,
+                lease_owner=None,
+                lease_token=None,
+                lease_until=None,
+                revision=task["revision"] + 1,
+                updated_at=now(),
+            )
+            self.store.put(connection, "task", task_id, task)
+            self.store.event(
+                connection, "task.updated.v1", task, task_id, {"state": task["state"]}, trace_id
+            )
+            return task
+
+        return self._mutate(
+            actor,
+            f"control_task:{task_id}:{action}",
+            idempotency_key,
+            {"expected_revision": expected_revision},
+            control,
+        )
+
     def create_task(
         self,
         kind: str,

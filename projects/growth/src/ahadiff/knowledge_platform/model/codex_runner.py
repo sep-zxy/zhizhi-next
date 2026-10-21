@@ -27,6 +27,7 @@ from .contracts import ModelResult, ModelStatus, ModelTask, canonical_hash
 from .diagnostics import (
     ModelFailure,
     coded_failure_diagnostic,
+    notification_diagnostic,
     provider_failure_diagnostic,
     sanitized_failure,
 )
@@ -126,7 +127,9 @@ class CodexRunnerConfig:
 class _ExecEvents:
     """Conservative allowlist for the official exec JSONL protocol, not model claims."""
 
-    def __init__(self, max_output_tokens: int) -> None:
+    def __init__(self, max_output_tokens: int, *, notification_details: bool = False) -> None:
+        self.notification_details = notification_details
+        self.notification: dict[str, Any] | None = None
         self.max_output_tokens = max_output_tokens
         self.started = False
         self.turn_started = False
@@ -167,6 +170,8 @@ class _ExecEvents:
                 # non-fatal error items. Do not mislabel these PROVIDER_FAILURE,
                 # but do not ignore them: security/model policy may have changed.
                 self.event_counts["item.error"] = self.event_counts.get("item.error", 0) + 1
+                if self.notification_details:
+                    self.notification = notification_diagnostic(notification.get("message"))
                 raise _CodexFailure(
                     "CODEX_NOTIFICATION_REQUIRES_REVIEW", "blocked",
                     failure=ModelFailure(
@@ -257,13 +262,17 @@ class CodexModelRunner:
     """Serial, bounded, schema-checked CLI execution; Pi remains the default adapter."""
 
     def __init__(
-        self, config: CodexRunnerConfig, *, collect_process_diagnostics: bool = False
+        self, config: CodexRunnerConfig, *, collect_process_diagnostics: bool = False,
+        collect_notification_diagnostics: bool = False,
     ) -> None:
         self.config = config
         self._lock = asyncio.Lock()
         self._cache: dict[str, tuple[str, ModelResult]] = {}
         self._quota_until: datetime | None = None
         self._collect_process_diagnostics = collect_process_diagnostics
+        self._collect_notification_diagnostics = (
+            collect_process_diagnostics and collect_notification_diagnostics
+        )
         self.process_diagnostics: list[dict[str, Any]] = []
         self.preflight_states = {"version": "not_checked", "login": "not_checked"}
 
@@ -451,6 +460,8 @@ class CodexModelRunner:
                 if events is not None:
                     observation["event_counts"] = dict(events.event_counts)
                     observation["terminal_event"] = events.terminal_event
+                    if events.notification is not None:
+                        observation["notification"] = dict(events.notification)
 
     async def run(self, task: ModelTask) -> ModelResult:
         route = self.config.routes[0] if self.config.routes else None
@@ -686,7 +697,10 @@ class CodexModelRunner:
             for key, value in overrides.items():
                 args.extend(["-c", key + "=" + json.dumps(value)])
             args.append("-")
-            events = _ExecEvents(task.max_output_tokens)
+            events = _ExecEvents(
+                task.max_output_tokens,
+                notification_details=self._collect_notification_diagnostics,
+            )
             execution.stage = "execution"
             code, _ = await self._process(args, cwd, payload=prompt, events=events)
             if code:

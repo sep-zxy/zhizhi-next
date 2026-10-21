@@ -66,3 +66,112 @@ describe("real domain ASGI capture → private Wiki parser", () => {
     });
   });
 });
+
+describe("real versioned action contracts", () => {
+  it("reads source and actual learning words with reference binding", async () => {
+    const source = captured.evidence.body.data as {
+      source_id: string;
+      revision: number;
+      content_hash: string;
+    };
+    const evidence = await api("evidence").evidence({
+      source_id: source.source_id,
+      source_revision: source.revision,
+      content_hash: source.content_hash,
+    });
+    expect(evidence.data.text).toBe(
+      "Evidence says addition preserves history.",
+    );
+    const learning = captured.learning_evidence.body.data as {
+      outcome_id: string;
+      content_hash: string;
+    };
+    expect(
+      (
+        await api("learning_evidence").evidence({
+          learning_outcome_id: learning.outcome_id,
+          content_hash: learning.content_hash,
+        })
+      ).data.text,
+    ).toBe("Synthetic user's own words.");
+  });
+  it("validates real resume and cancel receipts without reporting task completion", async () => {
+    const original = captured.task.body.data as {
+      task_id: string;
+      revision: number;
+    };
+    expect(
+      (
+        await api("task_resume").controlTask(
+          original.task_id,
+          "resume",
+          original.revision,
+          "fixture-key",
+        )
+      ).data.state,
+    ).toBe("queued");
+    expect(
+      (
+        await api("task_cancel").controlTask(
+          original.task_id,
+          "cancel",
+          original.revision + 1,
+          "fixture-key",
+        )
+      ).data.state,
+    ).toBe("cancelled");
+  });
+  it("validates supplement revision and keeps note out of the reading body", async () => {
+    const intake = captured.new_intake.body.data as { intake_id: string };
+    const result = await api("supplement").supplementIntake(
+      intake.intake_id,
+      {
+        expected_preview_revision: 0,
+        text: "Supplemented synthetic material.",
+        private_note: "Synthetic private note, not source text.",
+      },
+      "fixture-key",
+    );
+    expect(result.data.state).toBe("partial");
+    expect(result.data.preview_revision).toBe(1);
+    expect(result.data.preview?.document).toMatchObject({
+      body_text: "Supplemented synthetic material.",
+      body_complete: false,
+    });
+    expect(result.data.source_id).toBeUndefined();
+  });
+  it("validates an actual uploaded byte receipt without exposing base64 or mixing annotations", async () => {
+    const intake = captured.new_intake.body.data as { intake_id: string };
+    const result = await api("text_attachment").uploadTextAttachment(
+      intake.intake_id,
+      {
+        expected_preview_revision: 1,
+        filename: "synthetic.md",
+        content_type: "text/markdown",
+        content_base64: Buffer.from("\uFEFF# Synthetic file\r\n").toString(
+          "base64",
+        ),
+        private_note: "Separate synthetic file note.",
+      },
+      "fixture-key",
+    );
+    expect(result.data.preview_revision).toBe(2);
+    expect(result.data.source_id).toBeUndefined();
+    expect(result.data.preview?.document).toMatchObject({
+      body_text: "\uFEFF# Synthetic file\r\n",
+      body_complete: false,
+    });
+    expect(JSON.stringify(result.data)).not.toContain("content_base64");
+    expect(JSON.stringify(result.data.preview?.document)).not.toContain(
+      "Separate synthetic file note.",
+    );
+  });
+  it("parses an independently queued user proposal rather than an applied entry", async () => {
+    const result = await api("user_proposal").proposeChange({}, "fixture-key");
+    expect(result.data.base_revision).toBe(1);
+    expect(result.data.operation).toBe("update");
+    expect(result.data.change_id).toBeTruthy();
+    expect(result.task_id).toBeTruthy();
+    expect(result.data.state).not.toBe("applied");
+  });
+});

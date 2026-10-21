@@ -64,10 +64,10 @@ class DeliveryTests(unittest.TestCase):
         name = "projects/growth/tests/knowledge_platform/domain/test_browser_sessions.py"
         approved = json.loads((HERE / "reviewed-fixtures.json").read_text(encoding="utf-8"))[name]
         self.assertEqual(approved["sha256"],
-                         "8ecb3820f9cb08224a0d9bc8f8c648f44bbf49285d2bb5ac982ed2dc6a26c6a5")
+                         "590b48d100776b6629e994ba7c0046cfaf4bca35d17df1b0fefba004464ffb9d")
         self.assertEqual(approved["rules"], ["url-userinfo"])
         self.assertEqual(approved["reviewed_source_commit"],
-                         "68ffbc3cf51a513d5a4a41316aed5814b646a095")
+                         "4abe8c47932fdd06d223db54f254af243961e901")
         value = ("http://" + "user:secret@127.0.0.1:8766").encode()
         # A path/rule match without the reviewed file's exact bytes is insufficient.
         self.assertEqual(delivery.scan(name, value, {name: approved}), ["url-userinfo"])

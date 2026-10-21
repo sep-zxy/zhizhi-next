@@ -1,5 +1,6 @@
+import { EntryProposal, EvidenceReader } from "./material-actions";
 import { useState, type FormEvent } from "react";
-import { PAGE_SIZE, type WikiApi } from "./api";
+import { PAGE_SIZE, WikiApiError, type WikiApi } from "./api";
 import {
   Badge,
   Empty,
@@ -15,6 +16,7 @@ import {
   categories,
   categoryCounts,
   formatTime,
+  engineeringEntryHref,
   navigate,
   publication,
   routeHref,
@@ -555,12 +557,20 @@ export function EntryPage({
   engineeringUrl: string;
 }) {
   const rawRevision = Number(query.get("revision"));
+  const invalidRevision =
+    query.has("revision") &&
+    (!/^[1-9][0-9]*(?![\s\S])/.test(query.get("revision") || "") ||
+      !Number.isSafeInteger(rawRevision));
   const revision =
     Number.isSafeInteger(rawRevision) && rawRevision > 0
       ? rawRevision
       : undefined;
-  const resource = useResource("entry:" + id + ":" + revision, (signal) =>
-    api.entry(id, revision, signal),
+  const resource = useResource(
+    "entry:" + id + ":" + query.get("revision"),
+    (signal) =>
+      invalidRevision
+        ? Promise.reject(new WikiApiError("INVALID_INPUT", 422))
+        : api.entry(id, revision, signal),
   );
   const [version, setVersion] = useState(revision ? String(revision) : "");
   const [tab, setTab] = useState("body");
@@ -584,11 +594,16 @@ export function EntryPage({
               title={entry.title}
               description={"正式知识条目 · " + entry.entry_id}
               actions={
-                <Badge tone={entry.deleted ? "danger" : "success"}>
-                  {entry.deleted
-                    ? "已删除的历史条目"
-                    : "修订 " + entry.revision}
-                </Badge>
+                <div className="actions">
+                  <Badge tone={entry.deleted ? "danger" : "success"}>
+                    {entry.deleted
+                      ? "已删除的历史条目"
+                      : "修订 " + entry.revision}
+                  </Badge>
+                  <button className="button" onClick={resource.reload}>
+                    重新读取（清除未提交编辑）
+                  </button>
+                </div>
               }
             />
             {entry.deleted && (
@@ -637,43 +652,18 @@ export function EntryPage({
                       来源原件与正式正文分开。原件、学习原话和私人附言不会因条目公开意图而自动公开。
                     </Notice>
                     {entry.evidence_refs.length ? (
-                      <ul className="source-list">
+                      <div className="source-list">
                         {entry.evidence_refs.map((ref, index) => (
-                          <li
-                            key={
-                              (ref.source_id ||
-                                ref.learning_outcome_id ||
-                                "ref") + index
-                            }
-                          >
-                            <Icon name="link" />
-                            <span>
-                              <strong>
-                                {ref.source_id ? "私有来源" : "学习成果证据"}
-                              </strong>
-                              <code>
-                                {ref.source_id ||
-                                  ref.learning_outcome_id ||
-                                  "引用信息不完整"}
-                              </code>
-                              {ref.content_hash && (
-                                <small>内容哈希：{ref.content_hash}</small>
-                              )}
-                            </span>
-                            <Badge>
-                              {ref.source_id
-                                ? "RAW · 私有来源"
-                                : "本人学习记录"}
-                            </Badge>
-                          </li>
+                          <EvidenceReader
+                            key={JSON.stringify(ref) + index}
+                            api={api}
+                            reference={ref}
+                          />
                         ))}
-                      </ul>
+                      </div>
                     ) : (
                       <p className="muted">服务未返回来源引用。</p>
                     )}
-                    <p className="muted">
-                      来源内容读取尚未接入此页面；不会用示例原文补齐。
-                    </p>
                   </section>
                 )}
               </article>
@@ -743,30 +733,48 @@ export function EntryPage({
                 </section>
                 <section className="panel">
                   <h2>修订与学习</h2>
-                  <p className="muted">
-                    正式知识修改必须经过提案、复核与
-                    Writer。当前页面只读，不绕过门禁直接改正文。
-                  </p>
+                  <p>修改与删除提案位于正文下方，须经过独立复核。</p>
                   <a className="button" href="#/reviews">
                     查看重要确认
                   </a>
-                  {engineeringUrl ? (
+                  {!entry.deleted &&
+                  engineeringEntryHref(
+                    engineeringUrl,
+                    entry.entry_id,
+                    entry.revision,
+                  ) ? (
                     <a
                       className="text-link"
-                      href={engineeringUrl}
+                      href={engineeringEntryHref(
+                        engineeringUrl,
+                        entry.entry_id,
+                        entry.revision,
+                      )}
                       rel="noreferrer"
                     >
-                      前往知枝工程学习 ↗
+                      用当前修订继续工程学习 ↗
                     </a>
                   ) : (
-                    <p className="muted small">工程学习入口尚未连接。</p>
+                    <p className="muted small">
+                      工程学习入口尚未连接，或该条目已删除。
+                    </p>
                   )}
                   <small className="muted">
-                    条目引入学习的跨域引用接口尚待接入；此链接不复制正文。
+                    只传递条目 ID 与当前所读修订 {entry.revision}
+                    。知枝会重新授权读取；选择已有卡并明确确认后才建立引用，不自动创建卡片。
                   </small>
                 </section>
               </aside>
             </div>
+            <section className="panel">
+              <h2>版本化修改与删除提案</h2>
+              <EntryProposal
+                key={entry.entry_id + ":" + entry.revision}
+                api={api}
+                entry={entry}
+                historical={!!revision}
+              />
+            </section>
           </>
         )}
       </ResourceView>

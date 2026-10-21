@@ -1,3 +1,4 @@
+import { isTrustedLearningViewer } from "./contracts";
 import { useEffect, useState } from "react";
 import { WikiApiError } from "./api";
 import { fields, strings, text, type Entry, type Task } from "./contracts";
@@ -188,4 +189,29 @@ export function publication(entry: Entry) {
 export function safeNavigation(value: unknown, fallback: string): string {
   const v = text(value);
   return /^\/(?!\/)/.test(v) && !/[\u0000-\u0020\\]/.test(v) ? v : fallback;
+}
+
+/** Host-provided same-origin entry; pass exact identity/revision only, never content or secrets. */
+export function engineeringEntryHref(
+  base: string,
+  entryId: string,
+  revision: number,
+): string {
+  if (
+    (!safeNavigation(base, "") && !isTrustedLearningViewer(base)) ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/.test(entryId) ||
+    !Number.isSafeInteger(revision) ||
+    revision < 1
+  )
+    return "";
+  const pathname = base.split(/[?#]/, 1)[0];
+  return (
+    pathname +
+    "#/growth?" +
+    new URLSearchParams({
+      view: "entry-context",
+      entry_id: entryId,
+      revision: String(revision),
+    })
+  );
 }

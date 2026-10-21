@@ -265,7 +265,7 @@ describe("isolated React DOM interaction", () => {
       screen.getByLabelText("搜索私有知识"),
       "仅本次会话的私有查询",
     );
-    act(() => api.forgetLocalTestSession());
+    act(() => api.forgetBrowserSession());
     expect(screen.queryByLabelText("搜索私有知识")).toBeNull();
     await user.click(
       screen.getByRole("button", { name: "已完成受信任连接，重新读取" }),

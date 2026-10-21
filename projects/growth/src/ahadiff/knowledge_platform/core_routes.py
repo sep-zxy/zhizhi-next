@@ -14,6 +14,41 @@ from .contracts import new_id
 from .errors import DomainError, invalid
 from .task_views import public_task_event, public_task_record
 
+
+def public_evidence_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Project authorized evidence without filesystem paths or raw delivery envelopes."""
+    keys = {
+        "source_id",
+        "document_id",
+        "outcome_id",
+        "revision",
+        "content_hash",
+        "created_at",
+        "data_classification",
+        "classification_labels",
+        "locator",
+        "text",
+    }
+    result = {key: value for key, value in record.items() if key in keys}
+    descriptor = record.get("descriptor") or {}
+    extraction = descriptor.get("metadata", {}).get("extraction", {})
+    result["kind"] = (
+        "source"
+        if record.get("source_id")
+        else "external_document"
+        if record.get("document_id")
+        else "learning"
+    )
+    result["title"] = descriptor.get("title") or extraction.get("title") or ""
+    result["text_basis"] = extraction.get("metadata", {}).get("text_basis") or (
+        "user_statement" if result["kind"] == "learning" else "retained_text"
+    )
+    result["body_complete"] = (
+        extraction.get("body_complete") if type(extraction.get("body_complete")) is bool else None
+    )
+    return result
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -76,9 +111,7 @@ def create_core_routes(domain: DomainService) -> list[Route]:
 
     async def read_task(request: Request, actor: Any, trace: str) -> Any:
         return public_task_record(
-            await run_in_threadpool(
-                domain.read_task, request.path_params["task_id"], actor=actor
-            )
+            await run_in_threadpool(domain.read_task, request.path_params["task_id"], actor=actor)
         )
 
     async def list_tasks(request: Request, actor: Any, trace: str) -> Any:
@@ -106,32 +139,16 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         )
         return [public_task_event(event) for event in events]
 
-    async def resume_task(request: Request, actor: Any, trace: str) -> Any:
+    async def control_task(request: Request, actor: Any, trace: str) -> Any:
         payload = await body(request)
-        task = await run_in_threadpool(
-            domain.read_task, request.path_params["task_id"], actor=actor
-        )
-        if task["state"] not in {
-            "waiting_auth",
-            "waiting_quota",
-            "waiting_user",
-            "waiting_review",
-            "waiting_input",
-            "blocked",
-            "partial",
-            "retry_wait",
-        }:
-            raise DomainError(
-                "INVALID_STATE", "Only a waiting task may be resumed", status_code=409
-            )
+        if set(payload) != {"expected_revision"}:
+            raise invalid("Task control requires only expected_revision")
         return public_task_record(
             await run_in_threadpool(
-                domain.update_task,
-                task["task_id"],
-                {
-                    "state": "queued",
-                    "expected_revision": payload.get("expected_revision", task["revision"]),
-                },
+                domain.control_task,
+                request.path_params["task_id"],
+                request.path_params["action"],
+                payload["expected_revision"],
                 actor=actor,
                 idempotency_key=key(request),
                 trace_id=trace,
@@ -139,12 +156,36 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         )
 
     async def source(request: Request, actor: Any, trace: str) -> Any:
-        return await run_in_threadpool(
-            domain.get_source, request.path_params["source_id"], actor=actor
+        return public_evidence_record(
+            await run_in_threadpool(
+                domain.get_source, request.path_params["source_id"], actor=actor
+            )
         )
 
     async def evidence(request: Request, actor: Any, trace: str) -> Any:
-        return await run_in_threadpool(domain.read_evidence, await body(request), actor=actor)
+        payload = await body(request)
+        allowed = {
+            "source_id",
+            "source_revision",
+            "external_document_id",
+            "learning_outcome_id",
+            "content_hash",
+            "locator",
+            "quote",
+            "claim_ids",
+        }
+        if (
+            set(payload) - allowed
+            or sum(
+                bool(payload.get(key))
+                for key in ("source_id", "external_document_id", "learning_outcome_id")
+            )
+            != 1
+        ):
+            raise invalid("Evidence requires exactly one supported reference")
+        return public_evidence_record(
+            await run_in_threadpool(domain.read_evidence, payload, actor=actor)
+        )
 
     async def create_change(request: Request, actor: Any, trace: str) -> Any:
         return await run_in_threadpool(
@@ -232,7 +273,7 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         Route(prefix + "/tasks", endpoint(list_tasks), methods=["GET"]),
         Route(prefix + "/tasks/{task_id}", endpoint(read_task), methods=["GET"]),
         Route(prefix + "/tasks/{task_id}/events", endpoint(task_events), methods=["GET"]),
-        Route(prefix + "/tasks/{task_id}/resume", endpoint(resume_task), methods=["POST"]),
+        Route(prefix + "/tasks/{task_id}/{action}", endpoint(control_task), methods=["POST"]),
         Route(prefix + "/sources/{source_id}", endpoint(source), methods=["GET"]),
         Route(prefix + "/evidence/read", endpoint(evidence), methods=["POST"]),
         Route(prefix + "/changes", endpoint(create_change), methods=["POST"]),

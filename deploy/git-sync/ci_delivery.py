@@ -29,6 +29,7 @@ REQUIRED_PHASES = {
     "viewer-browser-install", "viewer-typecheck", "viewer-tests", "viewer-production-build",
     "viewer-learning-browser-fixtures",
     "private-wiki-locked-install", "private-wiki-types", "private-wiki-tests",
+    "private-wiki-owner-asgi-contract",
     "private-wiki-domain-capture", "private-wiki-domain-contract",
     "private-wiki-production-build",
     "private-wiki-browser-install", "private-wiki-browser-fixtures",
@@ -111,7 +112,12 @@ def validate_bundle(bundle: Path, receipt: dict, expected_source: str) -> dict:
                 "codex-diagnostic.cmd", "app/backend/ahadiff/knowledge_platform/model/diagnostic_probe.py",
                 "local-test-initialize.cmd", "local-test-pair.cmd", "local-test-start.cmd",
                 "app/backend/ahadiff/knowledge_platform/local_test_identity.py",
-                "app/backend/ahadiff/knowledge_platform/browser_sessions.py"}
+                "app/backend/ahadiff/knowledge_platform/browser_sessions.py",
+                "owner-acceptance-initialize.cmd", "owner-acceptance-pair.cmd", "owner-acceptance-start.cmd",
+                "app/backend/ahadiff/knowledge_platform/owner_identity.py",
+                "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
+                "app/backend/ahadiff/knowledge_platform/owner_browser.py",
+                "app/backend/ahadiff/knowledge_platform/local_protection.py"}
     if not required <= set(actual):
         raise ValueError("Candidate lacks required runnable components")
     return {"files": actual, "bytes": total}

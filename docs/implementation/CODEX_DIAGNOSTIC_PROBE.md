@@ -54,3 +54,44 @@ $ErrorActionPreference = 'Stop'
 probe 的事件计数同时记录外层 `item.completed` 与内层 `item.error`；后者不是提供方终态，`terminal_event` 不再据此伪造。顶层 `error`、`turn.failed` 仍保持失败。所有消息原文继续丢弃，即使后续出现合法答案也不会把被拒绝的调用标成成功。
 
 这是已确认的协议诊断修正，不是 Windows 根因结论。旧报告未记录事件类型，必须等待真实 Windows probe 才能判断当时是否走了该通知路径。
+
+## alpha.11 通知诊断（分类器 v1，仍全部阻断）
+
+Windows 已见 `item.error`，但未保存原文，无法回溯确认具体原因。新版仅在显式固定公开
+`--model-smoke` 中收集通知摘要；默认 host-only 不发模型请求，常规模型执行默认不收集。
+无新重试、fallback、忽略警告或成功条件。通知后即停止，后续正确答案不计成功。
+
+官方固定 commit `5425d3e625daa58eea3ad1de27c087eb3b2ffbd3`：
+
+- [exec JSONL 映射](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/event_processor_with_jsonl_output.rs)
+  L409–506 将 ConfigWarning、Warning、DeprecationNotice、ModelRerouted 压成同一种 error item。
+- [ErrorItem 定义](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/exec_events.rs#L310-L312)
+  只有 message，没有原通知类别或错误码。因此下述 code 是本地固定规则 ID，不冒充上游码。
+- [官方配置警告](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/core/src/config/mod.rs)
+  L2317、3429、4865–4899、5024：要求覆盖、hook 信任绕过、凭据遮罩失效三种原因。
+- [官方 feature 警告](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/features/src/lib.rs)
+  L815–827、2143：弃用和实验功能；[exec 流丢失警告](https://github.com/openai/codex/blob/5425d3e625daa58eea3ad1de27c087eb3b2ffbd3/codex-rs/exec/src/lib.rs#L1668-L1670)。
+
+规则在 `notification_diagnostic` 中硬编码，`classifier_version=1`，固定 rule_id 前缀
+`codex_exec_notice_v1:`，后缀与 code 相同。完整消息仅在已有 JSONL 内存限额内短暂解析；
+分类最多检查前 8192 个 UTF-8 字节，只返回实际输入字节数、检查字节数和截断事实。
+绝不返回原文/片段/哈希、任意上游码、模型名、账号、路径、URL 或凭据。
+
+固定规则（大小写归一，仅诊断提示，不是允许列表）：
+
+- `model_reroute_notice`：前缀 `model rerouted:`。
+- `credential_masking_sandbox_disabled` / `credential_masking_proxy_disabled` /
+  `credential_masking_environment_conflict`：官方固定凭据遮罩警告前缀。
+- `required_configuration_override`：固定 `Configured value for ` 前缀与
+  `is disallowed by requirements; falling back` 片段同时存在。
+- `unstable_features_notice`：固定 `Under-development features enabled:` 前缀。
+- `event_stream_loss_notice`：固定 in-process app-server 丢事件前缀。
+- `hook_trust_bypass_notice`：固定 dangerously-bypass-hook-trust 警告前缀。
+- `invalid_global_instructions_notice`：官方 JSONL 测试中的固定前缀。
+- `deprecation_text_notice`：包含固定 ` is deprecated` 片段，证据较弱。
+- 其他/非字符串均 `unknown_notification`，不得擅自推定无害。
+
+所有类别均标 `evidence=bounded_text_pattern_hint` 与
+`upstream_kind=not_preserved_by_exec_jsonl`。恶意文本可夹入相同关键词，所以类别仅帮助
+下一步静态调查，不能证明真正来源或改变 `CODEX_NOTIFICATION_REQUIRES_REVIEW` 阻断。
+下一次真实固定 smoke 必须仍由协调方按既有授权安排；这些离线测试不是模型 E2E。

@@ -88,6 +88,7 @@ def create_intake_routes(
     model_runner: ModelRunner | None = None,
     *,
     intake_service: IntakeService | None = None,
+    allow_text_attachments: bool = True,
 ) -> list[Route]:
     """Create routes; a supervisor consumes persisted intake.preview tasks separately."""
     service = intake_service or IntakeService(domain, model_runner)
@@ -150,6 +151,33 @@ def create_intake_routes(
                 )
             payload = await _body(request)
             key = _key(request)
+            if intake_id is not None and request.url.path.endswith(
+                ("/supplement", "/text-attachment")
+            ):
+                if request.url.path.endswith("/text-attachment") and not allow_text_attachments:
+                    raise IntakeError(
+                        "LOCAL_TEST_WRITES_DISABLED",
+                        "本机合成验收入口不接收上传文件。",
+                        status_code=403,
+                    )
+                operation = (
+                    service.attach_text
+                    if request.url.path.endswith("/text-attachment")
+                    else service.supplement
+                )
+                data = _public_record(
+                    await run_in_threadpool(
+                        operation,
+                        intake_id,
+                        payload,
+                        actor=actor,
+                        idempotency_key=key,
+                        trace_id=trace_id,
+                    )
+                )
+                return JSONResponse(
+                    {"data": data, "task_id": data.get("task_id"), "trace_id": trace_id}
+                )
             if intake_id is None:
                 allowed = {
                     "text",
@@ -243,4 +271,6 @@ def create_intake_routes(
         Route(PREFIX + "/capabilities", endpoint, methods=["GET"]),
         Route(PREFIX + "/{intake_id}", endpoint, methods=["GET"]),
         Route(PREFIX + "/{intake_id}/decision", endpoint, methods=["POST"]),
+        Route(PREFIX + "/{intake_id}/supplement", endpoint, methods=["POST"]),
+        Route(PREFIX + "/{intake_id}/text-attachment", endpoint, methods=["POST"]),
     ]

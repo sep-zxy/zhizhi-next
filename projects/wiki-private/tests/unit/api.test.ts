@@ -161,3 +161,82 @@ describe("same-origin domain transport", () => {
     expect((await api.capabilities()).data).toHaveLength(1);
   });
 });
+
+describe("private action receipt integrity", () => {
+  it("treats a scrubbed expired supplement replay as expired, not a new successful preview", async () => {
+    const api = new WikiApi(async () =>
+      envelope({
+        intake_id: "int_expired",
+        state: "expired",
+        preview_revision: 2,
+        preview: null,
+      }),
+    );
+    await expect(
+      api.supplementIntake(
+        "int_expired",
+        { expected_preview_revision: 0, text: "synthetic", private_note: "" },
+        "same-key",
+      ),
+    ).rejects.toMatchObject({ code: "PREVIEW_EXPIRED", status: 409 });
+  });
+  it("rejects a task receipt that does not match the requested revision or state", async () => {
+    const api = new WikiApi(async () =>
+      envelope({
+        task_id: "tsk_1",
+        kind: "fixture",
+        revision: 2,
+        state: "succeeded",
+      }),
+    );
+    await expect(
+      api.controlTask("tsk_1", "resume", 1, "key"),
+    ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+  it("reads an external document with its hash without inventing a revision", async () => {
+    const api = new WikiApi(async () =>
+      envelope({
+        document_id: "ext_1",
+        kind: "external_document",
+        content_hash: "synthetic-hash",
+        text: "Synthetic external document",
+        text_basis: "retained_text",
+      }),
+    );
+    const result = await api.evidence({
+      external_document_id: "ext_1",
+      content_hash: "synthetic-hash",
+    });
+    expect(result.data.text).toBe("Synthetic external document");
+    expect(result.data.revision).toBeUndefined();
+  });
+});
+it.each([
+  { entry_id: "other", revision: 2 },
+  { entry_id: "requested", revision: 3 },
+])(
+  "rejects a formal entry response outside the exact requested binding %j",
+  async (value) => {
+    const api = new WikiApi(async () =>
+      envelope({
+        ...value,
+        title: "Synthetic",
+        body: "must not render",
+        deleted: false,
+      }),
+    );
+    await expect(api.entry("requested", 2)).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+    });
+  },
+);
+it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+  "does not silently read latest for invalid exact revision %s",
+  async (revision) => {
+    const transport = vi.fn();
+    await expect(
+      new WikiApi(transport).entry("requested", revision),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(transport).not.toHaveBeenCalled();
+  },
+);

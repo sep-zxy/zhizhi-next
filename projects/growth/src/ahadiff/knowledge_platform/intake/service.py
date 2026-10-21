@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from ..auth import CLASSIFICATIONS, classification_labels
+from ..auth import CLASSIFICATIONS, authenticated, classification_labels
 from ..extractors import default_extractors
 from ..media.cache import IntakeCache
 from ..media.external_document import external_document_manifest
@@ -19,6 +19,7 @@ from ..sources import clean_url as durable_url
 from .contracts import ExtractedDocument, Extractor, IntakeError, MediaReference, NormalizedShare
 from .normalize import normalize_share
 from .publication import status_projection
+from .text_attachment import attachment_metadata, decode_text_attachment
 
 if TYPE_CHECKING:
     from ..auth import Actor
@@ -260,6 +261,132 @@ class IntakeService:
             result["reason_codes"] = ["PUBLICATION_STATUS_UNAVAILABLE"]
             result["reason_details"] = ["当前公开资格暂无法核对"]
             return result
+
+    def attach_text(
+        self,
+        intake_id: str,
+        payload: dict[str, Any],
+        *,
+        actor: Actor,
+        idempotency_key: str,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Receive actual bounded file bytes, never a client path or an automatic keep."""
+        authenticated(actor, "knowledge:write")
+        if actor.kind != "user":
+            raise IntakeError("FORBIDDEN", "只有已认证用户可以上传文本文件。", status_code=403)
+        content, attachment = decode_text_attachment(payload)
+        return self.supplement(
+            intake_id,
+            {
+                "expected_preview_revision": payload.get("expected_preview_revision"),
+                "text": content,
+                "private_note": payload.get("private_note", ""),
+            },
+            actor=actor,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            _attachment=attachment,
+            _attachment_request=payload,
+        )
+
+    def supplement(
+        self,
+        intake_id: str,
+        payload: dict[str, Any],
+        *,
+        actor: Actor,
+        idempotency_key: str,
+        trace_id: str | None = None,
+        _attachment: dict[str, Any] | None = None,
+        _attachment_request: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Bounded manual text only; no fetch, model call, file path or permanent keep."""
+
+        def prepare(record: dict[str, Any]) -> dict[str, Any]:
+            old = record.get("preview") or {}
+            reference = old.get("cache_ref") or {}
+            previous = (
+                self.cache.read(intake_id, reference["sha256"]) if reference.get("sha256") else None
+            )
+            manual = previous is not None and previous.get("manual_supplement") is True
+            history = list(previous.get("supplements", [])) if manual else []
+            if len(history) >= 20:
+                raise IntakeError(
+                    "SUPPLEMENT_LIMIT", "本条临时材料已达到 20 次补充上限。", status_code=409
+                )
+            history.append(
+                {
+                    "text": payload["text"],
+                    "private_note": payload.get("private_note", ""),
+                    "preview_revision": record["preview_revision"] + 1,
+                    **({"attachment": _attachment} if _attachment is not None else {}),
+                }
+            )
+            document = ExtractedDocument(
+                record.get("url") or "",
+                "manual",
+                "user-supplement",
+                "1",
+                "partial",
+                title=(_attachment or {}).get("filename")
+                or (old.get("document") or {}).get("title")
+                or record.get("title")
+                or "手动补充材料",
+                body_text=payload["text"],
+                body_complete=False,
+                warnings=("这是用户补充的来源文本；未验证原始来源完整度，也未生成 AI 摘要。",),
+                metadata={
+                    "text_basis": "user_uploaded_text"
+                    if _attachment
+                    else "user_supplied_supplement",
+                    **({"attachment": attachment_metadata(_attachment)} if _attachment else {}),
+                },
+            ).to_dict()
+            document = json.loads(json.dumps(document))
+            bundle = {
+                "schema_version": 1,
+                "manual_supplement": True,
+                "original_bundle": previous.get("original_bundle") if manual else previous,
+                "supplements": history,
+                "document": document,
+                "origin": {
+                    "url": record.get("url"),
+                    "original_text": record.get("payload", {}).get("text", ""),
+                },
+                "rights": "unknown",
+                "external_document_manifest": None,
+            }
+            original = bundle.get("original_bundle") or {}
+            return {
+                "document": document,
+                "cache_ref": self.cache.put(intake_id, bundle),
+                "original_document": original.get("document"),
+                "supplements": [
+                    {**item, "attachment": attachment_metadata(item["attachment"])}
+                    if item.get("attachment")
+                    else item
+                    for item in history
+                ],
+                "original_text": bundle["origin"]["original_text"],
+                "summary": None,
+                "summary_state": "not_requested",
+                "retained": False,
+                "trust": "untrusted_source",
+                "manual_supplement": True,
+                "private_note": payload.get("private_note", ""),
+                "supplement_count": len(history),
+            }
+
+        return self.domain.supplement_intake(
+            intake_id,
+            payload,
+            actor=actor,
+            idempotency_key=idempotency_key,
+            prepare_preview=prepare,
+            trace_id=trace_id,
+            attachment_request=_attachment_request,
+        )
 
     def _acquisition(self, response: FetchResponse, document: ExtractedDocument) -> dict[str, Any]:
         """Record observed anonymous body access, not privacy or reproduction rights."""
@@ -703,6 +830,10 @@ class IntakeService:
             },
             "capability_report": self.capabilities(),
         }
+        if preview.get("manual_supplement") is True:
+            # The immutable envelope includes all prior text and private notes.
+            # Do not deduplicate it by the last visible body alone.
+            descriptor["content_identity"] = None
         retained = self.domain.retain_source(
             intake_id,
             descriptor,

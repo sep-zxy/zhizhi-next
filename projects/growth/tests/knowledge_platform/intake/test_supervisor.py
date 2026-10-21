@@ -228,6 +228,8 @@ def test_http_factory_accepts_shared_intake_instance(service):
         ("/api/knowledge/v1/intakes/capabilities", ("GET", "HEAD")),
         ("/api/knowledge/v1/intakes/{intake_id}", ("GET", "HEAD")),
         ("/api/knowledge/v1/intakes/{intake_id}/decision", ("POST",)),
+        ("/api/knowledge/v1/intakes/{intake_id}/supplement", ("POST",)),
+        ("/api/knowledge/v1/intakes/{intake_id}/text-attachment", ("POST",)),
     }
     with pytest.raises(ValueError):
         create_intake_routes(object(), intake_service=service)
