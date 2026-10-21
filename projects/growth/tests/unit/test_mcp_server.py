@@ -8,6 +8,7 @@ import queue
 import sqlite3
 import sys
 import threading
+from contextlib import closing
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -355,32 +356,131 @@ class TestMCPReadOnly:
 
         assert _list_due_cards(db_path, {"limit": 5}) == {"cards": []}
 
-    def test_no_wal_shm_created(self, tmp_path: Path) -> None:
+    def test_checkpointed_wal_read_preserves_database_schema_and_data(self, tmp_path: Path) -> None:
         db_path = tmp_path / "review.sqlite"
-        _seed_review_db(db_path)
+        # Explicit close, not just Connection.__exit__: a transaction context
+        # alone leaves final WAL cleanup dependent on garbage collection.
+        with closing(sqlite3.connect(db_path)) as writer:
+            assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+            writer.execute("CREATE TABLE result_events (event_id TEXT PRIMARY KEY, note TEXT)")
+            writer.execute("INSERT INTO result_events VALUES ('synthetic-1', 'preserved')")
+            writer.execute("PRAGMA user_version=7")
+            writer.commit()
+            schema = writer.execute("SELECT * FROM sqlite_schema ORDER BY name").fetchall()
+            rows = writer.execute("SELECT * FROM result_events ORDER BY event_id").fetchall()
+        assert not db_path.with_name(f"{db_path.name}-wal").exists()
+        assert not db_path.with_name(f"{db_path.name}-shm").exists()
+        before = db_path.read_bytes()
 
-        from ahadiff.review.database import checkpoint_review_db
+        with closing(mcp_readonly_connect(db_path)) as connection:
+            assert connection.execute("SELECT 1").fetchone() == (1,)
+            assert (
+                connection.execute("SELECT * FROM sqlite_schema ORDER BY name").fetchall() == schema
+            )
+            assert connection.execute("PRAGMA user_version").fetchone() == (7,)
+            assert (
+                connection.execute("SELECT * FROM result_events ORDER BY event_id").fetchall()
+                == rows
+            )
+            with pytest.raises(sqlite3.OperationalError):
+                connection.execute("UPDATE result_events SET note='must not write'")
+            with pytest.raises(sqlite3.OperationalError):
+                connection.execute("PRAGMA user_version=8")
 
-        checkpoint_review_db(db_path)
-        pre_existing = {
-            suffix
-            for suffix in ("-wal", "-shm", "-journal")
-            if db_path.with_name(f"{db_path.name}{suffix}").exists()
-        }
+        assert db_path.read_bytes() == before
+        assert not db_path.with_name(f"{db_path.name}-journal").exists()
+        # SQLite may create WAL/SHM coordination files even for mode=ro.
+        # They are not evidence of schema/business writes; do not force an
+        # immutable view that could silently omit committed WAL records.
 
-        connection = mcp_readonly_connect(db_path)
-        try:
-            connection.execute("SELECT 1").fetchone()
-            connection.execute("SELECT COUNT(*) FROM result_events").fetchone()
-        finally:
-            connection.close()
-
+    def test_delete_mode_read_creates_no_sidecars(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "review.sqlite"
+        with closing(sqlite3.connect(db_path)) as writer:
+            assert writer.execute("PRAGMA journal_mode=DELETE").fetchone() == ("delete",)
+            writer.execute("CREATE TABLE result_events (event_id TEXT PRIMARY KEY)")
+            writer.execute("INSERT INTO result_events VALUES ('synthetic-1')")
+            writer.commit()
+        before = db_path.read_bytes()
         for suffix in ("-wal", "-shm", "-journal"):
-            if suffix in pre_existing:
-                continue
+            assert not db_path.with_name(f"{db_path.name}{suffix}").exists()
+        with closing(mcp_readonly_connect(db_path)) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM result_events").fetchone() == (1,)
+        assert db_path.read_bytes() == before
+        for suffix in ("-wal", "-shm", "-journal"):
             sidecar = db_path.with_name(f"{db_path.name}{suffix}")
             assert not sidecar.exists(), (
-                f"MCP read-only connection must not create sidecar {sidecar.name}"
+                f"MCP DELETE-mode read must not create sidecar {sidecar.name}"
+            )
+
+    def test_live_wal_latest_commit_visible_without_checkpoint_or_write(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db_path = tmp_path / "review.sqlite"
+        wal_path = db_path.with_name(f"{db_path.name}-wal")
+        with closing(sqlite3.connect(db_path)) as writer:
+            assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+            writer.execute("PRAGMA wal_autocheckpoint=0")
+            writer.execute("CREATE TABLE result_events (event_id TEXT PRIMARY KEY, note TEXT)")
+            writer.execute("INSERT INTO result_events VALUES ('synthetic-1', 'old')")
+            writer.commit()
+            assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
+            main_before = db_path.read_bytes()
+            writer.execute("UPDATE result_events SET note='latest committed'")
+            writer.execute("INSERT INTO result_events VALUES ('synthetic-2', 'WAL only')")
+            writer.commit()
+            assert db_path.read_bytes() == main_before  # Both changes are only in WAL.
+            wal_before = wal_path.read_bytes()
+            assert wal_before
+            schema = writer.execute("SELECT * FROM sqlite_schema ORDER BY name").fetchall()
+            rows = [("synthetic-1", "latest committed"), ("synthetic-2", "WAL only")]
+
+            statements: list[str] = []
+            real_connect = sqlite3.connect
+
+            def traced_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+                connection = real_connect(*args, **kwargs)
+                connection.set_trace_callback(statements.append)
+                return connection
+
+            def forbid_file_mutation(*args: Any, **kwargs: Any) -> None:
+                pytest.fail("MCP read path must not delete files or change permissions")
+
+            with monkeypatch.context() as guard:
+                guard.setattr(sqlite3, "connect", traced_connect)
+                for operation in ("unlink", "remove", "chmod"):
+                    guard.setattr(os, operation, forbid_file_mutation)
+                with closing(mcp_readonly_connect(db_path)) as connection:
+                    assert (
+                        connection.execute(
+                            "SELECT * FROM result_events ORDER BY event_id"
+                        ).fetchall()
+                        == rows
+                    )
+                    assert (
+                        connection.execute("SELECT * FROM sqlite_schema ORDER BY name").fetchall()
+                        == schema
+                    )
+                    with pytest.raises(sqlite3.OperationalError):
+                        connection.execute("DELETE FROM result_events")
+                    with pytest.raises(sqlite3.OperationalError):
+                        connection.execute("DROP TABLE result_events")
+            assert any(
+                statement.startswith("SELECT * FROM result_events") for statement in statements
+            )
+            assert not any(
+                "WAL_CHECKPOINT" in statement.upper() or "JOURNAL_MODE" in statement.upper()
+                for statement in statements
+            )
+            assert db_path.read_bytes() == main_before
+            assert wal_path.read_bytes() == wal_before
+            assert (
+                writer.execute("SELECT * FROM result_events ORDER BY event_id").fetchall() == rows
+            )
+        # Normal writer closure/checkpoint also preserves the latest committed data.
+        with closing(mcp_readonly_connect(db_path)) as connection:
+            assert (
+                connection.execute("SELECT * FROM result_events ORDER BY event_id").fetchall()
+                == rows
             )
 
 

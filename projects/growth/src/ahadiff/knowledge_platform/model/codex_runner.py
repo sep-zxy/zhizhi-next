@@ -623,8 +623,14 @@ class CodexModelRunner:
 
         async def feed() -> None:
             assert process.stdin is not None
-            process.stdin.write((b"\0" if os.name == "nt" else b"") + payload)
-            await process.stdin.drain()
+            data = (b"\0" if os.name == "nt" else b"") + payload
+            # POSIX version/login checks send no bytes. A fast child can already
+            # have closed stdin: draining that empty pipe would hide its actual
+            # output/exit with ConnectionResetError. Windows still needs its
+            # owned-job release byte, and all nonempty input must still drain.
+            if data:
+                process.stdin.write(data)
+                await process.stdin.drain()
             step("stdin_released")
             process.stdin.close()
 

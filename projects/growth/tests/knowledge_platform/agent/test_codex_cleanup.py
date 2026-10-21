@@ -192,6 +192,98 @@ def test_workspace_cleanup_never_replaces_primary_failure(
     assert "never-log" not in json.dumps(report) and str(tmp_path) not in json.dumps(report)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Reproduce the POSIX no-input preflight race")
+@pytest.mark.parametrize(("scenario", "code"), [
+    ("wrong_version", "CODEX_VERSION_MISMATCH"),
+    ("auth_missing", "SUBSCRIPTION_AUTH"),
+])
+def test_fast_preflight_exit_preserves_primary_failure(
+    tmp_path, retained_workspace, monkeypatch, scenario, code
+):
+    """A real fixture exits before stdin scheduling; no sleeps or timeout changes."""
+    original = asyncio.create_subprocess_exec
+
+    async def already_exited(*args, **kwargs):
+        process = await original(*args, **kwargs)
+        assert args[-1] == "--version" or args[-2:] == ("login", "status")
+        await process.wait()
+        assert process.returncode is not None
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", already_exited)
+    report = asyncio.run(probe_codex(settings(tmp_path, scenario), model_smoke=True))
+    assert report["model"]["error_code"] == code
+    assert report["model_attempted"] is False
+    assert report["model"]["answer_matches_fixed_schema"] is False
+    assert report["cleanup"][-1]["resource"] == "temporary_directory"
+    assert report["cleanup"][-1]["status"] == "failed"
+    assert report["cleanup"][-1]["errors"][0]["winerror"] == 5
+    assert all(item["cleanup"]["status"] == "completed" for item in report["processes"])
+    assert all(p.exists() for p in retained_workspace)
+    assert "never-log" not in json.dumps(report) and str(tmp_path) not in json.dumps(report)
+
+
+@pytest.mark.parametrize("platform", ["posix", "nt"])
+@pytest.mark.parametrize("payload", [b"", b"synthetic-input"])
+@pytest.mark.parametrize("drain_fails", [False, True])
+def test_only_nonempty_stdin_drains_and_windows_gate_is_not_skipped(
+    tmp_path, monkeypatch, platform, payload, drain_fails
+):
+    operations = []
+    expected = (b"\0" if platform == "nt" else b"") + payload
+
+    async def empty(*_):
+        return b""
+
+    async def drain():
+        operations.append("drain")
+        if drain_fails:
+            raise ConnectionResetError("synthetic closed pipe")
+
+    async def wait():
+        operations.append("wait")
+        return 0
+
+    process = SimpleNamespace(
+        pid=99999999, returncode=0,
+        stdin=SimpleNamespace(write=lambda data: operations.append(("write", data)),
+                              drain=drain, close=lambda: operations.append("close")),
+        stdout=SimpleNamespace(read=empty), stderr=SimpleNamespace(read=empty), wait=wait,
+    )
+
+    async def spawn(*_, **__):
+        return process
+
+    async def stop(*_):
+        operations.append("stop")
+
+    class Job:
+        def assign(self, _pid):
+            operations.append("assign")
+
+    monkeypatch.setattr(codex_runner, "os", SimpleNamespace(name=platform, environ=os.environ))
+    monkeypatch.setattr(codex_runner, "CodexOwnedJob", Job)
+    monkeypatch.setattr(codex_runner, "_stop", stop)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    runner = CodexModelRunner(settings(tmp_path), collect_process_diagnostics=True)
+    request = runner._process(["--version"], tmp_path, payload=payload, phase="version")
+    if expected and drain_fails:
+        with pytest.raises(ConnectionResetError):
+            asyncio.run(request)
+        assert "wait" not in operations
+    else:
+        assert asyncio.run(request) == (0, "")
+        assert "close" in operations
+    assert operations.count("drain") == bool(expected)
+    assert [item for item in operations if isinstance(item, tuple)] == (
+        [("write", expected)] if expected else []
+    )
+    if platform == "nt":
+        assert operations.index("assign") < operations.index(("write", expected))
+    assert operations[-1] == "stop"
+    assert runner.process_diagnostics[0]["cleanup"]["status"] == "completed"
+
+
 def test_successful_answer_with_failed_cleanup_is_not_success_or_cached(
     tmp_path, retained_workspace
 ):

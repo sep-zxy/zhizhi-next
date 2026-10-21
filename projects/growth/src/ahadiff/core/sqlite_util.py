@@ -162,6 +162,11 @@ def mcp_readonly_connect(db_path: Path) -> sqlite3.Connection:
     so every statement on this connection is rejected by SQLite if it would
     write. Raises ``StorageError`` if the database does not exist or if
     ``query_only`` cannot be verified.
+
+    This is logical read-only access, not a zero-filesystem-write guarantee:
+    SQLite may create WAL/SHM coordination files while reading a WAL database.
+    Do not use ``immutable=1`` for a live database; it can hide committed WAL
+    records and skips the locking/change detection needed for current reads.
     """
     if not db_path.exists():
         raise StorageError(f"MCP read-only DB does not exist: {db_path}")
