@@ -4,6 +4,7 @@ import { type Browser, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import type { ActivePracticeSummary } from '../../src/api/types';
 import { installServeMock } from '../fixtures/serve-mock';
+import { assertHarnessSources } from '../fixtures/harness-sources';
 
 const TEST_PATH = '/__active-exercise-test.html';
 const QUESTION = 'Complete a similar example:\nif request_fails:\n    ____';
@@ -23,7 +24,7 @@ import { getQuizQuestions, revealQuizQuestion } from '/src/api/quiz.ts';
 import { quizAnswer, srsReview } from '/src/api/signals.ts';
 import { useLocaleStore } from '/src/state/locale-store.ts';
 import '/src/components/Quiz.css';
-import '/src/styles/tokens.css';
+import '/src/growth/GrowthBase.css';
 let root;
 window.__activeAnswers = [];
 window.__mountActive = async (locale) => {
@@ -102,8 +103,10 @@ let browser: Browser;
 let page: Page;
 let baseUrl = '';
 let requests: Array<{ path: string; body: Record<string, unknown> | null }>;
+let harnessFailure: Promise<string>;
 
 beforeAll(async () => {
+  assertHarnessSources(HARNESS_HTML, process.cwd());
   server = await createServer({ appType: 'custom', root: process.cwd(), logLevel: 'silent',
     server: { host: '127.0.0.1', port: 0 } });
   server.middlewares.use(TEST_PATH, async (_request, response) => {
@@ -126,6 +129,20 @@ afterAll(async () => {
 beforeEach(async () => {
   await page?.close();
   page = await browser.newPage();
+  harnessFailure = new Promise(resolve => {
+    page.on('pageerror', error => resolve(`Active exercise harness initialization failed: ${error.message}`));
+    page.on('response', response => {
+      const kind = response.request().resourceType();
+      if (response.status() >= 400 && (kind === 'script' || kind === 'stylesheet')) {
+        resolve(`Active exercise harness resource failed: ${response.status()} ${new URL(response.url()).pathname}`);
+      }
+    });
+    page.on('requestfailed', request => {
+      if (request.resourceType() === 'script' || request.resourceType() === 'stylesheet') {
+        resolve(`Active exercise harness resource failed: ${new URL(request.url()).pathname} ${request.failure()?.errorText ?? ''}`);
+      }
+    });
+  });
   requests = [];
   page.on('request', request => {
     const path = new URL(request.url()).pathname;
@@ -145,9 +162,16 @@ beforeEach(async () => {
   await page.route('**/api/signals/**', route => route.fulfill({ json: { inserted: true } }));
 });
 
-async function mount(locale: 'en' | 'zh-CN' = 'en'): Promise<void> {
+async function openHarness(): Promise<void> {
   await page.goto(`${baseUrl}${TEST_PATH}`);
-  await page.waitForFunction(() => window.__activeReady);
+  await Promise.race([
+    page.waitForFunction(() => window.__activeReady),
+    harnessFailure.then(message => { throw new Error(message); }),
+  ]);
+}
+
+async function mount(locale: 'en' | 'zh-CN' = 'en'): Promise<void> {
+  await openHarness();
   await page.evaluate(value => window.__mountActive(value), locale);
   await expect.poll(() => page.locator('.srs-card').count()).toBe(1);
 }
@@ -229,8 +253,7 @@ const EMPTY_PRACTICE: ActivePracticeSummary = {
 
 describe('practice measurement display', () => {
   it.each(['en', 'zh-CN'] as const)('distinguishes unmeasured rates from observed zero in %s', async locale => {
-    await page.goto(`${baseUrl}${TEST_PATH}`);
-    await page.waitForFunction(() => window.__activeReady);
+    await openHarness();
     await page.evaluate(({ summary, locale }) => window.__mountMetrics(summary, locale), { summary: EMPTY_PRACTICE, locale });
     await expect.poll(() => page.locator('.practice-metrics .kpi').count()).toBe(3);
     const emptyText = await page.locator('.practice-metrics').textContent();
@@ -265,8 +288,7 @@ describe('practice route and card identity', () => {
       await page.route('**/api/run/run-1/quiz/quiz-practice/reveal', route => route.fulfill({ json: {
         run_id: 'run-1', question: QUIZ, correct: null, feedback_kind: 'semantic_self_assessment',
       } }));
-      await page.goto(`${baseUrl}${TEST_PATH}`);
-      await page.waitForFunction(() => window.__activeReady);
+      await openHarness();
       await page.evaluate(() => window.__mountQuizRoute('run-1'));
       await expect.poll(() => page.locator('textarea').count()).toBe(1);
       await page.locator('textarea').fill('My own attempt');
@@ -310,8 +332,7 @@ describe('practice route and card identity', () => {
         await pending;
         await route.fulfill({ json: { inserted: true } }).catch(() => {});
       });
-      await page.goto(`${baseUrl}${TEST_PATH}`);
-      await page.waitForFunction(() => window.__activeReady);
+      await openHarness();
       await page.evaluate(() => window.__mountQuizRoute('run-A'));
       await expect.poll(() => page.locator('textarea').count()).toBe(1);
       await page.locator('textarea').fill('Attempt at A');
@@ -343,8 +364,7 @@ describe('practice route and card identity', () => {
       await submitted;
       await route.fulfill({json:{inserted:true}}).catch(() => {});
     });
-    await page.goto(`${baseUrl}${TEST_PATH}`);
-    await page.waitForFunction(() => window.__activeReady);
+    await openHarness();
     await page.evaluate(() => window.__mountReviewExercise());
     await expect.poll(() => page.locator('textarea').count()).toBe(1);
     await page.locator('textarea').fill('Attempt at A');
@@ -375,8 +395,7 @@ describe('practice route and card identity', () => {
       await pendingB;
       await route.fulfill({json:{run_id:'run-B',questions:[{...publicQuestion,question:'B has not been attempted'}]}}).catch(() => {});
     });
-    await page.goto(`${baseUrl}${TEST_PATH}`);
-    await page.waitForFunction(() => window.__activeReady);
+    await openHarness();
     await page.evaluate(() => window.__mountQuizRoute('run-A'));
     await expect.poll(() => page.locator('textarea').count()).toBe(1);
     await page.locator('textarea').fill('Attempt at A');
