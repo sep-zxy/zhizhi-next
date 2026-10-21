@@ -183,7 +183,7 @@ export function HomePage({
               <a href="#/inbox">打开 →</a>
             </div>
             <p className="muted">
-              把链接送入临时队列，再查看来源完整度并决定是否保留。
+              把链接或文本送入临时队列，再查看来源完整度并决定是否保留。
             </p>
             <ResourceView resource={intakes}>
               {({ data }) =>
@@ -210,7 +210,7 @@ export function HomePage({
               }
             </ResourceView>
             <a className="button primary full" href="#/inbox">
-              查看收件与投递链接
+              查看收件与投递材料
             </a>
           </section>
           <section className="panel">

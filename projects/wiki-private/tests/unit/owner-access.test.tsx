@@ -134,7 +134,7 @@ describe("owner UI and exact-version handoff", () => {
     await user.click(screen.getByRole("button", { name: "检查本机批准" }));
     await screen.findByText("当前 Owner 会话没有投递权限。");
     expect(
-      (screen.getByRole("button", { name: "投递链接" }) as HTMLButtonElement)
+      (screen.getByRole("button", { name: "投递材料" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
     expect(

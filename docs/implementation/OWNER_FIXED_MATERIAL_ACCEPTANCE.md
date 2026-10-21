@@ -42,6 +42,10 @@
    不伪造该分支已经调用 AI reviewer。
 4. 自由学习解释只能引用上述真实正式版本，目标须独立。服务只读固定桌面库，校验已保存 context、
    owner/device/origin、精确来源和不可变原话快照；不接受请求传来的路径或哈希作为唯一证据。
+   launcher 的 `--repo-root` 是 `data/owner-acceptance/desktop`；viewer 的真实状态目录为其
+   `.ahadiff` 子目录，跨进程核验固定读取 `desktop/.ahadiff/growth.sqlite`。不回退到
+   `desktop/growth.sqlite`，不复制/移动旧库，不在验证时初始化或迁移。装配回归使用实际 launcher
+   命令与 CLI 状态解析及真实 context/CAS/outbox 读写，但不运行 Windows、DPAPI 或模型。
 5. 验收域只将 publication intent 收窄为 private，不改原证据/解释字节；存储回执绑定收窄后的实际 payload。
    来源、候选、模型复核、批准和 Writer 均有同链摘要核验；公开发布出口明确拒绝。
 

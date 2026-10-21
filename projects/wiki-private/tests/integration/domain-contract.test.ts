@@ -68,6 +68,22 @@ describe("real domain ASGI capture → private Wiki parser", () => {
 });
 
 describe("real versioned action contracts", () => {
+  it("accepts the real first-text preview receipt without claiming retained knowledge", async () => {
+    const receipt = await api("new_intake").submitIntake(
+      {
+        text: "  Original synthetic material. 合成 😀\r\nSecond line.\n  ",
+        requested_action: "preview",
+        data_classification: "personal",
+      },
+      "fixture-new_intake",
+    );
+    expect(receipt.data.intake_id).toBeTruthy();
+    expect(receipt.data.preview_revision).toBe(0);
+    expect(receipt.data.source_id).toBeFalsy();
+    expect(captured.new_intake.body.data).toMatchObject({
+      data_classification: "personal",
+    });
+  });
   it("reads source and actual learning words with reference binding", async () => {
     const source = captured.evidence.body.data as {
       source_id: string;

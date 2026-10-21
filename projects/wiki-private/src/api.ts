@@ -22,6 +22,20 @@ export type Transport = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+export type IntakeSubmission = {
+  requested_action: "preview";
+  data_classification: "personal";
+} & ({ url: string; text?: never } | { text: string; url?: never });
+
+export function intakeSubmissionError(body: IntakeSubmission): string | null {
+  if ("text" in body) {
+    if (typeof body.text !== "string" || !body.text.trim()) return "EMPTY_TEXT";
+    if (Array.from(body.text).length > 100000) return "TEXT_TOO_LARGE";
+  }
+  return new TextEncoder().encode(JSON.stringify(body)).length > 512 * 1024
+    ? "BODY_TOO_LARGE"
+    : null;
+}
 export interface TextAttachmentUpload {
   expected_preview_revision: number;
   filename: string;
@@ -44,7 +58,7 @@ export function errorLabel(code: string, status = 0): string {
   if (status === 401 || code === "UNAUTHENTICATED")
     return "尚未连接已认证的私有会话。请在受信任的服务入口完成连接后重试。";
   if (code === "LOCAL_TEST_LINKS_DISABLED")
-    return "本机测试会话只用于合成数据验收，真实链接投递尚未开放。";
+    return "本机测试会话只用于合成数据验收，真实文本与链接投递尚未开放。";
   if (code === "LOCAL_TEST_WRITES_DISABLED")
     return "本机合成验收会话不接收真实材料或知识修改。";
   if (status === 403) return "当前身份没有访问此内容的权限。未展示受限内容。";
@@ -54,6 +68,12 @@ export function errorLabel(code: string, status = 0): string {
     (
       {
         NETWORK_ERROR: "无法连接服务，请检查连接后重试。当前结果未得到确认。",
+        EMPTY_TEXT: "请输入非空的来源正文；不会静默删改正文空白。",
+        TEXT_TOO_LARGE: "来源正文最多 100,000 个 Unicode 字符。",
+        BODY_TOO_LARGE: "完整 JSON 请求超过 512 KiB，请缩短材料后重新提交。",
+        INVALID_URL: "请输入不含登录凭据的完整 HTTP 或 HTTPS 链接。",
+        multiple_urls:
+          "文本包含多个链接，请每次仅投递一个链接或不含链接的正文。",
         INVALID_RESPONSE: "服务返回了无法验证的数据，未按成功处理。",
         BASE_STALE: "基础版本已变化，请刷新并重新查看当前内容。",
         PREVIEW_STALE: "预览已变化，请重新查看后再决定。",
@@ -78,7 +98,7 @@ export function errorLabel(code: string, status = 0): string {
         ATTACHMENT_INVALID: "文件内容或编码无法验证，尚未上传。",
         ATTACHMENT_READ_FAILED: "无法读取所选文本文件，请重新选择。",
         LOCAL_TEST_LINKS_DISABLED:
-          "本机测试会话只用于合成数据验收，真实链接投递尚未开放。",
+          "本机测试会话只用于合成数据验收，真实文本与链接投递尚未开放。",
       } as Record<string, string>
     )[code] || "请求未完成。请保留当前信息，并根据错误标识检查服务状态。"
   );
@@ -773,16 +793,11 @@ export class WikiApi {
       throw new WikiApiError("INVALID_RESPONSE", 200);
     }
   }
-  submitIntake(
-    body: {
-      url: string;
-      requested_action: "preview";
-      data_classification: "personal";
-    },
-    key: string,
-  ) {
+  submitIntake(body: IntakeSubmission, key: string) {
     if (this.isFixtureSession())
       return Promise.reject(new WikiApiError("LOCAL_TEST_LINKS_DISABLED", 403));
+    const invalid = intakeSubmissionError(body);
+    if (invalid) return Promise.reject(new WikiApiError(invalid, 422));
     return this.write("/intakes", body, key, parseIntake);
   }
 }

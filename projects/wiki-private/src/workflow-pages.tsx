@@ -1,10 +1,11 @@
+import { IntakeSubmissionForm } from "./intake-submission";
 import { TextAttachmentForm } from "./text-attachment";
 import {
   SupplementForm,
   SupplementHistory,
   TaskControls,
 } from "./material-actions";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PAGE_SIZE, WikiApiError, safeCode, type WikiApi } from "./api";
 import {
   Badge,
@@ -379,64 +380,9 @@ export function InboxPage({ api }: { api: WikiApi }) {
   const [page, setPage] = useState(0);
   const [state, setState] = useState("");
   const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState("");
   const list = useResource("intakes:" + page + ":" + state, (signal) =>
     api.intakes(page * PAGE_SIZE, state, signal),
   );
-  const pending = useRef(false);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const request = useRef<{ url: string; key: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<WikiApiError | null>(null);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (pending.current) return;
-    let address: URL;
-    try {
-      address = new URL(url.trim());
-      if (
-        !["https:", "http:"].includes(address.protocol) ||
-        address.username ||
-        address.password
-      )
-        throw new Error();
-    } catch {
-      setError(new WikiApiError("INVALID_URL", 422));
-      return;
-    }
-    pending.current = true;
-    setBusy(true);
-    setError(null);
-    const value = address.href;
-    if (request.current?.url !== value)
-      request.current = { url: value, key: crypto.randomUUID() };
-    try {
-      const result = await api.submitIntake(
-        {
-          url: value,
-          requested_action: "preview",
-          data_classification: "personal",
-        },
-        request.current.key,
-      );
-      // Leaving the form does not cancel the write, but its late receipt must
-      // not move the user away from the page they deliberately opened.
-      if (mounted.current) navigate(routeHref("intake", result.data.intake_id));
-    } catch (e) {
-      setError(
-        e instanceof WikiApiError ? e : new WikiApiError("UNKNOWN_ERROR", 0),
-      );
-    } finally {
-      pending.current = false;
-      setBusy(false);
-    }
-  }
   return (
     <>
       <PageTitle
@@ -449,7 +395,7 @@ export function InboxPage({ api }: { api: WikiApi }) {
             onClick={() => setOpen(!open)}
             aria-expanded={open}
           >
-            {open ? "收起投递" : "投递链接"}
+            {open ? "收起投递" : "投递材料"}
           </button>
         }
       />
@@ -457,46 +403,12 @@ export function InboxPage({ api }: { api: WikiApi }) {
         <Notice>当前 Owner 会话没有投递权限。</Notice>
       )}
       {localTest && (
-        <Notice tone="warning" title="合成测试会话不投递真实链接">
+        <Notice tone="warning" title="合成测试会话不投递真实材料">
           测试账本初始为空。完整写入链需要另行准备固定的公开合成种子；此处不会暗造来源，也不会把
           personal 内容改标为 public。
         </Notice>
       )}
-      {open && (
-        <section className="panel">
-          <h2>投递一个链接</h2>
-          <form className="submit-intake" onSubmit={(e) => void submit(e)}>
-            <label htmlFor="intake-url">来源链接</label>
-            <input
-              id="intake-url"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
-              maxLength={4000}
-              disabled={busy}
-              required
-            />
-            <Notice>
-              提交后只建立临时预览任务。来源内容与其中的指令不会自动获得执行、永久保留或公开权限。
-            </Notice>
-            {error && <Failure error={error} />}
-            <div className="actions">
-              <button className="button primary" disabled={busy || !url.trim()}>
-                {busy ? "正在提交…" : "提交临时预览"}
-              </button>
-              <button
-                className="button"
-                type="button"
-                disabled={busy}
-                onClick={() => setOpen(false)}
-              >
-                取消
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
+      {open && <IntakeSubmissionForm api={api} close={() => setOpen(false)} />}
       <IdLookup
         label="收件 ID"
         placeholder="int_…"
@@ -565,7 +477,7 @@ export function InboxPage({ api }: { api: WikiApi }) {
               </div>
             ) : (
               <Empty title="当前没有符合条件的收件">
-                可以投递链接；通道不可用与收件为空是不同状态。
+                可以投递链接或文本；通道不可用与收件为空是不同状态。
               </Empty>
             )}
             <div className="pagination">

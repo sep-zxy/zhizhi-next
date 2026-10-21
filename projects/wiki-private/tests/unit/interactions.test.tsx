@@ -178,7 +178,7 @@ describe("isolated React DOM interaction", () => {
     });
     window.history.replaceState({}, "", "/wiki/#/inbox");
     render(<WikiApp api={api} />);
-    await user.click(await screen.findByRole("button", { name: "投递链接" }));
+    await user.click(await screen.findByRole("button", { name: "投递材料" }));
     await user.type(
       screen.getByLabelText("来源链接"),
       "https://example.com/synthetic",

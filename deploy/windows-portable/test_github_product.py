@@ -254,10 +254,11 @@ class GitHubProductTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not all collected"):
                 product.verify_learning_report(path)
 
-    def test_private_wiki_requires_all_four_specs_and_its_own_single_project_report(self):
+    def test_private_wiki_requires_all_five_specs_and_its_own_single_project_report(self):
         self.assertEqual(product.PRIVATE_WIKI_JOURNEYS, {
             "wiki.spec.ts": 7, "local-test-pairing.spec.ts": 2,
             "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6,
+            "text-intake.spec.ts": 4,
         })
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "private.json"
@@ -266,8 +267,10 @@ class GitHubProductTests(unittest.TestCase):
             product.verify_private_wiki_report(path)
             mutations = {
                 "old nine only": lambda r: r.update(suites=r["suites"][:2], stats={**r["stats"], "expected": 9}),
+                "old twenty-eight only": lambda r: r.update(suites=r["suites"][:4], stats={**r["stats"], "expected": 28}),
                 "missing action": lambda r: r["suites"][2]["specs"].pop(),
                 "missing owner": lambda r: r["suites"][3]["specs"].pop(),
+                "missing text intake": lambda r: r["suites"][4]["specs"].pop(),
                 "skipped": lambda r: r["stats"].update(skipped=1),
                 "failed": lambda r: r["stats"].update(unexpected=1),
                 "flaky": lambda r: r["stats"].update(flaky=1),
@@ -294,6 +297,30 @@ class GitHubProductTests(unittest.TestCase):
             path.write_text(json.dumps(learning_report_fixture()))
             with self.assertRaises(ValueError):
                 product.verify_private_wiki_report(path)
+
+    def test_private_text_intake_floor_cannot_be_replaced_by_other_journeys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "private.json"
+            report = private_report_fixture()
+            report["suites"][4]["specs"].pop()
+            extra = copy.deepcopy(report["suites"][0]["specs"][0])
+            extra["id"] = "synthetic-additional-wiki-journey"
+            report["suites"][0]["specs"].append(extra)
+            self.assertEqual(report["stats"]["expected"], 32)
+            path.write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, "not all collected"):
+                product.verify_private_wiki_report(path)
+
+    def test_additional_private_text_intake_journeys_are_not_capped_at_four(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "private.json"
+            report = private_report_fixture()
+            extra = copy.deepcopy(report["suites"][4]["specs"][0])
+            extra["id"] = "synthetic-additional-text-intake-journey"
+            report["suites"][4]["specs"].append(extra)
+            report["stats"]["expected"] += 1
+            path.write_text(json.dumps(report))
+            product.verify_private_wiki_report(path)
 
     def test_private_wiki_browser_failure_stops_before_assembly_and_uses_locked_browser(self):
         repo = HERE.resolve().parents[1]

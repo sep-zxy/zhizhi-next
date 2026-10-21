@@ -25,6 +25,12 @@ test("fixture owner: read-only scopes expose real reading but disable material w
   expect(page.url()).not.toContain(PROOF);
   expect(page.url()).not.toContain(CSRF);
   expect(page.url()).not.toContain(CODE);
+  await page.getByRole("link", { name: "收件箱", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "投递材料", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel("来源正文")).toHaveCount(0);
+  expect(f.writes).toHaveLength(0);
 });
 test("fixture owner: cancelling pending pairing clears the code without claiming server revocation", async ({
   page,

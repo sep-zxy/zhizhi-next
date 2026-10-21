@@ -67,7 +67,7 @@ npm run test:e2e
 
 领域写入始终带 `Idempotency-Key`（下节独立配对协议不使用此字段）：
 
-- `POST /intakes`：`{url,requested_action:"preview",data_classification:"personal"}`。
+- `POST /intakes`：显式选择链接或直接文本，发送 `{url,...}` 或 `{text,...}`，共同字段为 `requested_action:"preview",data_classification:"personal"`。不把正文放 URL，不发送身份或权限字段。
 - `POST /intakes/{id}/decision`：`{decision:"keep"|"discard",preview_revision}`。
 - `POST /changes/{id}/decisions`：`{decision,reason,expected_patch_hash,base_revision,decision_nonce}`。
 
@@ -99,7 +99,15 @@ npm run test:e2e
 3. pairing_proof 与 csrf_token 只存在 `WikiApi` 的 JavaScript 私有内存字段；公开 React 快照仅状态、码和到期时间。所有领域请求带 `X-Wiki-Pairing-Proof`，写请求再带 `X-Wiki-CSRF`，始终 same-origin/no-store/禁止重定向；健康检查不带这些头。
 4. 严格验证 `fixture:true`、状态、码格式、证明/CSRF 格式及 120 秒/900 秒上限。刷新新实例不能仅凭 cookie 恢复 proof，必须重新配对。浏览器 cookie 由后端以 HttpOnly 管理，前端不读取它。
 5. 过期、401 或 Origin/CSRF 拒绝会清理内存并隐藏私有内容。注销即使结果不确定也清理本页内存，但明确不能确认服务端撤销。没有自动续期或重试；认证请求 15 秒超时。
-6. 配对模式只有空的合成测试账本、无 worker/model/渠道。真实 URL 投递在组件和 API 客户端都禁用，不把 personal 改标 public，不生成示例条目。完整写入链须另行准备固定合成种子。
+6. 配对模式只有空的合成测试账本、无 worker/model/渠道。真实文本与 URL 投递在组件和 API 客户端都禁用，不把 personal 改标 public，不生成示例条目。完整写入链须另行准备固定合成种子。
+
+## 首次投递文本
+
+统一收件箱的“投递材料”保留链接路径，并提供“直接文本”模式。正文原样发送，保留首尾空白及输入换行；全空白拒绝，不自动 trim 正文。沿后端限制检查最多 100,000 个 Unicode 字符及完整 JSON 最多 512 KiB。现有服务会识别文本内单个 HTTP(S) 链接并按链接解析，多个链接拒绝；不承诺该模式完全禁止链接识别或抓取。
+
+写入只请求临时预览，不自动 keep、发布或启动新 provider。结果不确定时冻结正文及幂等键，只允许显式重试同一请求。切换模式或关闭表单清除当前草稿；关闭不撤销已经送达服务的请求，旧回执不能覆盖新草稿或改变新页面。正文不写 URL、storage 或日志。权限仍由现有 Owner 会话与后端复核；未认证、过期、注销仍清理私有界面。
+
+新增文本入口的 DOM/API、真实 ASGI 合成契约及四项浏览器 fixture 定义，均不能替代真实 Windows/账户/模型验收；浏览器实际执行仍交 GitHub，未在受限本机运行。
 
 码/proof/CSRF/cookie/bearer 禁止进入 URL、localStorage、sessionStorage、日志、Git 或测试审计。真实配对不得开启 trace/HAR/网络响应日志，也不要保存含一次性码的截图；浏览器 fixture 套件仅使用明确的惰性常量。JavaScript 内存不能保证底层缓冲区被安全擦除，不将此模式宣称为生产安全登录。
 

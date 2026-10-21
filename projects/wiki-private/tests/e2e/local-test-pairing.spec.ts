@@ -116,6 +116,12 @@ test("fixture: explicit local pairing, secret-free UI, empty ledger and confirme
     })),
   ).toEqual({ local: [], session: [] });
   expect(page.url()).not.toContain(code);
+  await page.getByRole("link", { name: "收件箱", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "投递材料", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel("材料类型")).toHaveCount(0);
+  await expect(page.getByLabel("来源正文")).toHaveCount(0);
   await page.getByRole("button", { name: "注销本次测试会话" }).click();
   await expect(page.getByText(/服务已确认注销本次测试会话/)).toBeVisible();
   expect(logoutHeaders["x-wiki-pairing-proof"]).toBe(proof);

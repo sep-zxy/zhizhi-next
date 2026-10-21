@@ -205,7 +205,9 @@ def create_activated_application(
         raise AcceptanceScopeError("ACCEPTANCE_BASE_MODEL_MUST_BE_DISABLED")
     executable = _existing_cli_path(Path(activation["codex_exe"]), directory=False)
     home = _existing_cli_path(Path(activation["codex_home"]), directory=True)
-    context_path = _safe(root, directory / "desktop/growth.sqlite")
+    # The launcher passes desktop as --repo-root; the real viewer stores its
+    # learning ledger in that workspace's .ahadiff state, not beside it.
+    context_path = _safe(root, directory / "desktop/.ahadiff/growth.sqlite")
     domain = AcceptanceDomain(
         _safe(root, directory / "platform"),
         receipts,

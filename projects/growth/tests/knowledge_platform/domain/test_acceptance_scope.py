@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -305,6 +309,158 @@ def test_factory_installs_only_fixed_scope_and_never_calls_model_on_construction
                 ]
                 == 5
             )
+            model.assert_not_called()
+        finally:
+            app.state.domain.close()
+
+
+def test_factory_verifies_the_actual_launcher_viewer_store_without_fallback(package):
+    """Real launcher command + CLI state resolution; no native process/model/DPAPI."""
+    from ahadiff.cli import _state_dir_for_root
+    from ahadiff.knowledge_platform.auth import Actor
+    from ahadiff.knowledge_platform.learning import wiki_learning
+    from ahadiff.knowledge_platform.learning.backend import DurableOutbox, canonical_json
+    from ahadiff.knowledge_platform.learning.entry_context import context_authority_key
+    from ahadiff.knowledge_platform.owner_identity import ACTOR, OWNER
+
+    root, _, _ = package
+    directory = root / "data/owner-acceptance"
+    identity = activation.load_owner_identity.return_value
+    identity.device_id = "a" * 32
+    identity.origin = "http://127.0.0.1:8766"
+    identity.actor.return_value = Actor(
+        OWNER, ACTOR, "user", frozenset({"knowledge:read", "knowledge:write", "knowledge:review"})
+    )
+    write(directory / "identity.json", {"synthetic": "not a credential; never decrypted"})
+    write(
+        directory / "launch.json",
+        {
+            "mode": "owner-acceptance",
+            "owner_dpapi_identity": "data/owner-acceptance/identity.json",
+            "platform_port": 8766,
+        },
+    )
+    write(
+        directory / "desktop.json",
+        {
+            "service_url": identity.origin,
+            "identity_file": "identity.json",
+            "identity_format": "zhizhi-owner-acceptance-dpapi-v1",
+            "device_id": identity.device_id,
+            "input_classification": "personal",
+            "providers": [],
+            "model": {"enabled": False},
+        },
+    )
+    assert activate(package) == "activated_not_started"
+
+    repository = Path(__file__).resolve().parents[5]
+    spec = importlib.util.spec_from_file_location(
+        "owner_context_assembly_launcher",
+        repository / "deploy/windows-portable/runtime/launcher.py",
+    )
+    assert spec is not None and spec.loader is not None
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    launcher.ROOT = root
+    stop = root / "data/stop.request"
+    with (
+        patch.dict(sys.modules, {"msvcrt": Mock()}),
+        patch.object(launcher, "spawn") as spawn,
+        patch.object(launcher, "await_health"),
+        patch.object(launcher, "free_port", return_value=9876),
+        patch.object(launcher.time, "sleep", side_effect=lambda _: stop.write_text("stop")),
+    ):
+        launcher.start({}, owner_acceptance=True, owner_model=True)
+    viewer = next(call for call in spawn.call_args_list if call.args[1] == "viewer")
+    command = viewer.args[0]
+    workspace = Path(command[command.index("--repo-root") + 1])
+    assert workspace == viewer.args[3] == directory / "desktop"
+    state = _state_dir_for_root(workspace, has_git_repo=False)
+    expected = state / "growth.sqlite"
+    assert expected == directory / "desktop/.ahadiff/growth.sqlite"
+
+    # A stale database in the old, incorrect parent must not be consulted or
+    # adopted. The missing real viewer store remains a read-only denial.
+    decoy = directory / "desktop/growth.sqlite"
+    decoy.write_bytes(b"SYNTHETIC DECOY; DO NOT OPEN OR REPAIR")
+    verifier = wiki_learning.verify_saved_learning_outcome
+    with (
+        patch.object(wiki_learning, "verify_saved_learning_outcome", wraps=verifier) as verify,
+        patch("ahadiff.knowledge_platform.model.codex_runner.CodexModelRunner.run") as model,
+    ):
+        app = activation.create_activated_application(
+            expected_source=SOURCE,
+            expected_release=RELEASE,
+            learning_viewer_url="http://127.0.0.1:9876/",
+        )
+        try:
+            assert app.state.domain.outcome_verifier({}) is False
+            verify.assert_called_once_with(
+                expected,
+                {},
+                backend_url=identity.origin,
+                device_id=identity.device_id,
+                owner_id=OWNER,
+            )
+            assert not expected.exists()
+            assert decoy.read_bytes() == b"SYNTHETIC DECOY; DO NOT OPEN OR REPAIR"
+
+            # Persist through the real context/CAS/outbox producers at the
+            # launched viewer's path, then read through the factory callback.
+            # Only identity, transport and native launch are synthetic here.
+            scope = hashlib.sha256(
+                canonical_json([identity.origin, identity.device_id]).encode()
+            ).hexdigest()
+            authority = context_authority_key(identity.origin, identity.device_id, OWNER)
+            entry = {
+                "entry_id": str(uuid4()),
+                "revision": 1,
+                "title": "合成装配来源",
+                "body": SOURCE_TEXT,
+                "content_hash": hashlib.sha256(SOURCE_TEXT.encode()).hexdigest(),
+                "data_classification": "personal",
+                "classification_labels": ["personal"],
+            }
+            backend = SimpleNamespace(outbox=DurableOutbox(state / "synthetic-outbox"))
+            with (
+                patch.object(wiki_learning, "_scope", return_value=scope),
+                patch.object(wiki_learning, "desktop_backend", return_value=backend),
+                patch.object(wiki_learning, "desktop_device_id", return_value=identity.device_id),
+                patch.object(wiki_learning, "legacy_input_classification", return_value="personal"),
+            ):
+                row = wiki_learning._mutate(
+                    expected,
+                    scope,
+                    authority,
+                    {
+                        "request_id": str(uuid4()),
+                        "entry_id": entry["entry_id"],
+                        "revision": 1,
+                        "expected_content_hash": entry["content_hash"],
+                    },
+                    "create",
+                )
+                row = wiki_learning._mutate(
+                    expected,
+                    scope,
+                    authority,
+                    {
+                        "request_id": str(uuid4()),
+                        "context_id": row["context_id"],
+                        "expected_context_version": row["context_version"],
+                        "note_text": USER_TEXT,
+                    },
+                    "note",
+                )
+                snapshot = wiki_learning._snapshot(
+                    expected, row, entry, row["context_version"], row["note_sha256"]
+                )
+            facts = snapshot["payload"]
+            assert app.state.domain.outcome_verifier(facts) is True
+            assert app.state.domain.outcome_verifier({**facts, "device_id": "other"}) is False
+            assert app.state.domain.outcome_verifier({**facts, "user_text": "other"}) is False
+            assert decoy.read_bytes() == b"SYNTHETIC DECOY; DO NOT OPEN OR REPAIR"
             model.assert_not_called()
         finally:
             app.state.domain.close()

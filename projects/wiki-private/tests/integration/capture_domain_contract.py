@@ -122,7 +122,15 @@ async def main() -> None:
                 await post_capture("learning_evidence", "/evidence/read", {"learning_outcome_id": outcome["outcome_id"], "content_hash": outcome["content_hash"]})
                 resumed = await post_capture("task_resume", f"/tasks/{task['task_id']}/resume", {"expected_revision": 2})
                 await post_capture("task_cancel", f"/tasks/{task['task_id']}/cancel", {"expected_revision": resumed["revision"]})
-                temporary = await post_capture("new_intake", "/intakes", {"text": "Original synthetic material.", "data_classification": "personal"})
+                original_text = "  Original synthetic material. 合成 😀\r\nSecond line.\n  "
+                intake_body = {"text": original_text, "requested_action": "preview", "data_classification": "personal"}
+                temporary = await post_capture("new_intake", "/intakes", intake_body)
+                assert domain.read_intake(temporary["intake_id"], actor=owner)["payload"]["text"] == original_text
+                replay = await client.post("/api/knowledge/v1/intakes", json=intake_body,
+                    headers={"Idempotency-Key": "fixture-new_intake"})
+                assert replay.status_code == 202
+                assert replay.json()["data"]["intake_id"] == temporary["intake_id"]
+                assert not temporary.get("source_id")
                 await post_capture("supplement", f"/intakes/{temporary['intake_id']}/supplement", {"expected_preview_revision": 0, "text": "Supplemented synthetic material.", "private_note": "Synthetic private note, not source text."})
                 await post_capture("text_attachment", f"/intakes/{temporary['intake_id']}/text-attachment", {"expected_preview_revision": 1, "filename": "synthetic.md", "content_type": "text/markdown", "content_base64": base64.b64encode(b"\xef\xbb\xbf# Synthetic file\r\n").decode("ascii"), "private_note": "Separate synthetic file note."})
                 await post_capture("user_proposal", "/changes", {"entry_id": entry_id, "base_revision": 1, "title": "Isolated durable evidence", "body": evidence + "\n\nA synthetic proposed correction.", "operation": "update", "evidence_refs": [{"source_id": source["source_id"]}]})

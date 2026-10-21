@@ -224,9 +224,9 @@ describe("local-test pairing UI fixtures", () => {
     );
     await screen.findByText("已连接本机测试身份");
     await user.click(screen.getByRole("link", { name: "收件箱" }));
-    await screen.findByText("合成测试会话不投递真实链接");
+    await screen.findByText("合成测试会话不投递真实材料");
     expect(
-      (screen.getByRole("button", { name: "投递链接" }) as HTMLButtonElement)
+      (screen.getByRole("button", { name: "投递材料" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
     expect(

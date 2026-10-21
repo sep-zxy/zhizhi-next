@@ -120,10 +120,13 @@ launcher 先验证 Windows/固定根/完整 distribution，再设置隔离环境
 不持久保存会话或凭据，不是实际 owner 初始化、Windows 或真实浏览器认证通过。
 该阶段缺失、失败或跳过均禁止发布候选，也不能以学习 viewer 的旅程替代。
 
-私有 Wiki 浏览器门禁独立固定为 `chromium-private` 单项目，四文件最低28项：
-`wiki.spec.ts` 7、`local-test-pairing.spec.ts` 2、`v1-actions.spec.ts` 13、`owner-access.spec.ts` 6。
+私有 Wiki 浏览器门禁独立固定为 `chromium-private` 单项目，五文件最低32项：
+`wiki.spec.ts` 7、`local-test-pairing.spec.ts` 2、`v1-actions.spec.ts` 13、`owner-access.spec.ts` 6、
+`text-intake.spec.ts` 4。原28项完整保留；新文本首收覆盖精确正文与同键重试、取消/模式切换清理、
+撤权清理及迟到回执不导航。每文件为最低数而非上限，其他文件多跑不能抵扣缺失的文本旅程。
 必须保留 JSON 报告，每个唯一 spec ID 仅一个项目、一次实际通过，零 skip/xfail/flaky、零 runner error；
-旧9项或学习23项报告不能替代。GitHub 清除本机浏览器覆盖，使用该 app 锁定 Playwright 的官方 Chromium，
-`--forbid-only --retries=0`，项目配置禁止复用未知 webServer。上述28项仍是合成 API 浏览器旅程，非真实模型或 Windows E2E。
+旧9项、旧28项或学习端报告不能替代。GitHub 清除本机浏览器覆盖，使用该 app 锁定 Playwright 的官方 Chromium，
+`--forbid-only --retries=0`，项目配置禁止复用未知 webServer。上述32项仍是合成 API 浏览器旅程，非真实模型或 Windows E2E；
+本次新增4项只完成收集与门禁合成回归，实际浏览器执行须由新的 GitHub 候选记录证明。
 
 本地测试仅证明打包/校验代码的拒绝路径、哈希、来源和原子更新前置条件。GitHub 下载、完整构建、首次候选 Git 发布和 Windows 运行需要真实执行并保留各自 receipt。没有通过这些步骤，不得把本文件当作完成报告。

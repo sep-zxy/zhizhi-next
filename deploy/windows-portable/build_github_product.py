@@ -22,7 +22,8 @@ from build_bundle import RUNTIMES, download, json_write, sha256
 
 LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1}
 PRIVATE_WIKI_JOURNEYS = {"wiki.spec.ts": 7, "local-test-pairing.spec.ts": 2,
-                         "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6}
+                         "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6,
+                         "text-intake.spec.ts": 4}
 
 
 def _verify_browser_report(report_path: Path, journeys: dict[str, int], project: str) -> None:
