@@ -375,6 +375,22 @@ class RemoteKnowledgeBackend:
             raise BackendError("INVALID_INPUT", "Invalid change identifier")
         return await self._request("GET", "/api/knowledge/v1/changes/" + change_id)
 
+    async def read_task(self, task_id: str) -> dict[str, Any]:
+        """Read the domain's safe task projection, never its worker lease or inputs."""
+        if not task_id or any(char in task_id for char in "/\\?#") or task_id in {".", ".."}:
+            raise BackendError("INVALID_INPUT", "Invalid task identifier")
+        return await self._request("GET", "/api/knowledge/v1/tasks/" + task_id)
+
+    async def read_entry_revision(self, entry_id: str, revision: int) -> dict[str, Any]:
+        """Read an exact formal base for a diff; the current entry is not a fallback."""
+        if not entry_id or any(char in entry_id for char in "/\\?#") or entry_id in {".", ".."}:
+            raise BackendError("INVALID_INPUT", "Invalid entry identifier")
+        if type(revision) is not int or revision < 1:
+            raise BackendError("INVALID_INPUT", "Invalid entry revision")
+        return await self._request(
+            "GET", f"/api/knowledge/v1/entries/{entry_id}?revision={revision}"
+        )
+
     @staticmethod
     def _radar_path(suggestion_id: str) -> str:
         if (

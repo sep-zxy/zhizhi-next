@@ -13,11 +13,26 @@ test('topic maintenance requires merge approval and sends explicit split links',
   let splitBody: Record<string, unknown> | null = null;
   let noteBody: Record<string, unknown> | null = null;
 
+  const methods:Record<string,string>={
+    '/api/auth/token':'POST','/api/locale':'GET','/api/growth/local':'GET',
+    '/api/growth/local/knowledge':'GET','/api/growth/local/sync':'POST',
+    '/api/growth/local/cloud/topics':'POST',
+    [`/api/growth/local/cloud/topics/${sourceId}`]:'POST',[`/api/growth/local/cloud/topics/${targetId}`]:'POST',
+    [`/api/growth/local/cloud/topics/${sourceId}/notes`]:'POST',
+    [`/api/growth/local/cloud/topics/${sourceId}/update`]:'POST',
+    [`/api/growth/local/cloud/topics/${sourceId}/merge`]:'POST',
+    [`/api/growth/local/cloud/topics/${targetId}/split`]:'POST',
+  };
+
   await page.route((url) => url.pathname.startsWith('/api/'), async (route) => {
     const path = new URL(route.request().url()).pathname;
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    expect(methods[path], 'Fixture must declare '+path).toBeDefined();
+    expect(route.request().method(), 'HTTP contract for '+path).toBe(methods[path]);
+    if(path==='/api/growth/local/sync')expect(body).toEqual({cloud_url:'http://cloud.test',access_token:'token',refresh_history:false});
+    if(path.startsWith('/api/growth/local/cloud/topics'))expect(body).toMatchObject({cloud_url:'http://cloud.test',access_token:'token',account_id:'00000000-0000-4000-8000-000000000001'});
     let status = 200;
-    let json: unknown = {};
+    let json: unknown;
     if (path === '/api/auth/token') json = { token: 'local-token' };
     else if (path === '/api/locale') json = { locale: 'en' };
     else if (path === '/api/growth/local') json = {
@@ -33,11 +48,6 @@ test('topic maintenance requires merge approval and sends explicit split links',
       cursor: 0, acknowledged_cursor: 0, pulled: 0, uploaded: 0, queued: 0,
       outbox: { pending: 0, acked: 0, conflict: 0, deleted: 0 },
     };
-    else if (path === '/api/growth/local/sync/events') json = { events: [] };
-    else if (path === '/api/growth/local/sync/workspace') json = {
-      accounts: [], notes: [], tasks: [],
-    };
-    else if (path === '/api/growth/local/cloud/chats') json = { sessions: [] };
     else if (path === '/api/growth/local/cloud/topics') json = { topics: [
       { topic_id: sourceId, title: '登录机制', status: sourceStatus,
         revision: sourceRevision, parent_topic_id: null,
@@ -84,6 +94,7 @@ test('topic maintenance requires merge approval and sends explicit split links',
       status = 201;
       json = { revision: 3, children: [] };
     }
+    expect(json, 'Fixture must return declared payload for '+path).toBeDefined();
     await route.fulfill({ status, contentType: 'application/json',
       body: JSON.stringify(json) });
   });

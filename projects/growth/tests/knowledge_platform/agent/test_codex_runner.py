@@ -21,6 +21,7 @@ from ahadiff.knowledge_platform.model import (
     SubscriptionRoute,
     build_runner_from_config,
 )
+from ahadiff.knowledge_platform.model.codex_runner import CODEX_VERSION, SUPPORTED_CODEX_VERSIONS
 
 SCHEMA = {
     "type": "object",
@@ -86,7 +87,7 @@ def test_success_is_fixture_with_requested_not_claimed_actual_model(tmp_path):
     assert result.output == {"text": "有效结果\u2028仍为同一JSONL"}
     assert result.model_id is None and result.requested_model_id == "fixture-model"
     assert (
-        result.provider_id == "openai" and result.runtime_version == "codex-cli 0.163.0-alpha.10.2"
+        result.provider_id == "openai" and result.runtime_version == "codex-cli " + CODEX_VERSION
     )
     assert result.result_hash and result.input_fingerprint
     assert result.usage == {"input": 50, "cacheRead": 10, "output": 15}
@@ -248,6 +249,54 @@ def test_no_provider_or_model_fallback():
         CodexRunnerConfig(routes=(SubscriptionRoute(provider_id="openai", model_id="a"),) * 2)
     with pytest.raises(ValueError):
         CodexRunnerConfig(expected_version="unknown")
+
+
+@pytest.mark.parametrize("version", ["0.163.0-alpha.12", "0.163.0", "0.163.*", "*", ""])
+def test_unreviewed_or_wildcard_versions_are_rejected(version):
+    with pytest.raises(ValueError, match="exact reviewed"):
+        CodexRunnerConfig(expected_version=version)
+
+
+def test_reviewed_previous_version_requires_its_exact_explicit_pin(tmp_path):
+    assert CODEX_VERSION == "0.163.0-alpha.11"
+    assert SUPPORTED_CODEX_VERSIONS == ("0.163.0-alpha.10.2", "0.163.0-alpha.11")
+    result = asyncio.run(runner(tmp_path, "reviewed_previous_version",
+                                expected_version="0.163.0-alpha.10.2").run(task()))
+    assert result.status == "succeeded" and result.fixture
+    assert result.runtime_version == "codex-cli 0.163.0-alpha.10.2"
+
+
+def test_exact_version_allowlist_matches_official_source_review_and_packaging_example():
+    root = Path(__file__).resolve().parents[5]
+    review = json.loads((root / "deploy/windows-portable/codex-version-review.json").read_text())
+    assert review["repository"] == "openai/codex"
+    assert set(review["versions"]) == set(SUPPORTED_CODEX_VERSIONS)
+    assert review["versions"][CODEX_VERSION]["commit"] == (
+        "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3"
+    )
+    for path in ("codex-rs/exec/src/cli.rs", "codex-rs/exec/src/exec_events.rs",
+                 "codex-rs/exec/src/event_processor_with_jsonl_output.rs",
+                 "codex-rs/exec/src/lib.rs", "codex-rs/cli/src/login.rs",
+                 "codex-rs/core/src/tools/spec_plan.rs"):
+        evidence = review["files"][path]
+        assert evidence["identical"] is True
+        assert evidence[SUPPORTED_CODEX_VERSIONS[0]] == evidence[CODEX_VERSION]
+    example_path = root / "deploy/windows-portable/patch/model-codex.example.json"
+    example = json.loads(example_path.read_text())
+    assert example["expected_version"] == CODEX_VERSION
+    assert example["routes"][0]["model_id"] == "gpt-6.1-sol"
+
+
+@pytest.mark.parametrize("scenario, expected", [
+    ("reviewed_previous_version", "0.163.0-alpha.11"),
+    ("success", "0.163.0-alpha.10.2"),
+    ("unreviewed_next_version", "0.163.0-alpha.11"),
+])
+def test_version_mismatch_stops_before_authentication_and_model(tmp_path, scenario, expected):
+    result = asyncio.run(runner(tmp_path, scenario, expected_version=expected).run(task()))
+    assert result.status == "blocked" and result.error_code == "CODEX_VERSION_MISMATCH"
+    records = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    assert [record["args"] for record in records] == [["--version"]]
 
 
 def test_workflow_audit_preserves_requested_model_and_unknown_actual(tmp_path):

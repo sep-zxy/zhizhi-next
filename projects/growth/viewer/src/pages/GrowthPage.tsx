@@ -4,7 +4,7 @@ import { BookOpen, FileText, GitBranch, ArrowRight, Lightbulb, RefreshCw } from 
 import GrowthShell from '../growth/GrowthShell';
 import { getGrowthLocalState, type GrowthLocalState } from '../api/growth';
 import { getKnowledge, type KnowledgeIndex } from '../api/knowledge';
-import { learningCards, learningUrl, readingLabel, zhizhiView } from './zhizhi-model';
+import { learningCards, learningUrl, readingLabel, zhizhiView, lastOpenedLearningCard, resumeLearningCard } from './zhizhi-model';
 import ZhizhiSession from './ZhizhiSession';
 import ZhizhiProjects from './ZhizhiProjects';
 import ZhizhiWriteback from './ZhizhiWriteback';
@@ -37,7 +37,8 @@ export default function GrowthPage() {
   useEffect(()=>{void refresh();return()=>{run.current++;};},[refresh]);
   const cards = learningCards(index, projectId, params.get('q') ?? '');
   const candidates = (index?.candidates ?? []).filter(candidate=>!projectId||candidate.project_ids.includes(projectId));
-  const current = cards.find(card=>card.learning_stage && !['front','completed'].includes(card.learning_stage)) ?? cards[0];
+  const lastCardId = lastOpenedLearningCard();
+  const current = resumeLearningCard(cards, lastCardId);
   const binding = state?.bindings.find(item=>projectId ? item.project_id===projectId : cards.find(card=>card.card_id===cardId)?.project_ids?.includes(item.project_id));
   function filter(key:string,value:string){setParams(previous=>{const next=new URLSearchParams(previous);value?next.set(key,value):next.delete(key);if(key==='project')next.delete('card');return next;});}
   const cardLinks = <div className="zz-list">{cards.map(card=><article className="zz-list-row" key={card.card_id}><FileText aria-hidden="true"/><div><Link to={learningUrl('session',projectId,card.card_id)}>{card.title}</Link><p>{card.front_question}</p><small>{readingLabel(card)} · {card.source_commit_shas?.length??0} 条提交证据 · v{card.card_version}</small></div><Link className="zz-button secondary" to={learningUrl(view==='understanding'?'understanding':'session',projectId,card.card_id)}>{view==='understanding'?'写下我的理解':'继续学习'}</Link></article>)}</div>;
@@ -48,7 +49,7 @@ export default function GrowthPage() {
     {['home','library'].includes(view)&&<div className="zz-toolbar"><Link to={learningUrl('topic-management',projectId)}>学习主题管理</Link><span className="zz-muted">维护学习原话与主题归属，不进入通用知识审核。</span></div>}
     {view==='topic-management'&&<ZhizhiTopics/>}
     {!loading&&index&&view==='home'&&<>
-      <div className="zz-grid"><section className="zz-panel"><h2><BookOpen/>继续上次学习</h2>{current?<><h3>{current.title}</h3><p>{current.front_question}</p><p className="zz-muted">{readingLabel(current)} · 回答与 AI 讲解分开保存</p><Link className="zz-button" to={learningUrl('session',projectId,current.card_id)}>继续学习 <ArrowRight size={16}/></Link></>:<div className="zz-empty"><h3>从自己的项目或笔记开始</h3><p>这里还没有学习材料，不会自动生成“我的理解”。</p><Link className="zz-button" to={learningUrl('projects',projectId)}>选择工程证据</Link></div>}</section>
+      <div className="zz-grid"><section className="zz-panel"><h2><BookOpen/>{current?.card_id===lastCardId?'继续上次学习':'继续工程学习'}</h2>{current?<><h3>{current.title}</h3><p>{current.front_question}</p><p className="zz-muted">{readingLabel(current)} · 回答与 AI 讲解分开保存</p><Link className="zz-button" to={learningUrl('session',projectId,current.card_id)}>继续学习 <ArrowRight size={16}/></Link></>:<div className="zz-empty"><h3>从自己的项目或笔记开始</h3><p>这里还没有学习材料，不会自动生成“我的理解”。</p><Link className="zz-button" to={learningUrl('projects',projectId)}>选择工程证据</Link></div>}</section>
       <section className="zz-panel"><h2><Lightbulb/>我的下一步</h2><Link className="zz-next" to={learningUrl('library',projectId)}>选择一个架构问题 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('understanding',projectId)}>用自己的话解释机制与边界 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('writeback',projectId)}>核对学习成果与回填状态 <ArrowRight size={16}/></Link></section></div>
       <section className="zz-panel"><h2><GitBranch/>工程中的学习线索</h2>{candidates.slice(0,3).map(item=><div className="zz-list-row" key={item.candidate_id}><FileText/><div><strong>{item.title}</strong><p>{item.reason}</p></div><Link className="zz-button secondary" to={learningUrl('candidates',projectId)}>核对证据</Link></div>)}{!candidates.length&&<p className="zz-muted">暂无候选。选择已授权项目中的具体提交后再开始。</p>}</section>
       <div className="zz-grid"><section className="zz-panel"><h2>最近学习材料</h2>{cards.slice(0,3).map(card=><Link className="zz-next" key={card.card_id} to={learningUrl('session',projectId,card.card_id)}>{card.title}<ArrowRight size={16}/></Link>)}</section><section className="zz-panel"><h2>成果回填</h2><p>{cards.filter(card=>card.wiki_draft_status==='draft').length} 份候选草稿</p><p className="zz-muted">提交不等于正式写入，正式写入也不代表已公开。</p><Link to={learningUrl('writeback',projectId)}>查看相关成果 →</Link></section></div>

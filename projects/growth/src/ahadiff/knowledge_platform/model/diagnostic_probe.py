@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .codex_runner import CODEX_VERSION, CodexModelRunner, CodexRunnerConfig
+from .codex_runner import CodexModelRunner, CodexRunnerConfig
 from .contracts import ModelTask
 from .diagnostics import coded_failure_diagnostic, sanitized_failure
 from .pi_runner import RpcFailure, SubscriptionRoute
@@ -60,7 +60,7 @@ async def probe_codex(
         "mode": "fixed_public_model_smoke" if model_smoke else "host_only",
         "platform": "windows" if os.name == "nt" else "posix",
         "fixture": config.development_transport,
-        "expected_cli_version": CODEX_VERSION,
+        "expected_cli_version": config.expected_version,
         "status": "not_started",
         "model_attempted": False,
         "model": None,

@@ -22,7 +22,9 @@ with Path(calls_path).open("a", encoding="utf-8") as file:
         + "\n"
     )
 if args == ["--version"]:
-    print("codex-cli " + ("0.1.0" if scenario == "wrong_version" else "0.163.0-alpha.10.2"))
+    versions = {"wrong_version": "0.1.0", "reviewed_previous_version": "0.163.0-alpha.10.2",
+                "unreviewed_next_version": "0.163.0-alpha.12"}
+    print("codex-cli " + versions.get(scenario, "0.163.0-alpha.11"))
     raise SystemExit(0)
 if args == ["login", "status"]:
     if scenario == "auth_missing":

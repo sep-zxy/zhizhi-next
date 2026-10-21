@@ -288,12 +288,14 @@ async function rawFetch(
 
 export interface ApiFetchOptions extends RequestInit {
   skipAuth?: boolean;
+  /** Disable automatic replay for explicitly submitted, recoverable operations. */
+  retryAuth?: boolean;
 }
 
 export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise<T> {
   const apiPath = normalizeApiPath(path);
   const signal = init?.signal ?? undefined;
-  const { skipAuth = false, ...fetchInit } = init ?? {};
+  const { skipAuth = false, retryAuth = true, ...fetchInit } = init ?? {};
 
   if (skipAuth) {
     if (!PUBLIC_SKIP_AUTH_PATHS.has(apiPath)) {
@@ -325,7 +327,7 @@ export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise
   // On 401/403 the cached token may be stale (e.g. serve process restarted).
   // refreshToken() coalesces concurrent refreshes so one stale-token storm
   // produces a single POST /api/auth/token, not N (CR1-01).
-  if (res.status === 401 || res.status === 403) {
+  if (retryAuth && (res.status === 401 || res.status === 403)) {
     token = await refreshToken(token, signal);
     res = await rawFetch(apiPath, token, fetchInit);
   }

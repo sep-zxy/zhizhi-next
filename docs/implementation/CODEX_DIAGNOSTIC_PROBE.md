@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 
 ## 已授权的固定公开模型复测
 
-同一命令显式增加 `--model-smoke` 才执行一次固定公开算术题 2+2，模型固定为 `gpt-6.1-sol`，目标版本固定为 `0.163.0-alpha.10.2`。不接受其他 prompt、资料、schema、模型或 provider 参数。该选项不放进 CI 或自动诊断链。
+同一命令显式增加 `--model-smoke` 才执行一次固定公开算术题 2+2，模型固定为 `gpt-6.1-sol`，命令行探针的默认目标版本精确固定为 `0.163.0-alpha.11`。不接受其他 prompt、资料、schema、模型或 provider 参数。该选项不放进 CI 或自动诊断链。`expected_cli_version` 报告实际使用的精确配置值；版本不匹配时不进入登录检查或模型执行。更新依据见 [alpha.11 兼容性记录](CODEX_ALPHA11_COMPATIBILITY.md)。
 
 模型调用仍完整通过正式 `CodexModelRunner` 的分类、已有登录、版本、Schema、工具拒绝、字节/时间与进程清理限制。无新凭据、无放宽安全检查、无付费回退。JSON 结果只报告是否匹配固定答案，不输出模型原文。
 

@@ -31,6 +31,9 @@ from ahadiff.knowledge_platform.learning.desktop import (
     read_remote_original, submit_completed_learning, submit_remote_draft,
     remote_articles, remote_draft_status,
 )
+from ahadiff.knowledge_platform.learning.understanding import (
+    read_submission, read_submissions, submit_understanding,
+)
 
 from ._errors import error_response
 from .auth import require_write_token, serve_state
@@ -104,6 +107,11 @@ class _MarkInput(_Input):
 
 class _NoteInput(_Input):
     text: str = Field(max_length=20000)
+
+
+class _UnderstandingInput(_Input):
+    card_version: int = Field(ge=1, strict=True)
+    note_sha256: str = Field(pattern=r"^[a-f0-9]{64}$", strict=True)
 
 
 class _ChatInput(_Input):
@@ -518,6 +526,46 @@ async def growth_knowledge_note(request: Any) -> JSONResponse:
         return JSONResponse(await to_thread.run_sync(save))
     except Exception as exc:
         return _problem(exc)
+
+
+async def growth_knowledge_understanding(request: Any) -> JSONResponse:
+    """Explicit submission/read of saved open responses, never exercise completion."""
+    require_write_token(request)
+    body = None
+    if request.method == "POST":
+        body = await _parse(request, _UnderstandingInput)
+        if isinstance(body, JSONResponse):
+            return body
+    try:
+        def read() -> dict[str, Any]:
+            with _ledger(request) as ledger:
+                return knowledge_learning.card_detail(ledger, _card_id(request))
+
+        detail = await to_thread.run_sync(read)
+        if body is not None:
+            assert isinstance(body, _UnderstandingInput)
+            result = await submit_understanding(
+                detail, card_version=body.card_version, note_sha256=body.note_sha256,
+            )
+            return JSONResponse(result, status_code=202)
+        if "submission_id" in request.path_params:
+            result = await read_submission(_card_id(request), request.path_params["submission_id"])
+        else:
+            if set(request.query_params) - {"limit", "offset"}:
+                raise BackendError("INVALID_INPUT", "不支持的分页参数", False, 422)
+            result = await read_submissions(
+                _card_id(request), limit=int(request.query_params.get("limit", "20")),
+                offset=int(request.query_params.get("offset", "0")),
+            )
+        return JSONResponse(result)
+    except BackendError as exc:
+        # Adapter errors never include raw provider, filesystem or remote details.
+        return JSONResponse({"error": {"code": exc.code, "retryable": exc.retryable,
+            "detail": "本人理解提交或状态读取未完成，请按错误代码处理。"}},
+            status_code=exc.status_code or (503 if exc.retryable else 409))
+    except (ValueError, sqlite3.IntegrityError):
+        return JSONResponse({"error": {"code": "INVALID_INPUT", "retryable": False,
+            "detail": "无法核验该卡片或请求参数。"}}, status_code=422)
 
 
 async def growth_knowledge_chat(request: Any) -> JSONResponse:

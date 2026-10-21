@@ -24,6 +24,16 @@
 
 - Python 后端单元/隔离旅程、交付与补丁门禁；统一用 pytest 收集 TestCase 与函数式测试，避免漏测。
 - Viewer 的锁定依赖、类型检查、单测和 GitHub 真实构建。
+- Viewer 的 `pnpm test` 仅为 Vitest，不能代替页面旅程。生产构建之前另有必需
+  `viewer-learning-browser-fixtures`：原锁 Playwright，固定 `chromium-desktop`，执行
+  `zhizhi-domain.spec.ts`（至少 16 项）和 `growth-topics.spec.ts`（至少 1 项），
+  零重试且禁止 `.only`。JSON 报告必须证明两文件完整收集、每项真实通过，
+  skipped/flaky/expected-failure 不算通过；缺失或失败阶段不能发布。
+  JSON、失败 trace 和截图保留在原有 CI evidence，均为模拟 API 的合成 UI 旅程，
+  不代表 Windows、真实领域后端、模型或渠道 E2E。没有扩大旧 15 项浏览器/视口矩阵。
+  最低覆盖包括继续原会话、流中断保留原话，以及本人理解经候选/diff/复核到写入状态、
+  409版本冲突、丢响应GET恢复、显式重递原快照，以及跨卡迟到响应隔离。
+  新增审阅旅程可继续增加，不把17当上限。
 - 私有 Wiki 使用 `projects/wiki-private` 独立 package-lock：`npm ci --ignore-scripts`、typecheck、test、build，输出 `app/wiki-private` 并供 `/wiki/` 挂载。缺项目、锁、构建或入口立即失败；公开 Wiki 与学习 Viewer 保留独立。静态打包不证明身份桥已贯通。
 - GitHub 安装该锁内 Playwright 的官方 Chromium，执行私有 Wiki 浏览器 fixture，失败截图与 trace 写入 CI evidence。浏览器 fixture 不冒充真实身份 API、Windows 或模型 E2E。
 - Pi 按原 lock 安装/编译、移除构建器并保留 Windows x64 native 及许可证。

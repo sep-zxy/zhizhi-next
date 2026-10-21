@@ -20,6 +20,40 @@ import zipfile
 
 from build_bundle import RUNTIMES, download, json_write, sha256
 
+LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 16, "growth-topics.spec.ts": 1}
+
+
+def verify_learning_report(report_path: Path) -> None:
+    """Require all selected synthetic browser journeys, never live E2E claims."""
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    stats = report.get("stats", {})
+    if (report.get("errors") != []
+            or any(stats.get(key) != 0 for key in ("skipped", "unexpected", "flaky"))):
+        raise ValueError("Learning browser fixtures contain missing, skipped or failed evidence")
+    counts = {name: 0 for name in LEARNING_JOURNEYS}
+
+    def inspect(suites):
+        for suite in suites:
+            for spec in suite.get("specs", []):
+                name = Path(spec.get("file", "")).name
+                tests = spec.get("tests", [])
+                if name not in counts or spec.get("ok") is not True or not tests:
+                    raise ValueError("Unexpected or unsuccessful learning browser fixture")
+                for test in tests:
+                    results = test.get("results", [])
+                    if (test.get("projectName") != "chromium-desktop"
+                            or test.get("expectedStatus") != "passed"
+                            or test.get("status") != "expected" or len(results) != 1
+                            or results[0].get("status") != "passed"):
+                        raise ValueError("Learning journey did not pass once on locked Chromium")
+                    counts[name] += 1
+            inspect(suite.get("suites", []))
+
+    inspect(report.get("suites", []))
+    if (any(counts[name] < minimum for name, minimum in LEARNING_JOURNEYS.items())
+            or stats.get("expected") != sum(counts.values())):
+        raise ValueError("Required learning browser journeys were not all collected")
+
 
 def github_identity(repo: Path) -> dict:
     if (os.environ.get("GITHUB_ACTIONS") != "true"
@@ -111,10 +145,12 @@ def build(repo: Path, work: Path) -> dict:
     env.pop("ZHIZHI_ALLOW_ISOLATED_CLOUD_BUILD", None)
     env.pop("ZHIZHI_BUILD_AUTHORIZATION", None)
 
-    def run(name, command, cwd=repo, extra=None):
+    def run(name, command, cwd=repo, extra=None, check=None):
         try:
             subprocess.run(command, cwd=cwd, env={**env, **(extra or {})}, check=True)
-        except (OSError, subprocess.CalledProcessError) as error:
+            if check is not None:
+                check()
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
             phases.append({"phase": name, "status": "failed",
                            "error_type": type(error).__name__,
                            "exit_code": getattr(error, "returncode", None)})
@@ -146,6 +182,16 @@ def build(repo: Path, work: Path) -> dict:
     run("portable-assembly-unit-gates", python("-m", "pytest", "deploy/windows-portable"))
     run("viewer-typecheck", ["pnpm", "--dir", str(growth / "viewer"), "typecheck"])
     run("viewer-tests", ["pnpm", "--dir", str(growth / "viewer"), "test"])
+    # pnpm test is Vitest, not these full-page learning/domain journeys. Keep
+    # this bounded to the approved P0 files, not the historical 15-project matrix.
+    learning_report = evidence / "viewer-learning-browser.json"
+    run("viewer-learning-browser-fixtures", [
+        "pnpm", "--dir", str(growth / "viewer"), "exec", "playwright", "test",
+        *("tests/e2e/" + name for name in LEARNING_JOURNEYS),
+        "--project=chromium-desktop", "--forbid-only", "--retries=0",
+        "--reporter=list,json", "--output", str(evidence / "viewer-learning-browser"),
+    ], extra={"PLAYWRIGHT_JSON_OUTPUT_FILE": str(learning_report)},
+        check=lambda: verify_learning_report(learning_report))
     run("viewer-production-build", ["pnpm", "--dir", str(growth / "viewer"), "build"])
 
     # This is a separate private workspace, not the growth learning viewer or

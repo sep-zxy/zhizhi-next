@@ -44,6 +44,7 @@ def test_default_probe_never_executes_model_or_persists_raw_data(tmp_path):
     assert report["mode"] == "host_only" and report["model_attempted"] is False
     assert report["model"] is None and report["fixture"] is True
     assert report["platform_e2e"] == "not_run"
+    assert report["expected_cli_version"] == "0.163.0-alpha.11"
     assert report["preflight"] == {"version": "verified", "login": "chatgpt"}
     for process in report["processes"]:
         assert process["exit_code"] == 0
@@ -53,6 +54,17 @@ def test_default_probe_never_executes_model_or_persists_raw_data(tmp_path):
     encoded = json.dumps(report)
     for secret in (str(tmp_path), sys.executable, "Logged in using", "untrusted_payload"):
         assert secret not in encoded
+
+
+def test_explicit_previous_pin_is_reported_without_authentication_or_model_fallback(tmp_path):
+    settings = replace(config(tmp_path, "reviewed_previous_version"),
+                       expected_version="0.163.0-alpha.10.2")
+    report = asyncio.run(probe_codex(settings))
+    assert report["expected_cli_version"] == "0.163.0-alpha.10.2"
+    assert report["status"] == "host_preflight_passed" and report["fixture"] is True
+    assert report["model_attempted"] is False and report["platform_e2e"] == "not_run"
+    calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    assert [call["args"] for call in calls] == [["--version"], ["login", "status"]]
 
 
 def test_model_smoke_is_explicit_fixed_and_fixture_labeled(tmp_path):

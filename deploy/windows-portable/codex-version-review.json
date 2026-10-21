@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-21",
+  "repository": "openai/codex",
+  "versions": {
+    "0.163.0-alpha.10.2": {
+      "tag": "rust-v0.163.0-alpha.10.2",
+      "commit": "4ebc485ca321243727539187169425fcf972f2c4"
+    },
+    "0.163.0-alpha.11": {
+      "tag": "rust-v0.163.0-alpha.11",
+      "commit": "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3"
+    }
+  },
+  "files": {
+    "codex-rs/exec/src/cli.rs": {
+      "0.163.0-alpha.10.2": "6a268da298380344c22ea12620606c3e6713f5fa",
+      "0.163.0-alpha.11": "6a268da298380344c22ea12620606c3e6713f5fa",
+      "identical": true
+    },
+    "codex-rs/exec/src/exec_events.rs": {
+      "0.163.0-alpha.10.2": "06565c097b28d3bf2ad592943cc30c776b45e236",
+      "0.163.0-alpha.11": "06565c097b28d3bf2ad592943cc30c776b45e236",
+      "identical": true
+    },
+    "codex-rs/exec/src/event_processor_with_jsonl_output.rs": {
+      "0.163.0-alpha.10.2": "73e0c9d911c82aae67c44e6b1a4ce54c7092b6be",
+      "0.163.0-alpha.11": "73e0c9d911c82aae67c44e6b1a4ce54c7092b6be",
+      "identical": true
+    },
+    "codex-rs/exec/src/lib.rs": {
+      "0.163.0-alpha.10.2": "f97ce42737a261fa855b8055eead32cf5b44ced2",
+      "0.163.0-alpha.11": "f97ce42737a261fa855b8055eead32cf5b44ced2",
+      "identical": true
+    },
+    "codex-rs/cli/src/login.rs": {
+      "0.163.0-alpha.10.2": "1d6421b060ba22fae1cf3553a0c1e9ea582a30d5",
+      "0.163.0-alpha.11": "1d6421b060ba22fae1cf3553a0c1e9ea582a30d5",
+      "identical": true
+    },
+    "codex-rs/features/src/lib.rs": {
+      "0.163.0-alpha.10.2": "13ff893c1c962ed049f80e6858a130e8bbfbc651",
+      "0.163.0-alpha.11": "0928655c333c17dcb57b4f3ffe6d1ed28a2e3d09",
+      "identical": false
+    },
+    "codex-rs/core/src/tools/spec_plan.rs": {
+      "0.163.0-alpha.10.2": "fd5b5e14eeeb57b5be78af53d3f855702167dcc7",
+      "0.163.0-alpha.11": "fd5b5e14eeeb57b5be78af53d3f855702167dcc7",
+      "identical": true
+    },
+    "codex-rs/cli/src/main.rs": {
+      "0.163.0-alpha.10.2": "9d540c3124ee692250d345719d122aa1884ba12f",
+      "0.163.0-alpha.11": "c1537bfa00e7121cf2ea3593c6e8070f540e9fd7",
+      "identical": false
+    },
+    "codex-rs/features/src/feature_configs.rs": {
+      "0.163.0-alpha.10.2": "e3ae224609dd5c4cad5d4cfbaeb609a63089cda5",
+      "0.163.0-alpha.11": "69d581e957ec2b5c78a9ee0e09ebcff065262c03",
+      "identical": false
+    },
+    "codex-rs/core/src/config/mod.rs": {
+      "0.163.0-alpha.10.2": "c5ab36546e189781c8b1f957cf56d8d31ad3d7fe",
+      "0.163.0-alpha.11": "b21aa349a7e5ee0a4028cb154f9b4dbc2b33ec80",
+      "identical": false
+    },
+    "codex-rs/config/src/types.rs": {
+      "0.163.0-alpha.10.2": "2dbdfe2cc82f6e44c686801eb2bf1b56690c334a",
+      "0.163.0-alpha.11": "45871f151d2aedcc7732c05ea2d034763e066d19",
+      "identical": false
+    },
+    "codex-rs/exec/src/event_processor_with_jsonl_output_tests.rs": {
+      "0.163.0-alpha.10.2": "9082f912ce695f5bb1403177230465a28b91f349",
+      "0.163.0-alpha.11": "9082f912ce695f5bb1403177230465a28b91f349",
+      "identical": true
+    }
+  },
+  "scope": "Static official-source compatibility review only; not Windows execution, login, model or platform E2E",
+  "differences": {
+    "codex-rs/cli/src/main.rs": "Only app-server daemon restart feature overrides changed; exec and login dispatch unchanged.",
+    "codex-rs/config/src/types.rs": "Only TUI copy-on-select comments changed.",
+    "codex-rs/core/src/config/mod.rs": "Only TUI copy-on-select comments changed.",
+    "codex-rs/features/src/feature_configs.rs": "Guardian classifier comment changed; no executable field change.",
+    "codex-rs/features/src/lib.rs": "Adds executor_capability_discovery_v2 under development, default_enabled=false; existing disabled feature names unchanged."
+  }
+}

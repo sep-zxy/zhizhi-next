@@ -1,6 +1,7 @@
 """Static/offline orchestrator checks, not a GitHub or Windows build."""
 
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,18 @@ sys.path.insert(0, str(HERE))
 spec = importlib.util.spec_from_file_location("github_product", HERE / "build_github_product.py")
 product = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(product)
+
+
+def learning_report_fixture():
+    return {
+        "errors": [], "stats": {"expected": sum(product.LEARNING_JOURNEYS.values()),
+                                 "skipped": 0, "unexpected": 0, "flaky": 0},
+        "suites": [{"specs": [{
+            "file": name, "ok": True, "title": f"synthetic journey {index}",
+            "tests": [{"projectName": "chromium-desktop", "expectedStatus": "passed",
+                       "status": "expected", "results": [{"status": "passed"}]}],
+        } for index in range(count)]} for name, count in product.LEARNING_JOURNEYS.items()],
+    }
 
 
 class GitHubProductTests(unittest.TestCase):
@@ -100,6 +113,89 @@ class GitHubProductTests(unittest.TestCase):
         assembly = (HERE / "assemble_product.py").read_text()
         self.assertIn("app/'wiki-private'", assembly)
         self.assertIn("'http':'/wiki/'", assembly)
+
+    def test_learning_report_requires_every_selected_journey_and_real_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            good = learning_report_fixture()
+            path.write_text(json.dumps(good), encoding="utf-8")
+            product.verify_learning_report(path)
+            mutations = {
+                "no suites": lambda r: r.update(suites=[]),
+                "missing file": lambda r: r["suites"].pop(),
+                "missing journey": lambda r: r["suites"][0]["specs"].pop(),
+                "wrong total": lambda r: r["stats"].update(expected=1 + r["stats"]["expected"]),
+                "skip": lambda r: r["stats"].update(skipped=1),
+                "failure": lambda r: r["stats"].update(unexpected=1),
+                "flaky": lambda r: r["stats"].update(flaky=1),
+                "runner error": lambda r: r.update(errors=[{"message": "synthetic failure"}]),
+                "unexpected file": lambda r: r["suites"][0]["specs"][0].update(file="legacy.spec.ts"),
+                "failed spec": lambda r: r["suites"][0]["specs"][0].update(ok=False),
+                "uncollected spec": lambda r: r["suites"][0]["specs"][0].update(tests=[]),
+            }
+            for name, mutate in mutations.items():
+                report = copy.deepcopy(good)
+                mutate(report)
+                path.write_text(json.dumps(report), encoding="utf-8")
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    product.verify_learning_report(path)
+            for mutation in ({"projectName": "firefox-desktop"}, {"expectedStatus": "failed"},
+                             {"status": "skipped"}, {"results": []},
+                             {"results": [{"status": "failed"}, {"status": "passed"}]},
+                             {"results": [{"status": "skipped"}]}):
+                report = copy.deepcopy(good)
+                report["suites"][0]["specs"][0]["tests"][0].update(mutation)
+                path.write_text(json.dumps(report), encoding="utf-8")
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    product.verify_learning_report(path)
+
+    def test_additional_reviewed_learning_journeys_are_not_capped_at_ten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            report = learning_report_fixture()
+            extra = copy.deepcopy(report["suites"][0]["specs"][0])
+            extra["title"] = "synthetic additional reviewed journey"
+            report["suites"][0]["specs"].append(extra)
+            report["stats"]["expected"] += 1
+            path.write_text(json.dumps(report), encoding="utf-8")
+            product.verify_learning_report(path)
+
+    def test_learning_journey_failure_stops_before_product_build(self):
+        repo = HERE.resolve().parents[1]
+        for failure in ("command", "missing report", "skipped report"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp) / "product"
+                calls = []
+
+                def run(command, **kwargs):
+                    calls.append(command)
+                    if "--project=chromium-desktop" not in command:
+                        return
+                    if failure == "command":
+                        raise subprocess.CalledProcessError(1, "synthetic learning fixture")
+                    if failure == "skipped report":
+                        report = learning_report_fixture()
+                        report["stats"]["skipped"] = 1
+                        Path(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"]).write_text(
+                            json.dumps(report), encoding="utf-8")
+
+                with patch.object(product, "github_identity", return_value={}), \
+                        patch.object(product.subprocess, "run", side_effect=run):
+                    with self.assertRaises((OSError, ValueError, subprocess.CalledProcessError)):
+                        product.build(repo, output)
+                command = calls[-1]
+                self.assertEqual(command[:6], ["pnpm", "--dir",
+                                 str(repo / "projects/growth/viewer"), "exec", "playwright", "test"])
+                self.assertIn("tests/e2e/zhizhi-domain.spec.ts", command)
+                self.assertIn("tests/e2e/growth-topics.spec.ts", command)
+                self.assertIn("--retries=0", command)
+                self.assertIn("--forbid-only", command)
+                self.assertIn("--reporter=list,json", command)
+                phases = json.loads((output / "evidence/build-phases.json").read_text())
+                self.assertEqual(phases[-1]["phase"], "viewer-learning-browser-fixtures")
+                self.assertEqual(phases[-1]["status"], "failed")
+                self.assertNotIn("viewer-production-build", [phase["phase"] for phase in phases])
+                self.assertFalse((output / "bundle").exists())
 
     def test_template_fixtures_are_distinct_synthetic_projections(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -33,7 +33,10 @@ from .diagnostics import (
 from .pi_runner import SYSTEM_PROMPT, RpcFailure, SubscriptionRoute, classify_provider_error
 from .validation import OUTPUT_ERRORS, contains_obvious_secret, parse_output, validate_schema
 
-CODEX_VERSION = "0.163.0-alpha.10.2"
+CODEX_VERSION = "0.163.0-alpha.11"
+# Exact official-source review is recorded in deploy/windows-portable/
+# codex-version-review.json. Never infer compatibility from a version prefix.
+SUPPORTED_CODEX_VERSIONS = ("0.163.0-alpha.10.2", CODEX_VERSION)
 # A string envelope supports our existing schemas (optional keys/local refs),
 # without weakening them to fit the provider's strict structured-output subset.
 ENVELOPE_SCHEMA = {
@@ -99,8 +102,8 @@ class CodexRunnerConfig:
             not isinstance(arg, str) or not arg for arg in cast("tuple[Any, ...]", self.executable)
         ):
             raise ValueError("Executable must be a non-empty argv list")
-        if self.expected_version != CODEX_VERSION:
-            raise ValueError("Only the reviewed Codex CLI version is supported")
+        if self.expected_version not in SUPPORTED_CODEX_VERSIONS:
+            raise ValueError("Only exact reviewed Codex CLI versions are supported")
         if not math.isfinite(self.timeout_seconds) or not 0 < self.timeout_seconds <= 600:
             raise ValueError("Timeout must be finite and at most 600 seconds")
         if not 1024 <= self.max_input_bytes <= 2_000_000:

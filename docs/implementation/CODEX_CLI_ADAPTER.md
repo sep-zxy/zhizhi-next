@@ -4,7 +4,7 @@
 
 ## 启用契约
 
-只有明确配置 `adapter: "codex_cli"`、`enabled: true`、`reuse_existing_login: true`、一条已获准 `openai` 路由才执行。版本精确固定为已核验的 `0.163.0-alpha.10.2`；其他版本先阻断，不猜测兼容性。生产配置不能启用 fixture transport。
+只有明确配置 `adapter: "codex_cli"`、`enabled: true`、`reuse_existing_login: true`、一条已获准 `openai` 路由才执行。默认版本精确固定为已审阅的 `0.163.0-alpha.11`；显式配置也允许已审阅的 `0.163.0-alpha.10.2`，但每次执行必须与配置完全一致，不自动侦测或切换版本。其他版本先阻断，不接受通配或前缀匹配。生产配置不能启用 fixture transport。来源比对见 [alpha.11 兼容性记录](CODEX_ALPHA11_COMPATIBILITY.md)，静态审阅不等同于真实运行通过。
 
 ```json
 {
@@ -12,7 +12,7 @@
   "adapter": "codex_cli",
   "reuse_existing_login": true,
   "executable": ["C:\\path-to-existing-official-cli\\codex.exe"],
-  "expected_version": "0.163.0-alpha.10.2",
+  "expected_version": "0.163.0-alpha.11",
   "codex_home": "C:\\path-to-existing-user-home\\.codex",
   "routes": [{
     "provider_id": "openai",

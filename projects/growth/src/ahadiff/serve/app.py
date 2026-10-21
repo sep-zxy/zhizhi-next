@@ -120,6 +120,7 @@ from .routes_growth_knowledge import (
     growth_knowledge_material_generate,
     growth_knowledge_material_preview,
     growth_knowledge_note,
+    growth_knowledge_understanding,
     growth_knowledge_revise,
     growth_knowledge_split,
     growth_knowledge_sync_conflict_resolve,
@@ -352,6 +353,10 @@ def create_app(state: ServeState, *, viewer_dist: Path | None = None) -> Starlet
                   growth_knowledge_mark, methods=["PUT"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/note",
                   growth_knowledge_note, methods=["PUT"]),
+            Route("/api/growth/local/knowledge/cards/{card_id:uuid}/understanding/submissions",
+                  growth_knowledge_understanding, methods=["POST", "GET"]),
+            Route("/api/growth/local/knowledge/cards/{card_id:uuid}/understanding/submissions/"
+                  "{submission_id:str}", growth_knowledge_understanding, methods=["GET"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/chat",
                   growth_knowledge_chat, methods=["POST"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/chat/stream",

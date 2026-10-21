@@ -23,3 +23,17 @@ export function learningUrl(view: ZhizhiView, project = '', card = ''): string {
   if (card) query.set('card', card);
   return '/growth?' + query;
 }
+
+const lastCardKey = 'zhizhi:last-opened-card';
+export function lastOpenedLearningCard(): string {
+  try { return localStorage.getItem(lastCardKey) ?? ''; } catch { return ''; }
+}
+export function rememberLearningCard(cardId: string): void {
+  // A navigation hint only. Server card permissions, version and conversation remain authoritative.
+  try { localStorage.setItem(lastCardKey, cardId); } catch { /* Private storage can be unavailable. */ }
+}
+export function resumeLearningCard(cards: KnowledgeCard[], lastCardId: string): KnowledgeCard | undefined {
+  return cards.find(card => card.card_id === lastCardId)
+    ?? cards.find(card => card.learning_stage && !['front', 'completed'].includes(card.learning_stage))
+    ?? cards[0];
+}

@@ -75,7 +75,7 @@ Pi 的 before_provider_request 事件异常会被运行时捕获，不能作为�
 
 ## 可选 Codex CLI 现有登录适配
 
-`adapter` 缺省仍为 `pi`。仅显式 `adapter="codex_cli"` 使用 `CodexModelRunner/CodexRunnerConfig`，详见 [完整契约与限制](CODEX_CLI_ADAPTER.md)。允许官方 Codex CLI 自己复用已有 ChatGPT 登录，不读取/搬运认证文件，不接受 API key、代理地址或备用 provider。版本精确核对 0.163.0-alpha.10.2。
+`adapter` 缺省仍为 `pi`。仅显式 `adapter="codex_cli"` 使用 `CodexModelRunner/CodexRunnerConfig`，详见 [完整契约与限制](CODEX_CLI_ADAPTER.md)。允许官方 Codex CLI 自己复用已有 ChatGPT 登录，不读取/搬运认证文件，不接受 API key、代理地址或备用 provider。默认精确核对 0.163.0-alpha.11；显式配置也允许已审阅的 0.163.0-alpha.10.2，不自动切换、通配或降级。
 
 `ModelResult` 新增可选 `requested_model_id: str | None = None`。Codex exec JSONL 不提供可信实际型号时，精确请求模型在此字段，`model_id=None`；不可混写或把模型自报当元数据。已有 Pi 的实际 `model_id` 行为不变。领域等待/失败审计保留两个字段。
 
