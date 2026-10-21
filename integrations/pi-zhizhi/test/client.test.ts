@@ -104,3 +104,8 @@ test("request bounds do not enable unsupported background or server history", ()
   assert.ok(!("previous_response_id" in payload));
   assert.throws(() => boundedPayload({}, "openai", 100000));
 });
+
+test("resource IDs reject a trailing newline rather than relying on dollar anchors", () => {
+  for (const value of ["entry-1\n", "entry-1\r", "entry-1\r\n"]) assert.throws(() => safeId(value), /INVALID_RESOURCE_ID/);
+  assert.equal(safeId("entry-1"), "entry-1");
+});

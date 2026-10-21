@@ -66,6 +66,6 @@ export async function readEntryContexts(cardId: string): Promise<{ items: Linked
   }));
   return value;
 }
-export const entryContextFailure = '未能确认精确版本或关联状态。请重新读取并核对权限与版本；不会自动重试、换成最新版或显示缓存正文。';
+export const entryContextFailure = '未能确认精确版本或关联状态。请重新读取并核对权限与版本；不会自动重试或换成最新版；不显示缓存正文。';
 
 export { entrySchema as formalEntrySchema };

@@ -237,8 +237,19 @@ def build(repo: Path, work: Path) -> dict:
 
     pi = repo / "integrations/pi-zhizhi"
     run("pi-locked-install", ["npm", "ci", "--ignore-scripts", "--no-audit", "--fund=false"], pi)
+    run("pi-intake-asgi-contract",
+        python("tests/integration/check_intake_pi_contract.py"), private_wiki)
     run("pi-types", ["npm", "run", "typecheck"], pi)
     run("pi-tests", ["npm", "test"], pi)
+    run("pi-tool-schema-contract",
+        ["node", "--import", "tsx", "test/bridge-schema-contract.mts"], pi)
+    # The explicit cross-language fixture is not collected by npm test. Bind
+    # its uv child to this already installed locked environment, never download
+    # another interpreter or implicitly install the source project.
+    run("pi-python-bridge-contract",
+        ["node", "--import", "tsx", "test/python-bridge-contract.mts"], pi,
+        extra={"VIRTUAL_ENV": sys.prefix, "UV_PYTHON": sys.executable,
+               "UV_PYTHON_DOWNLOADS": "never", "UV_OFFLINE": "1"})
     run("pi-runtime-build", ["node", "scripts/build-portable.mjs", str(work / "pi")], pi)
     run("pi-portable-tests", ["npm", "run", "test:portable"], pi,
         {"ZHIZHI_TEST_PI_COMPONENT": str(work / "pi")})

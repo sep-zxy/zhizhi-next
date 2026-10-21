@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from ..auth import Actor
+from ..auth import Actor, classification_labels, classify_record, enforce_read_classification
 from ..errors import DomainError, invalid
 from .contracts import IntakeError
 from .service import IntakeService
@@ -80,7 +80,38 @@ def _public_record(record: dict[str, Any]) -> dict[str, Any]:
     preview = record.get("preview")
     if isinstance(preview, dict):
         result["preview"] = {key: value for key, value in preview.items() if key != "cache_ref"}
+    # Classify the authorized original, not its redacted view: private labels
+    # nested in omitted payload/metadata must never disappear from the receipt.
+    result.update(_classification_fields(record))
     return result
+
+
+def _classification_fields(record: Any, *, default: str = "personal") -> dict[str, Any]:
+    return {
+        "data_classification": classify_record(record, default=default),
+        "classification_labels": sorted(classification_labels(record, default=default)),
+    }
+
+
+def _success(
+    data: dict[str, Any],
+    actor: Actor,
+    trace_id: str,
+    *,
+    status_code: int = 200,
+    default: str = "personal",
+) -> JSONResponse:
+    actor.require("knowledge:read")
+    enforce_read_classification(actor, data, default=default)
+    return JSONResponse(
+        {
+            "data": data,
+            "task_id": data.get("task_id"),
+            "trace_id": trace_id,
+            **_classification_fields(data, default=default),
+        },
+        status_code=status_code,
+    )
 
 
 def create_intake_routes(
@@ -108,15 +139,15 @@ def create_intake_routes(
                 limit=int(request.query_params.get("limit", "100")),
                 offset=int(request.query_params.get("offset", "0")),
             )
-            return JSONResponse(
+            return _success(
                 {
-                    "data": {
-                        "items": [_public_record(record) for record in page["items"]],
-                        "has_more": page["has_more"],
-                    },
-                    "task_id": None,
-                    "trace_id": trace_id,
-                }
+                    "items": [_public_record(record) for record in page["items"]],
+                    "has_more": page["has_more"],
+                },
+                actor,
+                trace_id,
+                # Empty authorized pages reveal no hidden records or labels.
+                default="public" if not page["items"] else "personal",
             )
         except DomainError as exc:
             return JSONResponse(exc.as_dict(trace_id), status_code=exc.status_code)
@@ -136,6 +167,10 @@ def create_intake_routes(
         trace_id = getattr(request.state, "trace_id", None) or uuid.uuid4().hex
         try:
             actor = _actor(request)
+            # Every successful operation returns an owned record. Reject a
+            # write-only principal before consuming input or committing effects;
+            # the response-time check remains defense in depth, not a write gate.
+            actor.require("knowledge:read")
             intake_id = request.path_params.get("intake_id")
             if request.method == "GET":
                 if intake_id is None:
@@ -146,8 +181,8 @@ def create_intake_routes(
                         record = service.expire(intake_id, actor=actor)
                     data = _public_record(record)
                     data["publication"] = service.publication_status(intake_id, actor=actor)
-                return JSONResponse(
-                    {"data": data, "task_id": data.get("task_id"), "trace_id": trace_id}
+                return _success(
+                    data, actor, trace_id, default="public" if intake_id is None else "personal"
                 )
             payload = await _body(request)
             key = _key(request)
@@ -175,9 +210,7 @@ def create_intake_routes(
                         trace_id=trace_id,
                     )
                 )
-                return JSONResponse(
-                    {"data": data, "task_id": data.get("task_id"), "trace_id": trace_id}
-                )
+                return _success(data, actor, trace_id)
             if intake_id is None:
                 allowed = {
                     "text",
@@ -201,7 +234,7 @@ def create_intake_routes(
                     not isinstance(external_id, str) or len(external_id) > 256
                 ):
                     raise IntakeError("INVALID_INPUT", "消息标识格式无效。", status_code=422)
-                data = service.receive(
+                receipt = service.receive(
                     payload,
                     actor=actor,
                     idempotency_key=key,
@@ -209,10 +242,11 @@ def create_intake_routes(
                     external_message_id=external_id,
                     trace_id=trace_id,
                 )
-                return JSONResponse(
-                    {"data": data, "task_id": data["task_id"], "trace_id": trace_id},
-                    status_code=202,
-                )
+                record = domain.read_intake(receipt["intake_id"], actor=actor)
+                data = _public_record(record)
+                data["receipt_id"] = receipt["receipt_id"]
+                data["publication"] = service.publication_status(record["intake_id"], actor=actor)
+                return _success(data, actor, trace_id, status_code=202)
             if set(payload) - {"decision", "preview_revision"}:
                 raise IntakeError("INVALID_INPUT", "决定请求包含不支持的字段。", status_code=422)
             if payload.get("decision") == "keep":
@@ -236,6 +270,7 @@ def create_intake_routes(
                     if key in source
                 }
                 data["state"] = "retained"
+                data.update(_classification_fields(source))
                 data["publication"] = service.publication_status(intake_id, actor=actor)
             elif payload.get("decision") == "discard":
                 data = _public_record(
@@ -251,9 +286,7 @@ def create_intake_routes(
                 raise IntakeError(
                     "INVALID_ACTION", "decision 必须为 keep 或 discard。", status_code=422
                 )
-            return JSONResponse(
-                {"data": data, "task_id": data.get("task_id"), "trace_id": trace_id}
-            )
+            return _success(data, actor, trace_id)
         except DomainError as exc:
             return JSONResponse(exc.as_dict(trace_id), status_code=exc.status_code)
         except IntakeError as exc:

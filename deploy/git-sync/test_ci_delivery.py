@@ -48,7 +48,16 @@ def fixture(root):
                  "app/backend/ahadiff/knowledge_platform/owner_identity.py",
                  "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
                  "app/backend/ahadiff/knowledge_platform/owner_browser.py",
-                 "app/backend/ahadiff/knowledge_platform/local_protection.py"):
+                 "owner-model-activate.cmd", "owner-model-start.cmd",
+                 "owner-pi-activate.cmd", "owner-pi-start.cmd", "app/pi/launch-codex-interactive.mjs",
+                 "app/backend/ahadiff/knowledge_platform/pi_acceptance.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_bridge.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_bridge_stdio.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_tools_v1.json",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_search_boundary.py",
+                "app/backend/ahadiff/knowledge_platform/owner_acceptance.py",
+                "app/backend/ahadiff/knowledge_platform/acceptance_model.py",
+                "app/backend/ahadiff/knowledge_platform/local_protection.py"):
         write(bundle / name, b"SYNTHETIC OFFLINE TEST BYTES, NOT A PRODUCT")
     write(bundle / "config/launch.json", {
         "owner": None, "identities_file": None, "model_config": None,
@@ -72,12 +81,34 @@ def fixture(root):
 
 
 class CandidateTests(unittest.TestCase):
+    def test_pi_cross_language_contracts_required_for_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle, original = fixture(Path(tmp))
+            for name in ("pi-tool-schema-contract", "pi-python-bridge-contract"):
+                self.assertIn(name, ci.REQUIRED_PHASES)
+                for status in (None, "failed", "skipped"):
+                    receipt = copy.deepcopy(original)
+                    receipt["phases"] = [phase for phase in receipt["phases"] if phase["phase"] != name]
+                    if status is not None:
+                        receipt["phases"].append({"phase": name, "status": status})
+                    with self.subTest(name=name, status=status), self.assertRaisesRegex(ValueError, "gate"):
+                        ci.validate_bundle(bundle, receipt, SOURCE)
+
     def test_owner_acceptance_runtime_components_are_mandatory(self):
         names = ("owner-acceptance-initialize.cmd", "owner-acceptance-pair.cmd", "owner-acceptance-start.cmd",
                  "app/backend/ahadiff/knowledge_platform/owner_identity.py",
                  "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
                  "app/backend/ahadiff/knowledge_platform/owner_browser.py",
-                 "app/backend/ahadiff/knowledge_platform/local_protection.py")
+                 "owner-model-activate.cmd", "owner-model-start.cmd",
+                 "owner-pi-activate.cmd", "owner-pi-start.cmd", "app/pi/launch-codex-interactive.mjs",
+                 "app/backend/ahadiff/knowledge_platform/pi_acceptance.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_bridge.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_bridge_stdio.py",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_tools_v1.json",
+                 "app/backend/ahadiff/knowledge_platform/model/pi_search_boundary.py",
+                "app/backend/ahadiff/knowledge_platform/owner_acceptance.py",
+                "app/backend/ahadiff/knowledge_platform/acceptance_model.py",
+                "app/backend/ahadiff/knowledge_platform/local_protection.py")
         for name in names:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 bundle, receipt = fixture(Path(tmp))
@@ -150,6 +181,19 @@ class CandidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             bundle, original = fixture(Path(tmp))
             name = "private-wiki-owner-asgi-contract"
+            self.assertIn(name, ci.REQUIRED_PHASES)
+            for status in (None, "failed", "skipped"):
+                receipt = copy.deepcopy(original)
+                receipt["phases"] = [phase for phase in receipt["phases"] if phase["phase"] != name]
+                if status is not None:
+                    receipt["phases"].append({"phase": name, "status": status})
+                with self.subTest(status=status), self.assertRaisesRegex(ValueError, "gate"):
+                    ci.validate_bundle(bundle, receipt, SOURCE)
+
+    def test_pi_intake_contract_cannot_be_missing_or_failed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle, original = fixture(Path(tmp))
+            name = "pi-intake-asgi-contract"
             self.assertIn(name, ci.REQUIRED_PHASES)
             for status in (None, "failed", "skipped"):
                 receipt = copy.deepcopy(original)

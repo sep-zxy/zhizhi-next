@@ -40,6 +40,52 @@ def private_report_fixture():
 
 
 class GitHubProductTests(unittest.TestCase):
+    def test_pi_cross_language_contract_failures_prevent_pi_product_build(self):
+        repo = HERE.resolve().parents[1]
+        for phase, script in (("pi-tool-schema-contract", "test/bridge-schema-contract.mts"),
+                              ("pi-python-bridge-contract", "test/python-bridge-contract.mts")):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp) / "product"
+                calls = []
+
+                def run(command, **kwargs):
+                    calls.append(command)
+                    if "--project=chromium-desktop" in command:
+                        report = learning_report_fixture()
+                    elif "--project=chromium-private" in command:
+                        report = private_report_fixture()
+                    else:
+                        report = None
+                    if report is not None:
+                        Path(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"]).write_text(json.dumps(report))
+                    if script in command:
+                        self.assertEqual(kwargs["cwd"], repo / "integrations/pi-zhizhi")
+                        self.assertEqual(command, ["node", "--import", "tsx", script])
+                        if phase == "pi-python-bridge-contract":
+                            for key, value in {"VIRTUAL_ENV": sys.prefix, "UV_PYTHON": sys.executable,
+                                               "UV_PYTHON_DOWNLOADS": "never", "UV_OFFLINE": "1"}.items():
+                                self.assertEqual(kwargs["env"][key], value)
+                        raise subprocess.CalledProcessError(1, "synthetic contract failure")
+
+                with patch.object(product, "github_identity", return_value={}), \
+                        patch.object(product.shutil, "copyfile"), \
+                        patch.object(product.subprocess, "run", side_effect=run), \
+                        self.assertRaises(subprocess.CalledProcessError):
+                    product.build(repo, output)
+                phases = json.loads((output / "evidence/build-phases.json").read_text())
+                names = [item["phase"] for item in phases]
+                self.assertLess(names.index("pi-locked-install"), names.index(phase))
+                self.assertEqual(phases[-1]["phase"], phase)
+                self.assertEqual(phases[-1]["status"], "failed")
+                self.assertNotIn("pi-runtime-build", names)
+                self.assertFalse((output / "bundle").exists())
+
+    def test_pi_intake_contract_is_required_after_locked_install_before_build(self):
+        text = (HERE / "build_github_product.py").read_text()
+        self.assertIn('python("tests/integration/check_intake_pi_contract.py"), private_wiki)', text)
+        self.assertLess(text.index('run("pi-locked-install",'), text.index('run("pi-intake-asgi-contract",'))
+        self.assertLess(text.index('run("pi-intake-asgi-contract",'), text.index('run("pi-runtime-build",'))
+
     def test_no_local_build_or_identity_spoofing_fallback(self):
         with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(ValueError, "GitHub-hosted"):
             product.github_identity(HERE)

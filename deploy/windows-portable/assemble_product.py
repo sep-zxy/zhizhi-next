@@ -17,9 +17,10 @@ IGNORED_PARTS={'__pycache__','.pytest_cache','.git'}
 def write_launchers(bundle):
  for action in ['start','stop','diagnostics','publish',
                 'local-test-start','local-test-initialize','local-test-pair',
-                'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair']:
+                'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair',
+                'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start']:
   arguments=' %*' if action in {'local-test-initialize','local-test-pair',
-                               'owner-acceptance-initialize','owner-acceptance-pair'} else ''
+                               'owner-acceptance-initialize','owner-acceptance-pair','owner-model-activate','owner-pi-activate'} else ''
   text='@echo off\r\nsetlocal\r\ncd /d "%~dp0"\r\n"%~dp0runtime\\python\\python.exe" -B -s -X utf8 "%~dp0app\\launcher.py" '+action+arguments+'\r\nset "EXITCODE=%ERRORLEVEL%"\r\nif not "%EXITCODE%"=="0" pause\r\nexit /b %EXITCODE%\r\n'
   (bundle/(action+'.cmd')).write_bytes(text.encode('ascii'))
  # This wrapper passes only explicit operator arguments. It never calls a

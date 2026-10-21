@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "zhizhi_intake",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 250000
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_job_status",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_search",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_read_entry",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_propose_patch",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "base_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 250000
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                    },
+                    "content_hash": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "source_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "learning_outcome_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                    },
+                    "content_hash": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "learning_outcome_id"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 40
+          },
+          "risk_flags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "base_revision",
+          "title",
+          "body",
+          "evidence_refs",
+          "risk_flags"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_relations",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "const": "navigation",
+                  "type": "string"
+                },
+                {
+                  "const": "confirmed",
+                  "type": "string"
+                },
+                {
+                  "const": "candidate",
+                  "type": "string"
+                }
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "const": "in",
+                "type": "string"
+              },
+              {
+                "const": "out",
+                "type": "string"
+              },
+              {
+                "const": "both",
+                "type": "string"
+              }
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "const": "public",
+                "type": "string"
+              }
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_traverse_relations",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "const": "navigation",
+                  "type": "string"
+                },
+                {
+                  "const": "confirmed",
+                  "type": "string"
+                },
+                {
+                  "const": "candidate",
+                  "type": "string"
+                }
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "const": "in",
+                "type": "string"
+              },
+              {
+                "const": "out",
+                "type": "string"
+              },
+              {
+                "const": "both",
+                "type": "string"
+              }
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "const": "public",
+                "type": "string"
+              }
+            ]
+          },
+          "max_depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "max_nodes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_review_queue",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_radar",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_growth",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # 知枝 Pi 订阅集成
 
+P15 新主验收入口使用独立的 [Codex CLI 原生 Provider 薄桥](CODEX_PROVIDER.md)，
+固定 `launch-codex-interactive.mjs`、`zhizhi-codex-cli / gpt-6.1-sol`，不走下文旧 Pi OAuth 路线。
+下文已有显式路线与后台 model-guard 保留；两条路线之间没有自动回退。
+
 ## 本次恢复与依赖精简
 
 从持久基线 `33b4dc1` 重新应用最小清理，不能视为找回遗失提交或继承其测试结果。

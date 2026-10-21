@@ -160,7 +160,9 @@ def owner_desktop_config(port):
  if not within('data/owner-acceptance/desktop').is_dir():raise RuntimeError('Owner acceptance desktop state is missing')
  return file
 
-def platform_command(config,local_test=False,owner_acceptance=False,learning_viewer_port=None):
+def platform_command(config,local_test=False,owner_acceptance=False,learning_viewer_port=None,owner_model=False,owner_pi=False):
+ if owner_pi and not owner_model:raise ValueError("Pi scope requires the separate fixed model scope")
+ if owner_model and (not owner_acceptance or local_test):raise ValueError("Model scope requires its separate owner profile")
  if not isinstance(config,dict):raise ValueError('Invalid launch configuration')
  if local_test and owner_acceptance:raise ValueError('Identity policies cannot be mixed')
  if 'learning_viewer_url' in config or 'learning_viewer_port' in config:
@@ -196,6 +198,13 @@ def platform_command(config,local_test=False,owner_acceptance=False,learning_vie
   if not identity.is_file() or not within('data/owner-acceptance/platform').is_dir():
    raise RuntimeError('Explicit owner acceptance initialization is incomplete')
   owner_desktop_config(port)
+  if owner_model:
+   source,release=owner_release_binding()
+   args=[sys.executable,"-B","-s","-X","utf8","-m","ahadiff.knowledge_platform.owner_acceptance",
+         "--serve-activated-pi-scope" if owner_pi else "--serve-activated-scope","--expected-source",source,"--expected-release",release]
+   if learning_viewer_port is not None:
+    args.extend(["--learning-viewer-url",f"http://127.0.0.1:{learning_viewer_port}/"])
+   return args,port,"configured"
   args.extend(['--owner-dpapi-identity',str(identity),'--owner','portable-operational-acceptance',
                '--owner-browser-actor','portable-acceptance-person'])
   return args,port,'configured'
@@ -224,7 +233,7 @@ def platform_command(config,local_test=False,owner_acceptance=False,learning_vie
  for provider in config.get('providers',[]):args.extend(['--provider',provider])
  return args,port,'configured'
 
-def start(env,local_test=False,owner_acceptance=False):
+def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False):
  import msvcrt
  lock_path=within('data/launcher.lock');lock_path.parent.mkdir(parents=True,exist_ok=True)
  lock=lock_path.open('a+b');lock.seek(0);lock.write(b'0');lock.flush();lock.seek(0)
@@ -239,7 +248,7 @@ def start(env,local_test=False,owner_acceptance=False):
  # Allocate once before platform startup. A collision or later bind failure is
  # fatal, never a reason to scan ports or advertise a different viewer URL.
  viewer_port=None if local_test else free_port()
- args,port,authentication_status=platform_command(config,local_test,owner_acceptance,viewer_port)
+ args,port,authentication_status=platform_command(config,local_test,owner_acceptance,viewer_port,owner_model,owner_pi)
  proc=spawn(args,'platform',env);await_health(proc,port,'platform',authentication_status)
  status.update(unified_platform='running_auth_required' if configured else 'waiting_auth',
                platform_url=f'http://127.0.0.1:{port}',
@@ -251,6 +260,7 @@ def start(env,local_test=False,owner_acceptance=False):
  if owner_acceptance:
   status.update(fixture=False,mode='owner-acceptance',browser_authentication='pairing_required',
                 pi='disabled_in_owner_acceptance',model='disabled',worker='disabled')
+  if owner_model:status.update(mode='owner-fixed-material-acceptance',model='bounded_scope_not_verified',worker='fixed_scope_enabled',publication='disabled')
   viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(owner_desktop_config(port))
  if identities:
   # Desktop config is an authorized deployment input, not generated credentials.
@@ -265,6 +275,11 @@ def start(env,local_test=False,owner_acceptance=False):
   await_health(proc,viewer_port,'viewer')
   status.update(viewer='running',viewer_url=f'http://127.0.0.1:{viewer_port}/',viewer_mode='unified_configured_not_verified' if viewer_env.get('AHADIFF_KNOWLEDGE_CONFIG') else 'standalone_not_unified')
  url=status['private_wiki_url']
+ if owner_pi:
+  pi_env=dict(env);pi_env.update(owner_pi_environment())
+  spawn([str(ROOT/'runtime/node/node.exe'),'--no-experimental-strip-types',str(ROOT/'app/pi/launch-codex-interactive.mjs')],
+        'pi',pi_env,cwd=within('data/owner-acceptance/pi'),new_console=True)
+  status.update(pi='fixed_read_search_started_not_verified',mode='owner-pi-read-search-acceptance')
  if identities and config.get('pi_environment_file'):
   pi_config=json.loads(within(config['pi_environment_file']).read_text(encoding='utf-8'))
   permitted={'ZHIZHI_MODEL_PROVIDER','ZHIZHI_MODEL_ID','ZHIZHI_AGENT_TOKEN','ZHIZHI_USER_TOKEN','ZHIZHI_CHINA_TERMS_VERIFIED','ZHIZHI_MAX_OUTPUT_TOKENS'}
@@ -352,12 +367,32 @@ def parse_arguments(argv=None):
  parser=argparse.ArgumentParser()
  parser.add_argument('action',choices=['start','stop','diagnostics','publish',
                                      'local-test-start','local-test-initialize','local-test-pair',
-                                     'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair'])
+                                     'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair',
+                                     'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start'])
  parser.add_argument('--approve-local-test-identity',action='store_true')
  parser.add_argument('--approve-owner-acceptance-identity',action='store_true')
+ parser.add_argument('--approve-owner-acceptance-model',action='store_true')
+ parser.add_argument('--approve-owner-pi-search',action='store_true')
+ parser.add_argument('--expected-source')
+ parser.add_argument('--expected-release')
+ parser.add_argument('--codex-exe')
+ parser.add_argument('--codex-home')
  parser.add_argument('--port',type=int)
  parser.add_argument('--pairing-code')
  args=parser.parse_args(argv)
+ model_fields=[args.expected_source,args.expected_release,args.codex_exe,args.codex_home]
+ if args.action=="owner-model-activate":
+  if not args.approve_owner_acceptance_model or not all(model_fields) or args.approve_owner_pi_search:
+   parser.error("Explicit fixed-release model activation arguments required")
+ elif args.action=="owner-pi-activate":
+  if (not args.approve_owner_pi_search or not args.expected_source or not args.expected_release
+      or args.approve_owner_acceptance_model or args.codex_exe or args.codex_home):
+   parser.error("Separate explicit Pi search activation arguments required")
+ elif args.approve_owner_acceptance_model or args.approve_owner_pi_search or any(value is not None for value in model_fields):
+  parser.error("Activation arguments require their separate activation action")
+ if args.action in {"owner-model-activate","owner-pi-activate"}:
+  if not re.fullmatch(r"[0-9a-f]{40}",args.expected_source):parser.error("Invalid source commit")
+  if not re.fullmatch(re.escape(args.expected_source[:12])+r"-[0-9]+-[0-9]+",args.expected_release):parser.error("Invalid release binding")
  if args.action=='local-test-initialize':
   if not args.approve_local_test_identity:parser.error('Explicit --approve-local-test-identity is required')
   if args.port is not None and not 1024 <= args.port <= 65535:parser.error('Invalid local-test port')
@@ -409,6 +444,54 @@ def run_owner_acceptance_identity(args):
   module.main()
  finally:sys.argv=previous
 
+def owner_release_binding():
+ record=json.loads(within('release.json').read_text(encoding='utf-8'))
+ source=record.get('source_commit');release=record.get('release_id')
+ if (not isinstance(source,str) or not re.fullmatch(r'[0-9a-f]{40}',source)
+     or not isinstance(release,str) or not re.fullmatch(re.escape(source[:12])+r'-[0-9]+-[0-9]+',release)
+     or ROOT.name!=release):raise ValueError('Exact versioned release is required')
+ return source,release
+
+def run_owner_model_activation(args):
+ if args.action!='owner-model-activate' or not args.approve_owner_acceptance_model:
+  raise ValueError('Explicit model scope activation required')
+ source,release=owner_release_binding()
+ if (args.expected_source,args.expected_release)!=(source,release):raise ValueError('Release changed')
+ module=importlib.import_module('ahadiff.knowledge_platform.owner_acceptance')
+ previous=sys.argv
+ try:
+  sys.argv=['ahadiff.knowledge_platform.owner_acceptance','--approve-owner-acceptance-model',
+            '--expected-source',source,'--expected-release',release,
+            '--codex-exe',args.codex_exe,'--codex-home',args.codex_home]
+  module.main()
+ finally:sys.argv=previous
+
+
+def run_owner_pi_activation(args):
+ if args.action!='owner-pi-activate' or not args.approve_owner_pi_search:
+  raise ValueError('Separate explicit Pi scope activation required')
+ source,release=owner_release_binding()
+ if (args.expected_source,args.expected_release)!=(source,release):raise ValueError('Release changed')
+ module=importlib.import_module('ahadiff.knowledge_platform.pi_acceptance')
+ previous=sys.argv
+ try:
+  sys.argv=['ahadiff.knowledge_platform.pi_acceptance','--approve-owner-pi-search',
+            '--expected-source',source,'--expected-release',release]
+  module.main()
+ finally:sys.argv=previous
+
+def owner_pi_environment():
+ module=importlib.import_module('ahadiff.knowledge_platform.pi_acceptance')
+ values=module.child_environment(ROOT)
+ expected={'ZHIZHI_MODEL_PROVIDER','ZHIZHI_MODEL_ID','ZHIZHI_AGENT_TOKEN','ZHIZHI_API_URL',
+           'ZHIZHI_ALLOWED_CLASSIFICATIONS','ZHIZHI_PI_PYTHON','PI_CODING_AGENT_DIR','PI_CODING_AGENT_SESSION_DIR'}
+ if set(values)!=expected or any(not isinstance(v,str) for v in values.values()):
+  raise ValueError('Invalid fixed Pi child environment')
+ if (values['ZHIZHI_MODEL_PROVIDER']!='zhizhi-codex-cli' or values['ZHIZHI_MODEL_ID']!='gpt-6.1-sol'
+     or values['ZHIZHI_PI_PYTHON']!=str(within('runtime/python/python.exe'))):
+  raise ValueError('Unexpected Pi runtime route')
+ return values
+
 def main():
  args=parse_arguments()
  if sys.platform!='win32':raise RuntimeError('Windows runtime only')
@@ -418,6 +501,14 @@ def main():
   if not within('data').is_dir():print('This package is not running.');return
   within('data/stop.request').write_text('stop\n',encoding='ascii');print('Stop requested for this package only.');return
  verify_distribution()
+ if args.action=="owner-pi-activate":
+  env=isolated_environment();os.environ.clear();os.environ.update(env)
+  run_owner_pi_activation(args)
+  return
+ if args.action=="owner-model-activate":
+  env=isolated_environment();os.environ.clear();os.environ.update(env)
+  run_owner_model_activation(args)
+  return
  if args.action in {'local-test-initialize','local-test-pair'}:
   env=isolated_environment();os.environ.clear();os.environ.update(env)
   run_local_test_identity(args)
@@ -434,7 +525,10 @@ def main():
  result=diagnose(env)
  if args.action=='diagnostics':print(json.dumps(result,ensure_ascii=False,indent=2));return
  if args.action=='publish':publish(env);return
- start(env,local_test=args.action=='local-test-start',owner_acceptance=args.action=='owner-acceptance-start')
+ start(env,local_test=args.action=='local-test-start',
+       owner_acceptance=args.action in {'owner-acceptance-start','owner-model-start','owner-pi-start'},
+       owner_model=args.action in {'owner-model-start','owner-pi-start'},
+       owner_pi=args.action=='owner-pi-start')
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':

@@ -51,7 +51,7 @@ export function assertDomainClassification(
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/;
 export function safeId(value: string): string {
-  if (!ID.test(value)) throw new Error("INVALID_RESOURCE_ID");
+  if (ID.exec(value)?.[0] !== value) throw new Error("INVALID_RESOURCE_ID");
   return encodeURIComponent(value);
 }
 

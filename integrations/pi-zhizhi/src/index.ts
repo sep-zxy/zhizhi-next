@@ -1,8 +1,12 @@
 /** Audited Pi 1.3.0 domain tools. Formal knowledge remains owned by the HTTP service. */
 import { randomUUID } from "node:crypto";
-import { Type } from "@earendil-works/pi-ai";
+import { Type, type Tool } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { DomainClient, requestKey, safeId, type Envelope } from "./client.ts";
+import { CodexBridgeProvider } from "./codex-provider.ts";
+import { spawnPackagedBridge } from "./codex-bridge-transport.ts";
+import { BRIDGE_PROVIDER } from "./codex-bridge-protocol.ts";
+import { installCodexProvider } from "./codex-extension.ts";
 import { installSubscriptionPolicy } from "./subscription-policy.ts";
 
 const ResourceId = Type.String({ minLength: 1, maxLength: 200, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$" });
@@ -41,8 +45,9 @@ export const decisionFields = (record: Record<string, unknown> | null): string =
   ].map((key) => [key, record[key] ?? null])), null, 2,
 );
 
-export default function zhizhi(pi: ExtensionAPI): void {
-  installSubscriptionPolicy(pi);
+export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools: Tool[]) => CodexBridgeProvider }): void {
+  const useBridge = !!dependencies || process.env.ZHIZHI_MODEL_PROVIDER === BRIDGE_PROVIDER;
+  if (!useBridge) installSubscriptionPolicy(pi);
   const baseUrl = process.env.ZHIZHI_API_URL ?? "http://127.0.0.1:8766";
   // Clients are lazy so missing configuration does not break Pi startup.
   const agentClient = () => new DomainClient(baseUrl, process.env.ZHIZHI_AGENT_TOKEN ?? "");
@@ -143,15 +148,29 @@ export default function zhizhi(pi: ExtensionAPI): void {
       },
     }),
   ];
-  for (const tool of tools) pi.registerTool(tool);
+  const bridge = useBridge ? (dependencies?.bridge(tools) ?? new CodexBridgeProvider(tools, spawnPackagedBridge)) : undefined;
+  if (bridge) installCodexProvider(pi, bridge);
+  for (const tool of tools) {
+    if (bridge) {
+      const execute = tool.execute;
+      tool.execute = (async (...args: Parameters<typeof execute>) => {
+        bridge.claimExecution(args[0], tool.name, args[1]);
+        return (execute as (...params: any[]) => any)(...args);
+      }) as typeof execute;
+    }
+    pi.registerTool(tool);
+  }
   const allowed = new Set(tools.map((tool) => tool.name));
-  pi.on("session_start", () => { pi.setActiveTools([...allowed]); });
+  if (!bridge) pi.on("session_start", () => { pi.setActiveTools([...allowed]); });
   pi.on("cache_warming_decision", () => ({ action: "stop" }));
-  pi.on("tool_call", (event) => allowed.has(event.toolName) ? undefined :
+  pi.on("tool_call", (event) => allowed.has(event.toolName) && (!bridge || (!event.parentToolCallId && bridge.canExecute(event.toolCallId, event.toolName, event.input))) ? undefined :
     { block: true, reason: "Only audited Zhizhi domain tools are permitted" });
   pi.on("user_bash", () => ({ result: { output: "Shell is disabled in the knowledge host", exitCode: 1,
                                        cancelled: false, truncated: false } }));
 
+  // The read-only bridge slot receives no human identity: do not advertise approval commands.
+  // Existing explicit routes keep their original TUI-only confirmation semantics.
+  if (bridge && !process.env.ZHIZHI_USER_TOKEN) return;
   for (const decision of ["keep", "discard"] as const) {
     pi.registerCommand(`zhizhi-${decision}`, {
       description: `${decision === "keep" ? "收藏" : "丢弃"}指定预览，必须本人确认`,

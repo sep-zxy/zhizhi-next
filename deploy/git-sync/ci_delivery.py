@@ -33,6 +33,8 @@ REQUIRED_PHASES = {
     "private-wiki-domain-capture", "private-wiki-domain-contract",
     "private-wiki-production-build",
     "private-wiki-browser-install", "private-wiki-browser-fixtures",
+    "pi-intake-asgi-contract",
+    "pi-tool-schema-contract", "pi-python-bridge-contract",
     "pi-types", "pi-tests", "pi-runtime-build", "pi-portable-tests", "licensed-fonts-exact-hash",
     "wiki-types", "wiki-core-tests", "wiki-independent-template-capture",
     "wiki-runtime-compile", "wiki-runtime-package", "wiki-dynamic-fixture-gates",
@@ -117,6 +119,15 @@ def validate_bundle(bundle: Path, receipt: dict, expected_source: str) -> dict:
                 "app/backend/ahadiff/knowledge_platform/owner_identity.py",
                 "app/backend/ahadiff/knowledge_platform/owner_pairing.py",
                 "app/backend/ahadiff/knowledge_platform/owner_browser.py",
+                "owner-model-activate.cmd", "owner-model-start.cmd",
+                "owner-pi-activate.cmd", "owner-pi-start.cmd", "app/pi/launch-codex-interactive.mjs",
+                "app/backend/ahadiff/knowledge_platform/pi_acceptance.py",
+                "app/backend/ahadiff/knowledge_platform/model/pi_bridge.py",
+                "app/backend/ahadiff/knowledge_platform/model/pi_bridge_stdio.py",
+                "app/backend/ahadiff/knowledge_platform/model/pi_tools_v1.json",
+                "app/backend/ahadiff/knowledge_platform/model/pi_search_boundary.py",
+                "app/backend/ahadiff/knowledge_platform/owner_acceptance.py",
+                "app/backend/ahadiff/knowledge_platform/acceptance_model.py",
                 "app/backend/ahadiff/knowledge_platform/local_protection.py"}
     if not required <= set(actual):
         raise ValueError("Candidate lacks required runnable components")
