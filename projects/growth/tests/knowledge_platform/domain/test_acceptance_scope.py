@@ -279,7 +279,10 @@ def test_factory_never_initializes_or_activates_missing_scope(package):
     assert list((package[0] / "data/owner-acceptance/platform").iterdir()) == []
 
 
-def test_factory_installs_only_fixed_scope_and_never_calls_model_on_construction(package):
+@pytest.mark.parametrize("search_only", [False, True])
+def test_factory_installs_only_fixed_scope_and_never_calls_model_on_construction(
+    package, search_only
+):
     from ahadiff.knowledge_platform.auth import Actor
     from ahadiff.knowledge_platform.owner_identity import ACTOR, OWNER
 
@@ -291,11 +294,21 @@ def test_factory_installs_only_fixed_scope_and_never_calls_model_on_construction
         OWNER, ACTOR, "user", frozenset({"knowledge:read", "knowledge:write", "knowledge:review"})
     )
     assert activate(package) == "activated_not_started"
-    with patch("ahadiff.knowledge_platform.model.codex_runner.CodexModelRunner.run") as model:
+    from ahadiff.knowledge_platform.app import create_application
+
+    with (
+        patch("ahadiff.knowledge_platform.model.codex_runner.CodexModelRunner.run") as model,
+        patch("ahadiff.knowledge_platform.pi_acceptance.install_boundary") as boundary,
+        patch(
+            "ahadiff.knowledge_platform.app.create_application", wraps=create_application
+        ) as factory,
+    ):
         app = activation.create_activated_application(
             expected_source=SOURCE,
             expected_release=RELEASE,
             learning_viewer_url="http://127.0.0.1:9000/",
+            pi_scope=search_only,
+            pi_search_only=search_only,
         )
         try:
             assert app.state.workflow.settings.auto_commit_enabled is True
@@ -310,8 +323,17 @@ def test_factory_installs_only_fixed_scope_and_never_calls_model_on_construction
                 == 5
             )
             model.assert_not_called()
+            assert factory.call_args.kwargs["start_worker"] is (not search_only)
+            assert boundary.call_count == int(search_only)
         finally:
             app.state.domain.close()
+
+
+def test_search_only_mode_cannot_enable_an_unrelated_scope():
+    with pytest.raises(AcceptanceScopeError, match="PI_SEARCH_ONLY_REQUIRES_PI_SCOPE"):
+        activation.create_activated_application(
+            expected_source=SOURCE, expected_release=RELEASE, pi_search_only=True
+        )
 
 
 def test_factory_verifies_the_actual_launcher_viewer_store_without_fallback(package):

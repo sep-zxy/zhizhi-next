@@ -33,4 +33,9 @@ test('launcher fixed tool allowlist matches registered audited tools; built-ins 
   assert.deepEqual(match[1].split(',').sort(),registeredTools().map(t=>t.name).sort());
   for(const flag of ['--no-builtin-tools','--no-mcp','--no-extensions','--no-context-files','--no-session','--no-skills'])assert.ok(source.includes(`'${flag}'`));
   assert.ok(!source.includes("'auth', 'check'")); assert.ok(!source.includes('launch-interactive.mjs'));
+  assert.ok(source.includes("process.argv[2] === '--once-json'"));
+  assert.ok(source.includes("...(once ? ['--mode', 'json'] : [])"));
+  const rejected=spawnSync(process.execPath,[launcher,'--once-json','--model','other'],{encoding:'utf8'});
+  assert.notEqual(rejected.status,0);
+  assert.match(rejected.stderr,/INTERACTIVE_ARGUMENT_OVERRIDES_FORBIDDEN/);
 });

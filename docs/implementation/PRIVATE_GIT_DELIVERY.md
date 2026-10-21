@@ -35,7 +35,7 @@ Actions 完成。Windows 只通过 Git 取成品、校验并运行。早期云�
 
 源树预备从已提交的 Git blob 读取，不复制目录中的未跟踪文件。
 禁止私有路径、身份文件、运行数据、归档和不明二进制；原项目必要字体与图标保留。
-两个源文件 `deploy/windows-portable/runtime/{launcher,windows_job}.py`
+三个源文件 `deploy/windows-portable/runtime/{launcher,windows_job,pi_once}.py`
 是明确列出的启动器源码例外，不是运行时发行包。
 
 ## 本地生成

@@ -368,7 +368,7 @@ def parse_arguments(argv=None):
  parser.add_argument('action',choices=['start','stop','diagnostics','publish',
                                      'local-test-start','local-test-initialize','local-test-pair',
                                      'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair',
-                                     'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start'])
+                                     'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start','owner-pi-once'])
  parser.add_argument('--approve-local-test-identity',action='store_true')
  parser.add_argument('--approve-owner-acceptance-identity',action='store_true')
  parser.add_argument('--approve-owner-acceptance-model',action='store_true')
@@ -525,6 +525,10 @@ def main():
  result=diagnose(env)
  if args.action=='diagnostics':print(json.dumps(result,ensure_ascii=False,indent=2));return
  if args.action=='publish':publish(env);return
+ if args.action=='owner-pi-once':
+  from pi_once import run_once
+  run_once(sys.modules[__name__],env)
+  return
  start(env,local_test=args.action=='local-test-start',
        owner_acceptance=args.action in {'owner-acceptance-start','owner-model-start','owner-pi-start'},
        owner_model=args.action in {'owner-model-start','owner-pi-start'},
@@ -532,14 +536,24 @@ def main():
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':
-  if sys.platform!='win32' or sys.stdin.buffer.readline()!=b'GO\n':sys.exit(2)
+  if sys.platform!='win32':sys.exit(2)
+  # Read exactly the gate bytes without buffering away the following Pi prompt.
+  gate=b''
+  while len(gate)<3:
+   part=os.read(sys.stdin.fileno(),3-len(gate))
+   if not part:sys.exit(2)
+   gate+=part
+  if gate!=b'GO\n':sys.exit(2)
   command=json.loads(sys.argv[2])
   if sys.argv[3]=='console':
    with open('CONIN$','rb',buffering=0) as inp,open('CONOUT$','wb',buffering=0) as out:
     sys.exit(subprocess.call(command,stdin=inp,stdout=out,stderr=out))
+  if sys.argv[3]=='pipe':sys.exit(subprocess.call(command,stdin=sys.stdin.buffer))
   sys.exit(subprocess.call(command,stdin=subprocess.DEVNULL))
  try:main()
- except KeyboardInterrupt:print('Stopped.')
+ except KeyboardInterrupt:
+  print('Stopped.')
+  if len(sys.argv)>1 and sys.argv[1]=='owner-pi-once':sys.exit(130)
  except Exception as error:
   # No configuration contents or subprocess output are echoed into reports.
   report={'status':'blocked','error_type':type(error).__name__,'message':str(error),'live_e2e':'not_run'}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import json
 import shutil
 from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import urlencode
@@ -191,6 +192,70 @@ def test_two_real_bridge_turns_need_actual_model_tool_and_signed_tool_receipt(sl
     assert transport.run.await_count == 2  # Same-process exact replay is local only.
     with pytest.raises(AcceptanceScopeError):
         scope.reserve_search("another-trace")
+
+
+def test_completion_summary_checks_signed_offline_fixture_results_without_printing_text(slot):
+    # Synthetic transport metadata exercises checks, never counts as live acceptance.
+    scope = enabled(slot)
+    instance, transport = bridge(scope)
+    with patch.object(pi, "active_scope", return_value=scope):
+        with pytest.raises(AcceptanceScopeError):
+            pi.completion_summary(scope.context.root)
+        initial = request()
+        first = asyncio.run(instance.turn(initial))
+        with pytest.raises(AcceptanceScopeError):
+            pi.completion_summary(scope.context.root)
+        second = after_tool(scope, initial, first)
+        assert asyncio.run(instance.turn(second))["status"] == "succeeded"
+        summary = pi.completion_summary(scope.context.root)
+        assert summary["status"] == "pi_source_search_verified"
+        assert summary["final_delivery"] is False
+        assert "Synthetic match" not in json.dumps(summary)
+        assert (
+            pi.completion_summary(
+                scope.context.root,
+                answer_sha256=hashlib.sha256(b"Synthetic match").hexdigest(),
+                search_result_hash=canonical_hash(scope.receipts.read("search-result")["envelope"]),
+            )
+            == summary
+        )
+        for wrong in ({"answer_sha256": "0" * 64}, {"search_result_hash": "0" * 64}):
+            with pytest.raises(AcceptanceScopeError):
+                pi.completion_summary(scope.context.root, **wrong)
+        assert transport.run.await_count == 2
+        original_read = scope.receipts.read
+        for key in ("model-result:1", "model-result:2", "search-attempt", "search-result"):
+            with (
+                patch.object(
+                    scope.receipts,
+                    "read",
+                    side_effect=lambda name, key=key: (
+                        None if name == key else original_read(name)
+                    ),
+                ),
+                pytest.raises(AcceptanceScopeError),
+            ):
+                pi.completion_summary(scope.context.root)
+        for field, value in (
+            ("fixture", True),
+            ("result_hash", "wrong"),
+            ("input_fingerprint", "wrong"),
+            ("status", "failed"),
+        ):
+            corrupted = copy.deepcopy(original_read("model-result:2"))
+            corrupted["result"][field] = value
+            with (
+                patch.object(
+                    scope.receipts,
+                    "read",
+                    side_effect=lambda name, corrupted=corrupted: (
+                        corrupted if name == "model-result:2" else original_read(name)
+                    ),
+                ),
+                pytest.raises(AcceptanceScopeError),
+            ):
+                pi.completion_summary(scope.context.root)
+        assert transport.run.await_count == 2
 
 
 @pytest.mark.parametrize(

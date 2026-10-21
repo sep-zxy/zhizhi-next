@@ -23,6 +23,16 @@
 
 ## 凭据与文件边界
 
+### 固定单次 CLI 入口
+
+`owner-pi-once.cmd` 是同一既有激活下的可测试单次入口，不接受 prompt、模型、路径或批准参数，也不自动激活。原 `owner-pi-start.cmd` TUI 不变。单次入口持有相同 launcher 锁，只启动已有受限平台的 `--pi-search-only` 服务（五阶段 worker 关闭），不启动浏览器或学习 viewer。
+
+同一 Node 包装仅额外接受内部 `--once-json`，使用锁定 Pi 1.3.0 官方 `--mode json` 单次 agent loop。父进程先把等待门闩的 helper 纳入现有 Windows kill-on-close Job，再通过私有 stdin 管道发送源码固定 `PI_PROMPT` 的原样 UTF-8 字节并关闭输入。Pi 自己生成工具建议、执行真实 search 并完成第二轮；不得手工造 assistant/tool 消息或直接替换为模型 runner。
+
+stdout/stderr 持续有界读取，模型文本和诊断不写日志、不回显；仅在内存核对两条 assistant 消息及一次 search 完成事件。正常进程退出还必须独立验证同 release 的签封模型/检索回执与当前源，匹配非空才写 `reports/pi-once.json` 的固定状态、计数和来源摘要。错误、超时、取消及输出过量均失败关闭并清理本任务 Job。两槽与一次 search 的既有占用规则完全不变；已有任一尝试会阻止重新执行，启动失败不是预算退款。此结果只证明 Pi 源检索，不代表解释链或最终交付。
+
+新发行版本不能借该入口重新使用旧五阶段/Pi 预算或迁移激活。真实新版本重测仍须独立有界授权。相关测试使用合成身份与模拟 transport，不是 Windows 原生或真实模型 E2E。
+
 - ledger MAC 与 agent bearer 使用不同的 HMAC key-derivation domain，均基于既有 DPAPI 身份仅在内存派生。不同 release/source/owner/device/正式来源/manifest 得到不同绑定。
 - 派生和服务注册仍是新增能力，必须纳入真实激活批准；“未生成随机 key 文件”不等于无需批准。
 - agent token 仅传给专用 Pi 子进程环境，不进入命令行、回执、源码、日志、状态报告；不传 owner/user token。平台、学习 viewer 不继承 Pi 子进程环境。Codex runner 使用自身环境白名单，剥离所有 Pi 凭据。

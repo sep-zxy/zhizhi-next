@@ -35,7 +35,8 @@ class DeliveryTests(unittest.TestCase):
         for path in ("projects/growth/src/ahadiff/knowledge_platform/secrets.py",
                      "knowledge-contracts/templates/raw-article-template.md",
                      "deploy/windows-portable/runtime/launcher.py",
-                     "deploy/windows-portable/runtime/windows_job.py", ".env.example"):
+                     "deploy/windows-portable/runtime/windows_job.py",
+                     "deploy/windows-portable/runtime/pi_once.py", ".env.example"):
             with self.subTest(path=path):
                 self.assertTrue(delivery.source_path_allowed(path))
 

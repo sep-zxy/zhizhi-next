@@ -432,6 +432,77 @@ def child_environment(root: Path) -> dict[str, str]:
     }
 
 
+def completion_summary(
+    root: Path, *, answer_sha256: str | None = None, search_result_hash: str | None = None
+) -> dict[str, Any]:
+    """Read signed evidence only; never infer success from process exit or print raw output."""
+    scope = active_scope(root)
+    source = scope.read_source()
+    if not scope.receipts.read("run"):
+        raise AcceptanceScopeError("PI_COMPLETION_INCOMPLETE")
+    for stage in (1, 2):
+        attempt = scope.receipts.read(f"model-attempt:{stage}")
+        saved = scope.receipts.read(f"model-result:{stage}")
+        result = saved.get("result", {}) if saved else {}
+        if (
+            not attempt
+            or result.get("status") != "succeeded"
+            or result.get("fixture") is not False
+            or result.get("provider_id") != "openai"
+            or result.get("requested_model_id") != MODEL
+            or result.get("model_id") not in {None, MODEL}
+            or result.get("runtime_version") != "codex-cli " + VERSION
+            or result.get("input_fingerprint") != attempt["fingerprint"]
+            or result.get("task_id") != attempt["task_id"]
+            or result.get("result_hash") != canonical_hash(result.get("output"))
+        ):
+            raise AcceptanceScopeError("PI_COMPLETION_INCOMPLETE")
+        output = result.get("output")
+        if stage == 1 and output != {
+            "type": "tool_call",
+            "name": "zhizhi_search",
+            "arguments": ARGUMENTS,
+        }:
+            raise AcceptanceScopeError("PI_COMPLETION_INCOMPLETE")
+        if stage == 2 and (
+            not isinstance(output, dict)
+            or set(output) != {"type", "text"}
+            or output["type"] != "text"
+            or not isinstance(output["text"], str)
+            or not output["text"].strip()
+        ):
+            raise AcceptanceScopeError("PI_COMPLETION_INCOMPLETE")
+        if (
+            stage == 2
+            and answer_sha256 is not None
+            and (hashlib.sha256(output["text"].encode("utf-8")).hexdigest() != answer_sha256)
+        ):
+            raise AcceptanceScopeError("PI_COMPLETION_ANSWER_MISMATCH")
+    search = scope.receipts.read("search-result")
+    attempt = scope.receipts.read("search-attempt")
+    if (
+        not search
+        or search.get("matched") is not True
+        or not attempt
+        or attempt.get("source") != scope.binding["source"]
+        or attempt.get("arguments") != ARGUMENTS
+        or search.get("envelope", {}).get("trace_id") != attempt.get("trace_id")
+    ):
+        raise AcceptanceScopeError("PI_COMPLETION_NO_MATCH")
+    if search_result_hash is not None and canonical_hash(search["envelope"]) != search_result_hash:
+        raise AcceptanceScopeError("PI_COMPLETION_SEARCH_MISMATCH")
+    return {
+        "status": "pi_source_search_verified",
+        "live_e2e": "pi_source_search_only",
+        "source_entry_id": source["entry_id"],
+        "source_revision": source["revision"],
+        "source_content_hash": source["content_hash"],
+        "model_calls": 2,
+        "search_calls": 1,
+        "final_delivery": False,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--approve-owner-pi-search", action="store_true")

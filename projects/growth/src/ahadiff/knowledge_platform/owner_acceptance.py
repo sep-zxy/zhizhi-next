@@ -178,8 +178,11 @@ def create_activated_application(
     expected_release: str,
     learning_viewer_url: str | None = None,
     pi_scope: bool = False,
+    pi_search_only: bool = False,
 ) -> Any:
     """Load an existing exact activation; never create identity or infer consent."""
+    if pi_search_only and not pi_scope:
+        raise AcceptanceScopeError("PI_SEARCH_ONLY_REQUIRES_PI_SCOPE")
     from .acceptance_model import MODEL, VERSION, WORKER, AcceptanceDomain, AcceptanceModelRunner
     from .app import create_application
     from .auth import TokenAuthenticator
@@ -252,7 +255,7 @@ def create_activated_application(
             tokens={identity.token: identity.actor()},
             domain=domain,
             model_runner=runner,
-            start_worker=True,
+            start_worker=not pi_search_only,
             workflow_settings=WorkflowSettings(
                 owner_id=OWNER,
                 worker_id=WORKER,
@@ -286,6 +289,7 @@ def main() -> None:
     parser.add_argument("--approve-owner-acceptance-model", action="store_true")
     parser.add_argument("--serve-activated-scope", action="store_true")
     parser.add_argument("--serve-activated-pi-scope", action="store_true")
+    parser.add_argument("--pi-search-only", action="store_true")
     parser.add_argument("--expected-source", required=True)
     parser.add_argument("--expected-release", required=True)
     parser.add_argument("--codex-exe", type=Path)
@@ -293,6 +297,8 @@ def main() -> None:
     parser.add_argument("--learning-viewer-url")
     args = parser.parse_args()
     try:
+        if args.pi_search_only and not args.serve_activated_pi_scope:
+            raise AcceptanceScopeError("PI_SEARCH_ONLY_REQUIRES_PI_SCOPE")
         if args.serve_activated_scope or args.serve_activated_pi_scope:
             if args.serve_activated_scope and args.serve_activated_pi_scope:
                 raise AcceptanceScopeError("ACCEPTANCE_SCOPE_AMBIGUOUS")
@@ -305,6 +311,7 @@ def main() -> None:
                 expected_release=args.expected_release,
                 learning_viewer_url=args.learning_viewer_url,
                 pi_scope=args.serve_activated_pi_scope,
+                pi_search_only=args.pi_search_only,
             )
             uvicorn.run(
                 app,

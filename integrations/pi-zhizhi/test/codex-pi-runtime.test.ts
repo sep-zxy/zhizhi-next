@@ -7,11 +7,11 @@ import { join,dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-test('real pinned Pi RPC completes two synthetic model turns and one actual domain-tool execution', {timeout:25000}, async () => {
+for (const mode of ['rpc', 'json']) test(`real pinned Pi ${mode} completes two synthetic model turns and one actual domain-tool execution`, {timeout:25000}, async () => {
   const directory=await mkdtemp(join(tmpdir(),'zhizhi-native-provider-'));
   const cli=join(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))),'cli.js');
   const audit=join(directory,'synthetic-audit.jsonl');
-  const child=spawn(process.execPath,[cli,'--mode','rpc','--no-session','--offline','--no-approve','--no-builtin-tools', '--tools', 'zhizhi_intake,zhizhi_job_status,zhizhi_search,zhizhi_read_entry,zhizhi_propose_patch,zhizhi_relations,zhizhi_traverse_relations,zhizhi_review_queue,zhizhi_radar,zhizhi_growth','--no-mcp','--no-extensions','--no-skills','--no-prompt-templates','--no-context-files','--no-themes',
+  const child=spawn(process.execPath,[cli,'--mode',mode,'--no-session','--offline','--no-approve','--no-builtin-tools', '--tools', 'zhizhi_intake,zhizhi_job_status,zhizhi_search,zhizhi_read_entry,zhizhi_propose_patch,zhizhi_relations,zhizhi_traverse_relations,zhizhi_review_queue,zhizhi_radar,zhizhi_growth','--no-mcp','--no-extensions','--no-skills','--no-prompt-templates','--no-context-files','--no-themes',
     '--extension',fileURLToPath(new URL('./fixtures/pi-codex-extension.ts',import.meta.url)),'--provider','zhizhi-codex-cli','--model','gpt-6.1-sol'],{
     cwd:directory,env:{PATH:process.env.PATH,HOME:directory,PI_CODING_AGENT_DIR:join(directory,'agent'),PI_OFFLINE:'1',PI_SKIP_VERSION_CHECK:'1',
       ZHIZHI_MODEL_PROVIDER:'zhizhi-codex-cli',ZHIZHI_MODEL_ID:'gpt-6.1-sol',ZHIZHI_AGENT_TOKEN:'synthetic-agent-not-a-credential',ZHIZHI_API_URL:'http://127.0.0.1:8766',ZHIZHI_ALLOWED_CLASSIFICATIONS:'public',ZHIZHI_FIXTURE_AUDIT:audit},stdio:['pipe','pipe','pipe']});
@@ -20,7 +20,7 @@ test('real pinned Pi RPC completes two synthetic model turns and one actual doma
   const deadline=setTimeout(()=>child.kill('SIGKILL'),20000);
   try {
     await new Promise<void>((done,reject)=>{
-      child.on('error',reject);child.on('exit',code=>reject(new Error(`Pi exited ${code}: ${stderr}; ${JSON.stringify(records)}`)));
+      child.on('error',reject);child.on('close',code=>mode==='json' && code===0 ? done() : reject(new Error(`Pi exited ${code}: ${stderr}; ${JSON.stringify(records)}`)));
       child.stdout.on('data',chunk=>{
         buffer+=chunk.toString(); let end:number;
         while((end=buffer.indexOf('\n'))>=0){
@@ -28,17 +28,24 @@ test('real pinned Pi RPC completes two synthetic model turns and one actual doma
           try {
             const value=JSON.parse(line); records.push(value);
             if(value.type==='response' && value.success===false)reject(new Error(JSON.stringify(value)));
-            if(value.type==='agent_settled')done();
+            if(mode==='rpc' && value.type==='agent_settled')done();
           } catch(error){reject(error);}
         }
       });
-      child.stdin.write(JSON.stringify({type:'prompt',id:'synthetic-loop',message:'Synthetic bridge fixture only. Query synthetic evidence once.'})+'\n');
+      if(mode==='rpc') child.stdin.write(JSON.stringify({type:'prompt',id:'synthetic-loop',message:'Synthetic bridge fixture only. Query synthetic evidence once.'})+'\n');
+      else child.stdin.end('合成 Pi 验收 v1：请检索“正式正文与原始来源证据”，只查询当前授权知识目录，报告实际匹配条目；不要收藏、批准、修改或发布。');
     });
-    assert.ok(records.some(r=>r.type==='response' && r.id==='synthetic-loop' && r.success===true));
+    if(mode==='rpc') assert.ok(records.some(r=>r.type==='response' && r.id==='synthetic-loop' && r.success===true));
     assert.ok(records.some(r=>r.type==='tool_execution_end' && r.toolName==='zhizhi_search' && r.isError===false),JSON.stringify(records));
     const assistants=records.filter(r=>r.type==='message_end' && r.message?.role==='assistant').map(r=>r.message);
     assert.deepEqual(assistants.map(m=>m.stopReason),['toolUse','stop']);
     assert.equal(assistants[1].content[0].text,'SYNTHETIC_PI_TOOL_LOOP_COMPLETE');
+    const lifecycle=records.filter(r=>r.type==='tool_execution_start' || r.type==='tool_execution_end' ||
+      (r.type==='message_end' && r.message?.role==='assistant'));
+    assert.deepEqual(lifecycle.map(r=>r.type),['message_end','tool_execution_start','tool_execution_end','message_end']);
+    assert.equal(lifecycle[1].toolCallId,assistants[0].content[0].id);
+    assert.equal(lifecycle[2].toolCallId,assistants[0].content[0].id);
+    assert.ok(lifecycle[2].result.details);
     assert.ok(assistants.every(m=>m.provider==='zhizhi-codex-cli' && m.model==='gpt-6.1-sol' && !m.responseModel));
     assert.ok(assistants.every(m=>m.diagnostics[0].details.fixture===true));
     const events=(await readFile(audit,'utf8')).trim().split('\n').map(line=>JSON.parse(line));

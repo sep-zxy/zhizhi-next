@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { isAbsolute, resolve, join, relative, sep } from 'node:path';
 import { existsSync, realpathSync } from 'node:fs';
 const waiting = code => { console.log(JSON.stringify({status:'waiting_auth',code})); process.exit(0); };
-if (process.argv.length !== 2) throw new Error('INTERACTIVE_ARGUMENT_OVERRIDES_FORBIDDEN');
+const once = process.argv.length === 3 && process.argv[2] === '--once-json';
+if (process.argv.length !== 2 && !once) throw new Error('INTERACTIVE_ARGUMENT_OVERRIDES_FORBIDDEN');
 const provider = process.env.ZHIZHI_MODEL_PROVIDER;
 const model = process.env.ZHIZHI_MODEL_ID;
 const agentDir = process.env.PI_CODING_AGENT_DIR;
@@ -27,6 +28,7 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
 env.ZHIZHI_ALLOWED_PROVIDERS = 'zhizhi-codex-cli';
 env.ZHIZHI_PI_CLI_JS = cli; env.PI_OFFLINE = '1'; env.PI_SKIP_VERSION_CHECK = '1';
 const child = spawn(process.execPath, ['--no-experimental-strip-types', cli,
+  ...(once ? ['--mode', 'json'] : []),
   '--no-session', '--offline', '--no-approve', '--no-builtin-tools', '--tools', 'zhizhi_intake,zhizhi_job_status,zhizhi_search,zhizhi_read_entry,zhizhi_propose_patch,zhizhi_relations,zhizhi_traverse_relations,zhizhi_review_queue,zhizhi_radar,zhizhi_growth', '--no-mcp', '--no-extensions', '--no-skills',
   '--no-prompt-templates', '--no-context-files', '--no-themes', '--provider', provider,
   '--model', model, '--extension', extension], {cwd:resolve(agentDir),env,stdio:'inherit',shell:false});

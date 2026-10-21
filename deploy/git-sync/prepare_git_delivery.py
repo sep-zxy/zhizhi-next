@@ -71,6 +71,7 @@ def source_path_allowed(name: str) -> bool:
     if "runtime" in path.parts and name not in {
         "deploy/windows-portable/runtime/launcher.py",
         "deploy/windows-portable/runtime/windows_job.py",
+        "deploy/windows-portable/runtime/pi_once.py",
     }:
         return False
     return True
