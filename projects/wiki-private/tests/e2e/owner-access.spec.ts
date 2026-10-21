@@ -86,7 +86,11 @@ test("fixture owner: local-test-shaped response cannot authenticate the owner ro
   const f = await setupV1(page, { mismatch: true });
   await page.goto("#/home");
   await page.getByRole("button", { name: "申请 Owner 配对码" }).click();
-  await expect(page.getByRole("alert")).toContainText("配对结果无法验证");
+  await expect(
+    page
+      .getByRole("region", { name: "Owner 私有会话", exact: true })
+      .getByRole("alert"),
+  ).toContainText("配对结果无法验证");
   await expect(page.getByLabel("一次性配对码")).toHaveCount(0);
   await expect(
     page.getByText("已连接 Owner 私有会话", { exact: true }),
@@ -103,7 +107,11 @@ test("fixture owner: uncertain logout removes private content but never claims s
     page.getByText("Synthetic formal source body", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "注销本次 Owner 会话" }).click();
-  await expect(page.getByRole("alert")).toContainText("服务端注销未得到确认");
+  await expect(
+    page
+      .getByRole("region", { name: "Owner 私有会话", exact: true })
+      .getByRole("alert"),
+  ).toContainText("服务端注销未得到确认");
   await expect(
     page.getByText("Synthetic formal source body", { exact: true }),
   ).toHaveCount(0);

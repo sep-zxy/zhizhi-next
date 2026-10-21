@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 /** Synthetic component/transport tests, not real-browser or live-account acceptance. */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -285,6 +287,35 @@ describe("P03 bounded source supplement", () => {
 });
 
 describe("P05 evidence reading and gated revision proposals", () => {
+  function pendingEvidence() {
+    const calls: {
+      path: string;
+      body: Record<string, unknown>;
+      signal: AbortSignal;
+      resolve: (response: Response) => void;
+    }[] = [];
+    const api = new WikiApi((input, init) => {
+      return new Promise<Response>((resolve) => {
+        calls.push({
+          path: String(input),
+          body: JSON.parse(String(init?.body)),
+          signal: init?.signal as AbortSignal,
+          resolve,
+        });
+      });
+    });
+    return { api, calls };
+  }
+  function evidenceResponse(body: Record<string, unknown>, text: string) {
+    return envelope({
+      kind: "source",
+      source_id: body.source_id,
+      revision: body.source_revision,
+      content_hash: body.content_hash,
+      text,
+      text_basis: "retained_text",
+    });
+  }
   it("loads bound source only on demand and clears text when closed", async () => {
     const { api, calls } = transportCapture(() =>
       envelope({
@@ -300,12 +331,17 @@ describe("P05 evidence reading and gated revision proposals", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<EvidenceReader api={api} reference={entry.evidence_refs[0]} />);
+    render(
+      <StrictMode>
+        <EvidenceReader api={api} reference={entry.evidence_refs[0]} />
+      </StrictMode>,
+    );
     expect(calls).toHaveLength(0);
     await user.click(
       screen.getByRole("button", { name: "读取已授权来源文本" }),
     );
     await screen.findByText("Verified synthetic evidence");
+    expect(calls).toHaveLength(1);
     expect(calls[0].body).toMatchObject({
       source_id: "src_synthetic",
       source_revision: 1,
@@ -316,6 +352,128 @@ describe("P05 evidence reading and gated revision proposals", () => {
     expect(screen.queryByText("never render")).toBeNull();
     await user.click(screen.getByRole("button", { name: "关闭来源文本" }));
     expect(screen.queryByText("Verified synthetic evidence")).toBeNull();
+  });
+  it("does not dispatch a read closed before its first microtask", async () => {
+    const { api, calls } = pendingEvidence();
+    render(
+      <StrictMode>
+        <EvidenceReader api={api} reference={entry.evidence_refs[0]} />
+      </StrictMode>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "读取已授权来源文本" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭来源文本" }));
+    await act(async () => {});
+    expect(calls).toHaveLength(0);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+  it("reauthorizes each explicit reopening and ignores the closed read's late response", async () => {
+    const { api, calls } = pendingEvidence();
+    const user = userEvent.setup();
+    render(
+      <StrictMode>
+        <EvidenceReader api={api} reference={entry.evidence_refs[0]} />
+      </StrictMode>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "读取已授权来源文本" }),
+    );
+    expect(calls).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "关闭来源文本" }));
+    expect(calls[0].signal.aborted).toBe(true);
+    await user.click(
+      screen.getByRole("button", { name: "读取已授权来源文本" }),
+    );
+    expect(calls).toHaveLength(2);
+    expect(calls[1].body).toEqual(calls[0].body);
+    expect(calls[1].signal.aborted).toBe(false);
+    await act(async () => {
+      calls[0].resolve(evidenceResponse(calls[0].body, "Closed read body"));
+    });
+    expect(screen.queryByText("Closed read body")).toBeNull();
+    expect(screen.getByRole("status")).toBeTruthy();
+    await act(async () => {
+      calls[1].resolve(evidenceResponse(calls[1].body, "Reauthorized body"));
+    });
+    expect(screen.getByText("Reauthorized body")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "关闭来源文本" }));
+    expect(screen.queryByText("Reauthorized body")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "读取已授权来源文本" }),
+    );
+    expect(calls).toHaveLength(3);
+    expect(screen.queryByText("Reauthorized body")).toBeNull();
+  });
+  it.each([false, true])(
+    "binds a changed reference to a fresh read, never prior content (prior response settled: %s)",
+    async (settled) => {
+      const { api, calls } = pendingEvidence();
+      const user = userEvent.setup();
+      const view = (reference: (typeof entry.evidence_refs)[number]) => (
+        <StrictMode>
+          <EvidenceReader api={api} reference={reference} />
+        </StrictMode>
+      );
+      const { rerender } = render(view(entry.evidence_refs[0]));
+      await user.click(
+        screen.getByRole("button", { name: "读取已授权来源文本" }),
+      );
+      expect(calls).toHaveLength(1);
+      if (settled) {
+        await act(async () => {
+          calls[0].resolve(
+            evidenceResponse(calls[0].body, "Prior reference body"),
+          );
+        });
+        expect(screen.getByText("Prior reference body")).toBeTruthy();
+      }
+      const next = {
+        ...entry.evidence_refs[0],
+        source_revision: 2,
+        content_hash: "next-synthetic-hash",
+      };
+      rerender(view(next));
+      expect(screen.queryByText("Prior reference body")).toBeNull();
+      expect(calls[0].signal.aborted).toBe(true);
+      await act(async () => {});
+      expect(calls).toHaveLength(2);
+      expect(calls[1].path).toBe("/api/knowledge/v1/evidence/read");
+      expect(calls[1].body).toEqual(next);
+      await act(async () => {
+        if (!settled)
+          calls[0].resolve(
+            evidenceResponse(calls[0].body, "Prior reference body"),
+          );
+        calls[1].resolve(
+          evidenceResponse(calls[1].body, "Current reference body"),
+        );
+      });
+      expect(screen.queryByText("Prior reference body")).toBeNull();
+      expect(screen.getByText("Current reference body")).toBeTruthy();
+      expect(calls).toHaveLength(2);
+    },
+  );
+  it("reports a failed read without background retry, and retries only on explicit request", async () => {
+    const { api, calls } = transportCapture((_path, body, index) =>
+      index === 1
+        ? failure("NETWORK_ERROR", 503)
+        : evidenceResponse(body, "Explicit retry body"),
+    );
+    const user = userEvent.setup();
+    render(
+      <StrictMode>
+        <EvidenceReader api={api} reference={entry.evidence_refs[0]} />
+      </StrictMode>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "读取已授权来源文本" }),
+    );
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    await act(async () => {});
+    expect(calls).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "重新读取" }));
+    expect(await screen.findByText("Explicit retry body")).toBeTruthy();
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual(calls[0]);
   });
   it("rejects mismatched evidence binding without rendering foreign text", async () => {
     const { api } = transportCapture(() =>

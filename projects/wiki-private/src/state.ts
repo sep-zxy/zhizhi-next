@@ -69,8 +69,13 @@ export function useResource<T>(
   useEffect(() => {
     const controller = new AbortController();
     setState({ key, status: "loading" });
-    void load(controller.signal)
-      .then((data) => {
+    // Let cleanup cancel a superseded mount before it reaches the transport.
+    // In particular, StrictMode replays setup/cleanup; aborting after load()
+    // starts cannot undo a POST read already received by the server.
+    void Promise.resolve()
+      .then(async () => {
+        if (controller.signal.aborted) return;
+        const data = await load(controller.signal);
         if (!controller.signal.aborted)
           setState({ key, status: "ready", data });
       })
