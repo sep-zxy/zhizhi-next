@@ -125,6 +125,66 @@ def test_generation_proposes_only_and_requires_independent_review():
     assert not domain.reviews
 
 
+@pytest.mark.parametrize("ref", [SOURCE, {"learning_outcome_id": "outcome-1"}])
+def test_claim_contract_is_explicit_without_rewriting_evidence_or_user_text(ref):
+    domain = MemoryDomain()
+    original = domain.text
+    span = "标准大气压下，水达到100摄氏度时沸腾。"
+    output = deepcopy(PROPOSAL)
+    output["body"] = "## 条件\n\n- " + span
+    output["claims"][0]["text"] = span
+    runner = FixtureModelRunner({"knowledge_proposal_v1": output}, development=True)
+    result = asyncio.run(
+        GenerationService(domain, runner, allow_fixture=True).generate(
+            [ref], task_id="claim-contract", actor=GENERATOR, idempotency_key="claim-contract"
+        )
+    )
+    assert result["status"] == "proposed"
+    task = runner.calls[0]
+    assert (
+        "claims[].text must be an exact contiguous substring of the final body" in task.instructions
+    )
+    assert "preserving punctuation, whitespace and Markdown" in task.instructions
+    assert (
+        "claims[].quote must be copied verbatim from evidence[evidence_index].text"
+        in task.instructions
+    )
+    assert "do not rewrite evidence or user quotations" in task.instructions
+    properties = task.output_schema["properties"]["claims"]["items"]["properties"]
+    assert "final body" in properties["text"]["description"]
+    assert "evidence[evidence_index].text" in properties["quote"]["description"]
+    assert task.payload["evidence"][0]["text"] == original == domain.text
+    assert domain.get_learning_outcome("outcome-1", actor=GENERATOR)["user_text"] == original
+    assert domain.proposals[0]["body"] == output["body"]
+    assert domain.proposals[0]["metadata"]["claims"][0] == output["claims"][0]
+    assert span != original
+
+
+@pytest.mark.parametrize("ref", [SOURCE, {"learning_outcome_id": "outcome-1"}])
+@pytest.mark.parametrize(
+    "claim_text",
+    [
+        "合成验收材料区分原始证据与整理后的正式知识，并指出引用某一修订不等于引用最新内容。",
+        "原始来源是证据，正式条目是整理后的知识;引用某一修订不等于引用最新内容。",
+        "原始来源是证据，正式条目是整理后的知识； 引用某一修订不等于引用最新内容。",
+        "**原始来源是证据**，正式条目是整理后的知识；引用某一修订不等于引用最新内容。",
+    ],
+)
+def test_paraphrased_or_normalized_claim_is_rejected_without_mutation(ref, claim_text):
+    domain = MemoryDomain()
+    original = "原始来源是证据，正式条目是整理后的知识；引用某一修订不等于引用最新内容。"
+    domain.text = original
+    output = deepcopy(PROPOSAL)
+    output["body"] = "- " + original
+    output["claims"][0].update(text=claim_text, quote=original)
+    before = deepcopy(output)
+    result = generate(domain, output, refs=[ref])
+    assert result["status"] == "needs_evidence"
+    assert result["reason"] == "CLAIM_NOT_IN_PATCH"
+    assert not domain.proposals and not domain.reviews
+    assert output == before and domain.text == original
+
+
 def test_original_unresolved_question_has_source_not_learner_provenance():
     domain = MemoryDomain()
     question = "在什么边界条件下应改用同步调用？"

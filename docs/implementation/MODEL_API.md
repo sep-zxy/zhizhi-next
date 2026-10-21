@@ -67,6 +67,8 @@ review 输入的 old_semantic_patch/new_semantic_patch 覆盖 entry_id/base_revi
 
 普通 approve 不确认 `metadata.relations`。模型可额外返回 `relation_checks`，每条含 relation_index/relation_hash/supported/reason/evidence_checks；后者每项是 evidence_index/quote/supports_relation。代码逐项核对声明 hash、实际可读目标、relation_type/statement 结构、关系来源是已读证据子集、content_hash 及 locator.quote 精确匹配；只有所有关系均有完整肯定检查，才计算整组 canonical hash 并经 Python keyword reviewed_relations_hash 传给领域。缺检查、部分覆盖或否定检查不授此证明；错误 hash/quote 返回 needs_evidence。关系投影仍独立核当前 committed revision、patch hash 和原始来源约束，无专门证明时最多 candidate。依赖领域 be17984 的 Python-only 复核关键字契约。
 
+生成契约同时要求两种独立的逐字绑定：`claims[].text` 必须是最终 `body` 的连续原样片段（保留标点、空白和 Markdown），`claims[].quote` 必须是 `evidence[evidence_index].text` 的连续原样片段。两者可以采用不同措辞；公开派生正文仍须独立表达。普通来源与学习解释使用同一契约，不能以摘要替代正文片段，也不能改写原始证据或用户原话来满足校验。缺少正文片段仍返回 `CLAIM_NOT_IN_PATCH`，不模糊匹配、不自动修补或重试模型。提示和 schema 描述参与输入指纹，修改它们不授权重用已消费的验收模型槽。
+
 两者返回 `{status, task_id, change_id?, change?, model?, reason?}`。model 是无原文审计信息。生成 status=proposed/no_change/needs_evidence；review=approved/rejected/needs_evidence/needs_user；模型等待/失败沿用 ModelResult.status。fixture 默认拒绝，只有测试显式 allow_fixture 才接受。父 workflow 持久化等待/结果；仅 approved 后可由独立 service actor 调用 domain.apply_change，且 auto_commit 初始 false。
 
 关系专门证明还要求声明 `target_revision` 为正整数，且精确等于 reviewer 实际读取并提供给模型的目标快照 revision。缺失、非法或漂移时 supported=true 返回 needs_evidence；未确认 candidate 可无此字段。投影读取时再次核对当前目标版本，目标后续改写会将旧关系降为 candidate，不能将旧复核套用于新目标语义。此版本约束依赖领域 f230511。

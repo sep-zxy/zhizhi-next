@@ -178,6 +178,16 @@ def test_clean_generation_excludes_private_envelope_and_private_catalogue():
     payload, kwargs = domain.proposals[0]
     assert payload["evidence_refs"] == [domain.document["evidence_ref"]]
     assert payload["visibility"] == "public"
+    assert payload["body"] == BODY and SOURCE not in payload["body"]
+    assert payload["metadata"]["claims"][0]["text"] == BODY
+    assert payload["metadata"]["claims"][0]["quote"] == SOURCE
+    assert (
+        "claims[].text must be an exact contiguous substring of the final body" in task.instructions
+    )
+    assert "Claim text and supporting quote may differ" in task.instructions
+    assert (
+        "Explain architecture or technology mechanisms in independent wording" in task.instructions
+    )
     assert payload["metadata"]["publication_block_reason"] == "DERIVATIVE_REVIEW_PENDING"
     manifest = kwargs["derivative_input_manifest"]
     assert manifest["model_input_hash"] == task.fingerprint
