@@ -1,0 +1,55 @@
+{
+  "reapplied_from": "33b4dc15583abe471a0ee2f49ff3f099d6ad24d6",
+  "old_commit_recovered": false,
+  "current_environment_date": "2026-10-20",
+  "shell_exception": "User approved temporary cloud Bash/Python project CLI; no desktop access",
+  "pnpm": "10.33.0",
+  "locked_plugin_source_builds": 31,
+  "source_hashes_verified": 1042,
+  "typecheck": "passed",
+  "quartz_core_tests": {
+    "passed": 123,
+    "failed": 0
+  },
+  "python_publication_certificate_tests": {
+    "passed": 43,
+    "failed": 0
+  },
+  "offline_font_tests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "real_quartz_build": {
+    "repeated_files": 54,
+    "all_file_hashes_equal": true,
+    "artifact_hash": "5a420192e6994afeb7af62ec94019c679a8149b77fec66d6e3e249364a85d585",
+    "readonly_domain_gate": "passed on both builds",
+    "independent_template_asset_count": 41,
+    "rerun_after_empty_cache_restored_from_asset_zip": true
+  },
+  "font_asset": {
+    "library_file_id": "libfile_818531386384819188b2b57e5ae2a4b5",
+    "file_name": "selfweb-offline-fonts-v1.zip",
+    "bytes": 12659672,
+    "sha256": "61655953c5b6c9253220d8eb1e9676290e77c327d8004f2b32af4f34e92294a3",
+    "license": "SIL OFL 1.1"
+  },
+  "license_files": 37,
+  "known_environment_limits": [
+    "PowerShell official acquisition returned 403; PowerShell wrapper itself not executed. Equivalent Node and Python verifier stages ran under explicitly authorized temporary Bash/Python.",
+    "Initial typecheck before plugin dist preparation failed as expected; rerun after all 31 source builds passed.",
+    "Initial OG image build failed because font cache was missing. Official Google Fonts CSS/TTF and Google/fonts OFL all returned HTTP200; explicit independent cache preparation then offline zip restore succeeded."
+  ],
+  "real_account_e2e": false,
+  "paid_model_used": false,
+  "deployment_performed": false,
+  "python_dependency_alignment": {
+    "status": "revalidated_after_uv_lock_alignment",
+    "uv_pip_check": "92 packages compatible",
+    "python_publication_certificate_tests": 43,
+    "font_tests": 7,
+    "both_actual_quartz_builds_and_readonly_gates": "passed",
+    "uv_lock_sha256": "aaa3af511fd4e588d633401352fb4552d42c5c879b463de015401cc8eaea5cb2"
+  },
+  "font_manifest_in_public_build_cache_identity": true
+}

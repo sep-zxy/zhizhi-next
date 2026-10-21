@@ -1,0 +1,39 @@
+name: continuity-event-artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: Continuity project UUID
+        required: true
+      item_id:
+        description: Continuity item UUID
+        required: true
+
+jobs:
+  build-event:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          ITEM_ID: ${{ inputs.item_id }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $event = [ordered]@{
+            version = 1
+            source = 'github-actions'
+            eventId = "github-actions:${{ github.run_id }}:$env:ITEM_ID:completed-v1"
+            eventType = 'work_item.completed'
+            occurredAt = [DateTimeOffset]::Now.ToString('o')
+            outcome = 'success'
+            project = [ordered]@{ id = $env:PROJECT_ID; path = $null }
+            target = [ordered]@{ itemId = $env:ITEM_ID; fingerprint = $null; milestoneId = $null }
+            evidence = [ordered]@{ sourceRef = 'github:${{ github.repository }}/actions/runs/${{ github.run_id }}'; summary = 'GitHub Actions workflow completed'; shortQuote = '' }
+          }
+          $event | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'continuity-event.json' -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: continuity-event
+          path: continuity-event.json

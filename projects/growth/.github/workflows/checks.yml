@@ -1,0 +1,98 @@
+name: Static Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan Git history for credentials
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '8.30.1'
+          $asset = "gitleaks_${version}_windows_x64.zip"
+          $baseUrl = "https://github.com/gitleaks/gitleaks/releases/download/v$version"
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          $checksumFile = Join-Path $env:RUNNER_TEMP 'gitleaks_checksums.txt'
+          Invoke-WebRequest -Uri "$baseUrl/$asset" -OutFile $archive
+          Invoke-WebRequest -Uri "$baseUrl/gitleaks_${version}_checksums.txt" -OutFile $checksumFile
+          $checksumLine = Get-Content -LiteralPath $checksumFile -Encoding UTF8 | Where-Object { $_ -match ('\s' + [regex]::Escape($asset) + '$') }
+          if (@($checksumLine).Count -ne 1) { throw '无法确认 Gitleaks 校验值' }
+          $expected = ($checksumLine -split '\s+')[0]
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expected) { throw 'Gitleaks 下载校验失败' }
+          $toolDir = Join-Path $env:RUNNER_TEMP 'gitleaks'
+          Expand-Archive -LiteralPath $archive -DestinationPath $toolDir
+          & (Join-Path $toolDir 'gitleaks.exe') git --redact=100 --no-banner --log-opts='--all' --report-format=json --report-path="$env:RUNNER_TEMP/gitleaks-redacted.json"
+          if ($LASTEXITCODE -ne 0) { throw '凭证扫描失败；请查看已脱敏的检测结果' }
+      - name: Upload redacted scan findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: credential-scan-redacted
+          path: ${{ runner.temp }}/gitleaks-redacted.json
+          retention-days: 1
+
+  static:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.33.0'
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: viewer/pnpm-lock.yaml
+      - name: Check JavaScript and TypeScript
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pnpm --dir viewer install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw '前端依赖安装失败' }
+          pnpm --dir viewer typecheck
+          if ($LASTEXITCODE -ne 0) { throw 'TypeScript 校验失败' }
+          node --check desktop/main.mjs
+          if ($LASTEXITCODE -ne 0) { throw '桌面入口语法校验失败' }
+          node --check scripts/require-github-actions.mjs
+          if ($LASTEXITCODE -ne 0) { throw '构建限制脚本语法校验失败' }
+          node --check desktop/sign-macos.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'macOS 签名脚本语法校验失败' }
+      - name: Check Python syntax
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $syntaxCode = @'
+          import ast
+          from pathlib import Path
+          files = [file for folder in ('src', 'tests', 'scripts', 'desktop') for file in Path(folder).rglob('*.py') if not any(part in ('node_modules', 'sidecar', '__pycache__', '.pyinstaller') for part in file.parts)]
+          for file in files:
+              ast.parse(file.read_text(encoding='utf-8-sig'), filename=str(file))
+          print(f'Python syntax checked: {len(files)} files')
+          '@
+          uv run --no-project --python 3.13 python -c $syntaxCode
+          if ($LASTEXITCODE -ne 0) { throw 'Python 语法校验失败' }
+      - name: Run Graphify performance gate
+        run: |
+          $ErrorActionPreference = 'Stop'
+          uv sync --frozen --group dev
+          if ($LASTEXITCODE -ne 0) { throw 'Python 依赖安装失败' }
+          uv run python benchmarks/graphify/bench_graphify.py
+          if ($LASTEXITCODE -ne 0) { throw 'Graphify 性能门禁失败' }

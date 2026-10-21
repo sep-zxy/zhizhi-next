@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "adapter": "codex_cli",
+  "reuse_existing_login": true,
+  "executable": ["C:\\REPLACE_WITH_EXISTING_OFFICIAL_CODEX\\codex.exe"],
+  "expected_version": "0.163.0-alpha.10.2",
+  "codex_home": "C:\\REPLACE_WITH_EXISTING_USER_HOME\\.codex",
+  "routes": [{"provider_id": "openai", "model_id": "gpt-6.1-sol", "account_qualified": true, "allowed_classifications": ["public", "personal"]}],
+  "timeout_seconds": 120,
+  "max_input_bytes": 512000,
+  "max_output_bytes": 1048576,
+  "quota_backoff_seconds": 3600
+}

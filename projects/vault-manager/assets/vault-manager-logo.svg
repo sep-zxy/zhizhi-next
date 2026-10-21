@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Vault Manager</title>
+  <desc id="desc">An octagonal vault containing an open book whose center forms a V.</desc>
+  <path fill="#3157D5" d="M288 64h448l224 224v448L736 960H288L64 736V288L288 64Z"/>
+  <path fill="#11192A" d="M310 128h404l182 182v404L714 896H310L128 714V310l182-182Z"/>
+  <path fill="#5D7CFF" d="M214 316c92-72 186-98 280-66v466c-82-56-164-74-246-52l-34-348Z"/>
+  <path fill="#1B8A70" d="M810 316c-92-72-186-98-280-66v466c82-56 164-74 246-52l34-348Z"/>
+  <path fill="#11192A" d="m470 246 42 86 42-86-10 470-32 74-32-74-10-470Z"/>
+</svg>

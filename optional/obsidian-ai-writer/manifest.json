@@ -1,0 +1,10 @@
+{
+  "id": "ai-writer",
+  "name": "AI Writer",
+  "version": "0.5.0",
+  "minAppVersion": "1.6.0",
+  "description": "Generate structured Markdown articles from Vault materials with editable writing styles and templates.",
+  "author": "",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

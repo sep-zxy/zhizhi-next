@@ -1,0 +1,11 @@
+/target/
+/bin/
+/dist/
+/node_modules/
+/src-tauri/target/
+*.db
+*.db-shm
+*.db-wal
+/playwright-report/
+/test-results/
+/screenshots/

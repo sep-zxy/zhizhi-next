@@ -1,0 +1,39 @@
+{
+  "projects/growth/tests/unit/test_redact.py": {
+    "sha256": "26ce4fc200809ca65e8518b6c73777afbdc724ae5d2c0956619490d21ae293b4",
+    "rules": [
+      "github-token",
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
+  },
+  "projects/growth/tests/unit/test_routes_providers.py": {
+    "sha256": "b4aaa25ff91296ae1af1527de605c40fb81109eca62c7249fab3addaeeb57f2d",
+    "rules": [
+      "provider-key",
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
+  },
+  "projects/growth/tests/unit/test_security_hardening.py": {
+    "sha256": "16fafb0e82efb6d8848e20c9c77ec94ea41efb96b03be9a3503d482e7d50f063",
+    "rules": [
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
+  },
+  "projects/growth/viewer/tests/unit/learn-mode-dialog.test.ts": {
+    "sha256": "b13a84195a34b7a61cb1f343ecda4dae04b8a3a110197e12d3cec6c10d6c0c86",
+    "rules": [
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
+  },
+  "projects/selfweb/site/quartz/plugins/loader/offline-plugins.test.ts": {
+    "sha256": "1d5cfbe2bbc9a2aead557d7bb84101e77d4cf2a331319e6c52c7654c596b89f2",
+    "rules": [
+      "url-userinfo"
+    ],
+    "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
+  }
+}

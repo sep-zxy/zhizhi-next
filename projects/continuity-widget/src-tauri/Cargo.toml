@@ -1,0 +1,29 @@
+[package]
+name = "continuity-widget-tauri"
+version = "0.3.0"
+edition = "2024"
+description = "SQLite-backed Todo and continuity desktop widget"
+
+[lib]
+name = "continuity_widget_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+anyhow = "1"
+continuity_core = { package = "continuity-widget", path = ".." }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.11.5", features = ["tray-icon"] }
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-notification = "2.3.3"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+lto = "thin"
+strip = true

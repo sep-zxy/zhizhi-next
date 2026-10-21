@@ -1,0 +1,9 @@
+node_modules/
+main.js
+main.js.map
+coverage/
+.playwright-cli/
+output/
+release/
+.DS_Store
+*.log

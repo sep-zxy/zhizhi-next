@@ -1,0 +1,24 @@
+{
+  "enabled": false,
+  "agent_dir": "/var/lib/zhizhi/pi-background",
+  "guard_extension": "/opt/zhizhi/integrations/pi-zhizhi/src/model-guard.ts",
+  "executable": [
+    "node",
+    "/opt/zhizhi/integrations/pi-zhizhi/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+  ],
+  "routes": [
+    {
+      "provider_id": "openai",
+      "model_id": "REPLACE_WITH_APPROVED_EXACT_MODEL_ID",
+      "account_qualified": false,
+      "allowed_classifications": ["public", "personal"],
+      "china_terms_verified": false
+    }
+  ],
+  "provider_env_names": [],
+  "timeout_seconds": 120,
+  "max_json_repairs": 1,
+  "max_input_bytes": 512000,
+  "max_output_bytes": 1048576,
+  "quota_backoff_seconds": 3600
+}

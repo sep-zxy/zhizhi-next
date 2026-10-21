@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "TaskCompleted": [
+      {
+        "type": "command",
+        "command": "pwsh -NoProfile -File C:\\Code\\rust\\continuity-widget\\integrations\\claude-code\\task-completed.ps1"
+      }
+    ]
+  }
+}

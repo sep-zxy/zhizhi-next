@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="vault-token" content="__VAULT_TOKEN__">
+  <title>Vault Manager</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/tabler.min.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Vault Manager 导航">
+      <div class="brand">
+        <img class="brand-mark" src="/logo.svg" alt="">
+        <div><strong>Vault Manager</strong><small>知识档案控制台</small></div>
+      </div>
+
+      <nav class="rail-nav" aria-label="主导航">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">⌂</span><span>总览</span><kbd>1</kbd>
+        </button>
+        <button class="nav-item" data-view="content">
+          <span class="nav-icon">◇</span><span>内容属性</span><kbd>2</kbd>
+        </button>
+        <button class="nav-item" data-view="tags">
+          <span class="nav-icon">#</span><span>标签治理</span><kbd>3</kbd>
+        </button>
+      </nav>
+
+      <div class="rail-spacer"></div>
+      <section class="archive-card" aria-label="Raw 归档状态">
+        <span>RAW ARCHIVE</span>
+        <strong id="monthLabel">—</strong>
+        <small>只按创建日期归档</small>
+      </section>
+      <button id="validateButton" class="btn btn-outline-light w-100">检查全库</button>
+      <p class="rail-note">属性在这里维护，正文继续交给 Obsidian。</p>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="topbar-copy">
+          <p class="eyebrow" id="viewEyebrow">VAULT / OVERVIEW</p>
+          <h1 id="viewTitle">今天新增了什么？</h1>
+          <div class="sync-state"><i></i><span id="statusText">正在读取 Vault</span></div>
+        </div>
+        <button id="openCreate" class="btn btn-primary create-trigger">
+          <span aria-hidden="true">＋</span> 新建内容
+        </button>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="stat-grid">
+          <article class="stat-card card"><span>全部内容</span><strong id="totalCount">—</strong><small>可管理 Markdown</small></article>
+          <article class="stat-card card"><span>公开内容</span><strong id="publicCount">—</strong><small>publish: true</small></article>
+          <article class="stat-card card archive-stat"><span>本月采集</span><strong id="monthCount">—</strong><small id="monthCountLabel">raw / —</small></article>
+          <article class="stat-card card attention"><span>校验问题</span><strong id="issueCount">—</strong><small>运行检查后更新</small></article>
+        </div>
+
+        <div class="split-heading">
+          <div><p class="eyebrow">RECENTLY CREATED</p><h2>最近新增</h2></div>
+          <button class="btn btn-ghost-primary btn-sm" data-jump="content">查看全部 →</button>
+        </div>
+        <div id="recentCreated" class="card-list"></div>
+
+        <div class="split-heading second">
+          <div><p class="eyebrow">RECENTLY UPDATED</p><h2>最近更新</h2></div>
+          <span class="updated-rule">网站最新内容按创建时间排序</span>
+        </div>
+        <div id="recentUpdated" class="compact-list card"></div>
+      </section>
+
+      <section class="view" id="contentView">
+        <div class="content-toolbar">
+          <div><p class="eyebrow">METADATA CONTROL</p><h2>内容属性</h2></div>
+          <div class="filters">
+            <input id="searchInput" class="form-control" type="search" placeholder="搜索标题或路径">
+            <select id="kindFilter" class="form-select"><option value="">全部类型</option><option value="raw">文章</option><option value="blog">博客</option><option value="software">软件</option><option value="wiki">Wiki</option><option value="app-note">应用笔记</option></select>
+            <select id="publishFilter" class="form-select"><option value="">全部状态</option><option value="true">公开</option><option value="false">私有</option></select>
+          </div>
+        </div>
+        <div class="content-layout">
+          <div id="contentList" class="content-list card"></div>
+          <form id="metadataForm" class="metadata-panel card empty">
+            <div class="empty-copy"><strong>选择一篇内容</strong><span>这里会显示 Schema 允许修改的属性。</span></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="tagsView">
+        <div class="section-intro"><p class="eyebrow">CONTROLLED VOCABULARY</p><h2>十个语义标签，一套别名规则</h2><p>标签按 Schema 顺序显示。批量操作会先预览受影响文件。</p></div>
+        <div id="tagStats" class="tag-ledger"></div>
+        <form id="replaceTagForm" class="replace-card card">
+          <label><span>原标签或别名</span><input class="form-control" required name="from" placeholder="例如：tools"></label>
+          <label><span>替换为</span><select class="form-select" name="to"><option value="">删除标签</option></select></label>
+          <div class="form-actions"><button type="submit" class="btn btn-outline-secondary">预览影响</button><button type="button" id="applyTagReplace" class="btn btn-primary" disabled>执行替换</button></div>
+        </form>
+        <div id="tagReplaceResult" class="result-panel hidden"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="createDialog" class="create-dialog">
+    <form id="createForm" class="modal-card">
+      <header class="modal-head">
+        <div><p class="eyebrow">CREATE FROM SCHEMA</p><h2>新建内容</h2><p>生成合格骨架后，再到 Obsidian 完成正文。</p></div>
+        <button type="button" class="btn-close" id="closeCreate" aria-label="关闭"></button>
+      </header>
+      <div class="type-switch" role="group" aria-label="内容类型">
+        <button type="button" class="active" data-kind="article">采集文章</button>
+        <button type="button" data-kind="blog">博客</button>
+        <button type="button" data-kind="software">软件</button>
+      </div>
+      <input type="hidden" name="kind" value="article">
+      <div class="field-grid">
+        <label class="wide"><span>标题</span><input class="form-control" required name="title" placeholder="输入清晰、可检索的标题"></label>
+        <label class="wide"><span>一句话摘要</span><textarea class="form-control" required name="summary" rows="3" placeholder="说明这条内容解决什么问题"></textarea></label>
+        <label class="article-field wide"><span>原始来源</span><input class="form-control" name="source" type="url" placeholder="https://…；留空时自动保持私有"></label>
+        <label class="article-field"><span>作者</span><input class="form-control" name="author" placeholder="多个作者用逗号分隔"></label>
+        <label class="article-field"><span>原始发布日期</span><input class="form-control" name="published" type="date"></label>
+        <label class="blog-field software-field hidden"><span>分类</span><input class="form-control" name="category" placeholder="未分类"></label>
+        <label class="software-field hidden"><span>software_id</span><input class="form-control" name="software_id" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="bandizip"></label>
+        <label class="wide"><span>标签</span><div id="createTags" class="tag-picker"></div></label>
+        <label class="form-check"><input class="form-check-input" name="publish" type="checkbox" checked><span class="form-check-label">公开</span></label>
+      </div>
+      <div id="createResult" class="result-panel hidden"></div>
+      <footer class="modal-actions"><span id="createHint">文章保存到本月 raw 目录。</span><div><button type="button" class="btn btn-ghost-secondary" id="cancelCreate">取消</button><button type="submit" class="btn btn-primary">创建文件</button></div></footer>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

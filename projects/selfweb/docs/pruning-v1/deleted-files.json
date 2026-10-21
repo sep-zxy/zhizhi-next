@@ -1,0 +1,1382 @@
+[
+  {
+    "path": "projects/selfweb/site/.github/FUNDING.yml",
+    "bytes": 20,
+    "reason": "上游仓协作/募资样板，不参与交付"
+  },
+  {
+    "path": "projects/selfweb/site/.github/ISSUE_TEMPLATE/bug_report.md",
+    "bytes": 931,
+    "reason": "上游仓协作/募资样板，不参与交付"
+  },
+  {
+    "path": "projects/selfweb/site/.github/ISSUE_TEMPLATE/feature_request.md",
+    "bytes": 612,
+    "reason": "上游仓协作/募资样板，不参与交付"
+  },
+  {
+    "path": "projects/selfweb/site/.github/pull_request_template.md",
+    "bytes": 2284,
+    "reason": "上游仓协作/募资样板，不参与交付"
+  },
+  {
+    "path": "projects/selfweb/site/.github/workflows/build-preview.yaml",
+    "bytes": 1294,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/.github/workflows/ci.yaml",
+    "bytes": 2141,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/.github/workflows/deploy-preview.yaml",
+    "bytes": 1145,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/.github/workflows/deploy-v5.yaml",
+    "bytes": 1588,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/.github/workflows/docker-build-push.yaml",
+    "bytes": 3226,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/.eslintrc.json",
+    "bytes": 766,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/.github/workflows/ci.yml",
+    "bytes": 3328,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/.gitignore",
+    "bytes": 342,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/.prettierignore",
+    "bytes": 5,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/.prettierrc",
+    "bytes": 117,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/CHANGELOG.md",
+    "bytes": 324,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/LICENSE",
+    "bytes": 1073,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/README.md",
+    "bytes": 515,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/package-lock.json",
+    "bytes": 145463,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/package.json",
+    "bytes": 1729,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/src/emitter.ts",
+    "bytes": 1255,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/src/index.ts",
+    "bytes": 107,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/tsconfig.json",
+    "bytes": 633,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/tsup.config.ts",
+    "bytes": 525,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/types/globals.d.ts",
+    "bytes": 997,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/cname/vitest.config.ts",
+    "bytes": 212,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/.eslintrc.json",
+    "bytes": 766,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/.github/workflows/ci.yml",
+    "bytes": 3328,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/.gitignore",
+    "bytes": 342,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/.prettierignore",
+    "bytes": 5,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/.prettierrc",
+    "bytes": 117,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/CHANGELOG.md",
+    "bytes": 324,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/LICENSE",
+    "bytes": 1073,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/README.md",
+    "bytes": 528,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/package-lock.json",
+    "bytes": 145485,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/package.json",
+    "bytes": 1836,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/src/filter.ts",
+    "bytes": 369,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/src/index.ts",
+    "bytes": 111,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/tsconfig.build.json",
+    "bytes": 163,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/tsconfig.json",
+    "bytes": 651,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/tsup.config.ts",
+    "bytes": 560,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/types/globals.d.ts",
+    "bytes": 997,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explicit-publish/vitest.config.ts",
+    "bytes": 212,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/.eslintrc.json",
+    "bytes": 820,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/.github/workflows/ci.yml",
+    "bytes": 3328,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/.gitignore",
+    "bytes": 342,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/.prettierignore",
+    "bytes": 5,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/.prettierrc",
+    "bytes": 117,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/CHANGELOG.md",
+    "bytes": 324,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/LICENSE",
+    "bytes": 1073,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/README.md",
+    "bytes": 2396,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/package-lock.json",
+    "bytes": 197005,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/package.json",
+    "bytes": 3082,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/components/Explorer.tsx",
+    "bytes": 5683,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/components/OverflowList.tsx",
+    "bytes": 1448,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/components/index.ts",
+    "bytes": 101,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/components/scripts/explorer.inline.ts",
+    "bytes": 15184,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/components/styles/explorer.scss",
+    "bytes": 5018,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/index.ts",
+    "bytes": 1717,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ar-SA.ts",
+    "bytes": 97,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ca-ES.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/cs-CZ.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/de-DE.ts",
+    "bytes": 89,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/en-GB.ts",
+    "bytes": 89,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/en-US.ts",
+    "bytes": 89,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/es-ES.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/fa-IR.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/fi-FI.ts",
+    "bytes": 87,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/fr-FR.ts",
+    "bytes": 92,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/he-IL.ts",
+    "bytes": 89,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/hu-HU.ts",
+    "bytes": 97,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/id-ID.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/it-IT.ts",
+    "bytes": 88,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ja-JP.ts",
+    "bytes": 105,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/kk-KZ.ts",
+    "bytes": 99,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ko-KR.ts",
+    "bytes": 90,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/lt-LT.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/nb-NO.ts",
+    "bytes": 90,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/nl-NL.ts",
+    "bytes": 90,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/pl-PL.ts",
+    "bytes": 92,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/pt-BR.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ro-RO.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/ru-RU.ts",
+    "bytes": 99,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/th-TH.ts",
+    "bytes": 111,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/tr-TR.ts",
+    "bytes": 87,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/uk-UA.ts",
+    "bytes": 99,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/vi-VN.ts",
+    "bytes": 91,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/zh-CN.ts",
+    "bytes": 87,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/i18n/locales/zh-TW.ts",
+    "bytes": 87,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/index.ts",
+    "bytes": 123,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/types.ts",
+    "bytes": 1801,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/src/util/lang.ts",
+    "bytes": 59,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/test/__mocks__/scriptMock.ts",
+    "bytes": 35,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/test/__mocks__/styleMock.ts",
+    "bytes": 19,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/test/explorer.test.ts",
+    "bytes": 1095,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/tsconfig.build.json",
+    "bytes": 163,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/tsconfig.json",
+    "bytes": 716,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/tsup.config.ts",
+    "bytes": 2215,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/types/globals.d.ts",
+    "bytes": 243,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/explorer/vitest.config.ts",
+    "bytes": 484,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/.eslintrc.json",
+    "bytes": 766,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/.github/workflows/ci.yml",
+    "bytes": 3328,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/.gitignore",
+    "bytes": 342,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/.prettierignore",
+    "bytes": 5,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/.prettierrc",
+    "bytes": 117,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/CHANGELOG.md",
+    "bytes": 1117,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/LICENSE",
+    "bytes": 1073,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/README.md",
+    "bytes": 2252,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/package-lock.json",
+    "bytes": 211013,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/package.json",
+    "bytes": 3046,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/components/RecentNotes.tsx",
+    "bytes": 5595,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/components/index.ts",
+    "bytes": 113,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/components/styles/recentNotes.scss",
+    "bytes": 380,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/index.ts",
+    "bytes": 1717,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ar-SA.ts",
+    "bytes": 213,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ca-ES.ts",
+    "bytes": 193,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/cs-CZ.ts",
+    "bytes": 210,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/de-DE.ts",
+    "bytes": 212,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/en-GB.ts",
+    "bytes": 191,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/en-US.ts",
+    "bytes": 191,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/es-ES.ts",
+    "bytes": 194,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/fa-IR.ts",
+    "bytes": 226,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/fi-FI.ts",
+    "bytes": 213,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/fr-FR.ts",
+    "bytes": 198,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/he-IL.ts",
+    "bytes": 220,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/hu-HU.ts",
+    "bytes": 221,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/id-ID.ts",
+    "bytes": 196,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/it-IT.ts",
+    "bytes": 240,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ja-JP.ts",
+    "bytes": 197,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/kk-KZ.ts",
+    "bytes": 240,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ko-KR.ts",
+    "bytes": 199,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/lt-LT.ts",
+    "bytes": 206,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/nb-NO.ts",
+    "bytes": 191,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/nl-NL.ts",
+    "bytes": 195,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/pl-PL.ts",
+    "bytes": 213,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/pt-BR.ts",
+    "bytes": 194,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ro-RO.ts",
+    "bytes": 197,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/ru-RU.ts",
+    "bytes": 642,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/th-TH.ts",
+    "bytes": 264,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/tr-TR.ts",
+    "bytes": 195,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/uk-UA.ts",
+    "bytes": 227,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/vi-VN.ts",
+    "bytes": 209,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/zh-CN.ts",
+    "bytes": 206,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/i18n/locales/zh-TW.ts",
+    "bytes": 208,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/index.ts",
+    "bytes": 411,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/types.ts",
+    "bytes": 210,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/util/date.ts",
+    "bytes": 56,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/util/lang.ts",
+    "bytes": 59,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/util/path.ts",
+    "bytes": 627,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/src/util/sort.ts",
+    "bytes": 70,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/test/component.test.ts",
+    "bytes": 2510,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/test/date-sorting.test.ts",
+    "bytes": 6541,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/test/helpers.ts",
+    "bytes": 936,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/tsconfig.build.json",
+    "bytes": 163,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/tsconfig.json",
+    "bytes": 716,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/tsup.config.ts",
+    "bytes": 1607,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/types/globals.d.ts",
+    "bytes": 997,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/recent-notes/vitest.config.ts",
+    "bytes": 185,
+    "reason": "实际配置 disabled，保留插件无依赖；随未使用插件移除专属源码、测试及打包配置"
+  },
+  {
+    "path": "projects/selfweb/site/Dockerfile",
+    "bytes": 431,
+    "reason": "上游仓专用打包/发布流程，不是本仓验证入口"
+  },
+  {
+    "path": "projects/selfweb/site/docs/Base.base",
+    "bytes": 3237,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/Canvas.canvas",
+    "bytes": 8826,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/advanced/architecture.md",
+    "bytes": 13722,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/advanced/creating components.md",
+    "bytes": 10084,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/advanced/index.md",
+    "bytes": 453,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/advanced/making plugins.md",
+    "bytes": 29018,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/advanced/paths.md",
+    "bytes": 2985,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/build.md",
+    "bytes": 3407,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/create.md",
+    "bytes": 5334,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/index.md",
+    "bytes": 3148,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/plugin.md",
+    "bytes": 10267,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/restore.md",
+    "bytes": 1135,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/sync.md",
+    "bytes": 2929,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/tui.md",
+    "bytes": 2069,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/cli/upgrade.md",
+    "bytes": 2136,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/community.md",
+    "bytes": 1738,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/configuration.md",
+    "bytes": 14016,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Bases.md",
+    "bytes": 863,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Canvas.md",
+    "bytes": 819,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Citations.md",
+    "bytes": 1497,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Docker Support.md",
+    "bytes": 487,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Latex.md",
+    "bytes": 2456,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Mermaid diagrams.md",
+    "bytes": 1266,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Obsidian compatibility.md",
+    "bytes": 7027,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/OxHugo compatibility.md",
+    "bytes": 2084,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/RSS Feed.md",
+    "bytes": 627,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/Roam Research compatibility.md",
+    "bytes": 1199,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/SPA Routing.md",
+    "bytes": 674,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/backlinks.md",
+    "bytes": 807,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/breadcrumbs.md",
+    "bytes": 1759,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/callouts.md",
+    "bytes": 2164,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/comments.md",
+    "bytes": 5884,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/darkmode.md",
+    "bytes": 938,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/explorer.md",
+    "bytes": 9736,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/folder and tag listings.md",
+    "bytes": 2175,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/full-text search.md",
+    "bytes": 1752,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/graph view.md",
+    "bytes": 2710,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/i18n.md",
+    "bytes": 1049,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/index.md",
+    "bytes": 2406,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/popover previews.md",
+    "bytes": 1057,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/private pages.md",
+    "bytes": 2005,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/reader mode.md",
+    "bytes": 1605,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/recent notes.md",
+    "bytes": 1961,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/social images.md",
+    "bytes": 854,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/syntax highlighting.md",
+    "bytes": 3427,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/table of contents.md",
+    "bytes": 976,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/features/wikilinks.md",
+    "bytes": 1566,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/authoring-content.md",
+    "bytes": 2798,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/index.md",
+    "bytes": 2074,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/installation.md",
+    "bytes": 5544,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/migrating.md",
+    "bytes": 11298,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/upgrading.md",
+    "bytes": 2074,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/getting-started/whats-new.md",
+    "bytes": 7873,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/hosting.md",
+    "bytes": 13933,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/index.md",
+    "bytes": 3561,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/layout-components.md",
+    "bytes": 7556,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/layout.md",
+    "bytes": 10439,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/philosophy.md",
+    "bytes": 3793,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/AliasRedirects.md",
+    "bytes": 2908,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ArticleTitle.md",
+    "bytes": 882,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Assets.md",
+    "bytes": 805,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Backlinks.md",
+    "bytes": 1037,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/BasesPage.md",
+    "bytes": 4180,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Breadcrumbs.md",
+    "bytes": 1361,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/CNAME.md",
+    "bytes": 862,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/CanvasPage.md",
+    "bytes": 3626,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Citations.md",
+    "bytes": 1265,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Comments.md",
+    "bytes": 2050,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ComponentResources.md",
+    "bytes": 774,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ContentIndex.md",
+    "bytes": 1851,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ContentMeta.md",
+    "bytes": 1164,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ContentPage.md",
+    "bytes": 1044,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/CrawlLinks.md",
+    "bytes": 2361,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/CreatedModifiedDate.md",
+    "bytes": 1773,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/CustomOgImages.md",
+    "bytes": 13020,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Darkmode.md",
+    "bytes": 942,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Description.md",
+    "bytes": 1752,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/EncryptedPages Demo.md",
+    "bytes": 2352,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/EncryptedPages.md",
+    "bytes": 7669,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ExplicitPublish.md",
+    "bytes": 955,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Explorer.md",
+    "bytes": 2191,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Favicon.md",
+    "bytes": 816,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/FolderPage.md",
+    "bytes": 1525,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Fonts.md",
+    "bytes": 8573,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Footer.md",
+    "bytes": 1108,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Frontmatter.md",
+    "bytes": 9683,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/GitHubFlavoredMarkdown.md",
+    "bytes": 1401,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Graph.md",
+    "bytes": 2594,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/HardLineBreaks.md",
+    "bytes": 994,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Latex.md",
+    "bytes": 1654,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/NotFoundPage.md",
+    "bytes": 681,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/NoteProperties.md",
+    "bytes": 729,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ObsidianFlavoredMarkdown.md",
+    "bytes": 2767,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/OxHugoFlavoredMarkdown.md",
+    "bytes": 1713,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/PageTitle.md",
+    "bytes": 911,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/ReaderMode.md",
+    "bytes": 969,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/RecentNotes.md",
+    "bytes": 1484,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/RemoveDrafts.md",
+    "bytes": 912,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/RoamFlavoredMarkdown.md",
+    "bytes": 1771,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Search.md",
+    "bytes": 1263,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Spacer.md",
+    "bytes": 947,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/StackedPages.md",
+    "bytes": 2701,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/Static.md",
+    "bytes": 963,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/SyntaxHighlighting.md",
+    "bytes": 1598,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/TableOfContents.md",
+    "bytes": 1761,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/TagList.md",
+    "bytes": 810,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/TagPage.md",
+    "bytes": 1322,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/UnlistedPages.md",
+    "bytes": 3197,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/plugins/index.md",
+    "bytes": 3888,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/showcase.md",
+    "bytes": 1143,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/tags/component.md",
+    "bytes": 147,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/tags/plugin.md",
+    "bytes": 23,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/docs/troubleshooting.md",
+    "bytes": 6660,
+    "reason": "上游文档演示站；正式发布仅使用经验证 staging，不读取 docs"
+  },
+  {
+    "path": "projects/selfweb/site/quartz.config.default.yaml",
+    "bytes": 6829,
+    "reason": "上游建站样板；保留现有品牌配置，移除通用 create 初始化入口"
+  },
+  {
+    "path": "projects/selfweb/site/quartz/cli/templates/blog.yaml",
+    "bytes": 7137,
+    "reason": "上游建站样板；保留现有品牌配置，移除通用 create 初始化入口"
+  },
+  {
+    "path": "projects/selfweb/site/quartz/cli/templates/default.yaml",
+    "bytes": 6808,
+    "reason": "上游建站样板；保留现有品牌配置，移除通用 create 初始化入口"
+  },
+  {
+    "path": "projects/selfweb/site/quartz/cli/templates/obsidian.yaml",
+    "bytes": 7561,
+    "reason": "上游建站样板；保留现有品牌配置，移除通用 create 初始化入口"
+  },
+  {
+    "path": "projects/selfweb/site/quartz/cli/templates/ttrpg.yaml",
+    "bytes": 7718,
+    "reason": "上游建站样板；保留现有品牌配置，移除通用 create 初始化入口"
+  }
+]

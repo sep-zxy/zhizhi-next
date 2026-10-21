@@ -1,0 +1,54 @@
+# Windows 便携验收包：装配契约
+
+本目录只负责云端装配。用户 Windows 只解压并运行最终结果，不安装依赖、不编译代码、不操作个人浏览器配置。目标根目录为 `C:\Code\zhizhi-e2e-20261020`。本包不是原生安装器；未通过 Windows 实机验收前不得宣称兼容性通过。
+
+## 输入
+
+每路交付一个无凭据目录与 `component.json`，包含 `name`、`version`、`source_commit`、`entrypoints`、`files`（相对路径到 SHA256）、`licenses`、`runtime_requirements`、`known_limits`。拒绝符号链接、绝对路径、目录穿越、源目录外引用及操作系统不匹配的原生二进制。模板或示例不得含真实 token、登录会话、个人素材。
+
+- `backend/`：项目 Python wheel 或完整运行源码，锁文件、Python 版本要求、启动入口及资源目录；由总装配准备 Windows 第三方 wheels。`viewer/` 必须是云端已构建静态资源。
+- `pi/`：固定 Pi 版本的已发布运行 JS/WASM/Windows x64 native 资源、云端预编译自有 JS 扩展、启动入口。不得在 Windows 调用 npm、npx、tsx、tsup、esbuild 或自动下载。扩展加载器的运行时转译和缓存必须明确验证并关闭/隔离。保留官方许可证及锁文件。
+- `wiki/`：已预编译 render-only JS 入口、固定插件和模板资源、字体、完整性清单及来源证据。Windows 允许解析新 Markdown、生成新 HTML/索引，但不编译 TS/SCSS/JS。保留投影、发布权限、固定 Git revision、最终产物与领域复核门槛。静态旧页面不能冒充动态发布验收。
+- `asr/`：可独立资源包，必须列出完整本地模型、模型许可证、精确 Windows wheels、必要运行时和验证状态。不得将可选分包解释为删除真实音视频验收范围。
+
+## 输出
+
+```
+runtime/python/             # 官方 Windows CPython 与经锁定的 Windows wheels
+runtime/node/               # 官方 Windows Node
+runtime/git/                # 官方 portable Git/MinGit
+app/backend/
+app/viewer/
+app/pi/
+app/wiki/
+config/                     # 无秘密默认配置；显式等待已授权身份
+data/platform/
+data/vault/
+data/pi-interactive/
+data/pi-worker/
+data/publication/staging/
+data/publication/outputs/
+cache/
+temp/
+browser-profile/
+reports/logs/
+reports/screenshots/
+reports/receipts/
+provenance/                 # 来源、版本、校验、许可证、构建证据
+start.cmd
+stop.cmd
+diagnostics.cmd
+```
+
+所有启动器由云端制作。所有应用管理的写入目录限定在包根目录内；Windows 本身的系统审计和安全日志不在此承诺范围。子进程环境必须显式隔离 HOME、USERPROFILE、APPDATA、LOCALAPPDATA、TEMP/TMP、Pi agent/session 路径及浏览器 profile。只绑定 `127.0.0.1`，不得建立防火墙规则、系统服务或自动启动。
+
+## 装配与验收门槛
+
+1. 官方来源与锁文件 hash 验证成功。无静默源替换、权限绕过或 Linux native 依赖混入。
+2. Python SQLite 满足现有安全版本门槛；不修改/降低门槛。
+3. Git 使用包内专用仓库，禁系统/个人配置与 hooks/template 继承；launcher 环境设置不得被服务清理后失效。
+4. 最终包不含开发构建入口；Windows 不运行 pytest 或现场安装依赖。诊断只读或写包内报告。
+5. 未授权身份、订阅或外部渠道保持 `waiting_auth`/`blocked`；不创建凭据、不复制个人浏览器登录态、不调用付费 fallback。
+6. 实机黑盒截图可由云端预制 JS 验收器启动已有 Edge 独立 profile 生成，截图和脱敏报告写包内。
+7. 真实模型、渠道、ASR、动态 Wiki 和持久化重启验收逐项记载；fixture 或静态页面成功不能代替这些门槛。
+8. 阶段源码提交和最终包均须持久备份；只有临时云盘文件不算交付完成。

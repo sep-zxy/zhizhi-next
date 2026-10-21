@@ -1,0 +1,1654 @@
+{
+  "policy": {
+    "policy_version": 1,
+    "not_read_by_name": [
+      ".env and .env.*",
+      "auth.json",
+      "plugin data.json",
+      "credential/cookie/token files",
+      "private keys",
+      "runtime databases"
+    ],
+    "pruned_directories": [
+      ".ahadiff",
+      ".aws",
+      ".cache",
+      ".claude",
+      ".codex",
+      ".git",
+      ".idea",
+      ".local",
+      ".mypy_cache",
+      ".next",
+      ".nuxt",
+      ".obsidian",
+      ".output",
+      ".parcel-cache",
+      ".playwright-cli",
+      ".playwright-mcp",
+      ".pyinstaller",
+      ".pytest_cache",
+      ".quartz-cache",
+      ".ruff_cache",
+      ".ssh",
+      ".tox",
+      ".turbo",
+      ".venv",
+      ".vite",
+      ".vscode",
+      "__pycache__",
+      "coverage",
+      "dist",
+      "electron-reuse-profile",
+      "htmlcov",
+      "node_modules",
+      "playwright-report",
+      "release",
+      "releases",
+      "target",
+      "test-results",
+      "venv"
+    ],
+    "personal_data": "No vault content except explicit contract allowlist. No selfweb/site/content or public. No growth runtime data.",
+    "git": "No .git directories or objects; only sanitized metadata. Current included file bytes preserve staged/unstaged/untracked content. Deletion statuses recorded.",
+    "credential_scan": "All candidate text scanned in memory before copying. Only file paths and rule names emitted; matching values never logged. Suspected files entirely excluded.",
+    "limits": "Heuristic scan cannot prove absence of all secrets. Binary media limited to small source icons/fonts; unknown binaries excluded. Directory exclusions pruned, not enumerated.",
+    "project_specific": [
+      "growth/repo research clones excluded",
+      "vault-manager/backups locks bin excluded",
+      "continuity-widget/bin excluded",
+      "obsidian-ai-writer/main.js generated bundle excluded",
+      "selfweb output reports work site/content site/public excluded"
+    ],
+    "actions_not_performed": [
+      "project edits",
+      "dependency installs",
+      "builds",
+      "tests",
+      "deployments",
+      "git writes",
+      "worktree creation"
+    ]
+  },
+  "entries": [
+    {
+      "project": "growth",
+      "path": ".ahadiff/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": ".git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": ".local/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": ".venv/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "electron-reuse-profile/",
+      "reason": "external-research-clones-or-runtime-browser-profile-outside-source-scope",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "repo/",
+      "reason": "external-research-clones-or-runtime-browser-profile-outside-source-scope",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "benchmarks/fixtures/eval/eval_017_token_guard/",
+      "reason": "credential-cookie-token-file-not-read",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "desktop/.pyinstaller/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "desktop/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "desktop/sidecar/",
+      "reason": "compiled-sidecar-distribution-not-source",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "desktop/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/challenge/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/claims/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/contracts/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/core/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/eval/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/export/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/git/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/graphify/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/growth/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/growth/cloud/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/i18n/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/improve/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/install/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/install/templates/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/lesson/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/llm/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/llm/adapters/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/mcp/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/quiz/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/review/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/review/templates/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/safety/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/serve/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "src/ahadiff/wiki/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "tests/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "tests/unit/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "tests/unit/growth/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "tests/unit/serve/__pycache__/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "viewer/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "viewer/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "viewer/test-results/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "growth",
+      "path": "viewer/src/styles/tokens.css",
+      "reason": "credential-cookie-token-file-not-read",
+      "entry_type": "file"
+    },
+    {
+      "project": "vault-manager",
+      "path": ".playwright-cli/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "vault-manager",
+      "path": "backups/",
+      "reason": "runtime-backups-locks-or-compiled-binaries",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "vault-manager",
+      "path": "bin/",
+      "reason": "runtime-backups-locks-or-compiled-binaries",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "vault-manager",
+      "path": "locks/",
+      "reason": "runtime-backups-locks-or-compiled-binaries",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": ".claude/",
+      "reason": "generated-reports-runtime-and-work-data",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": ".playwright-mcp/",
+      "reason": "generated-reports-runtime-and-work-data",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "output/",
+      "reason": "generated-reports-runtime-and-work-data",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "reports/",
+      "reason": "generated-reports-runtime-and-work-data",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "work/",
+      "reason": "generated-reports-runtime-and-work-data",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/content/",
+      "reason": "generated-personal-note-content-media-or-published-output",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/public/",
+      "reason": "generated-personal-note-content-media-or-published-output",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.npmrc",
+      "reason": "credential-or-plugin-runtime-configuration-not-read",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "site/tsconfig.tsbuildinfo",
+      "reason": "runtime-database-binary-build-media-or-backup",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/alias-redirects/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/alias-redirects/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/alias-redirects/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/article-title/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/article-title/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/article-title/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/backlinks/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/backlinks/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/backlinks/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/breadcrumbs/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/breadcrumbs/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/breadcrumbs/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/cname/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/cname/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-index/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-index/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-index/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-meta/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-meta/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-meta/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-page/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-page/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/content-page/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/crawl-links/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/crawl-links/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/crawl-links/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/created-modified-date/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/created-modified-date/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/created-modified-date/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/darkmode/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/darkmode/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/darkmode/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/description/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/description/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/description/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/explicit-publish/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/explicit-publish/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/explorer/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/explorer/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/explorer/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/favicon/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/favicon/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/favicon/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/folder-page/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/folder-page/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/folder-page/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/fonts/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/fonts/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/fonts/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/footer/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/footer/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/footer/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/github-flavored-markdown/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/github-flavored-markdown/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/github-flavored-markdown/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/graph/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/graph/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/graph/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/hard-line-breaks/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/hard-line-breaks/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/hard-line-breaks/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/latex/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/latex/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/latex/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/note-properties/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/note-properties/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/note-properties/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/obsidian-flavored-markdown/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/obsidian-flavored-markdown/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/obsidian-flavored-markdown/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/og-image/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/og-image/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/og-image/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/page-title/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/page-title/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/page-title/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/reader-mode/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/reader-mode/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/reader-mode/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/recent-notes/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/recent-notes/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/recent-notes/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/remove-draft/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/remove-draft/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/search/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/search/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/search/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/spacer/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/spacer/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/spacer/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/syntax-highlighting/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/syntax-highlighting/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/syntax-highlighting/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/table-of-contents/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/table-of-contents/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/table-of-contents/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-list/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-list/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-list/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-page/.git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-page/dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/.quartz/plugins/tag-page/node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "selfweb",
+      "path": "site/quartz/.quartz-cache/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": ".git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": ".playwright-cli/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "release/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "main.js",
+      "reason": "generated-plugin-bundle-source-preserved",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": ".git/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "continuity-widget",
+      "path": "bin/",
+      "reason": "compiled-binaries",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "continuity-widget",
+      "path": "dist/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "continuity-widget",
+      "path": "node_modules/",
+      "reason": "git-history-or-dependency-cache-runtime-build-directory",
+      "entry_type": "pruned-directory",
+      "contents_not_enumerated": true
+    },
+    {
+      "project": "continuity-widget",
+      "path": "ui/src/design-tokens.css",
+      "reason": "credential-cookie-token-file-not-read",
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/desktop/build/icon.icns",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/desktop/build/icon.ico",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/docs/assets/brand/icon.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/docs/assets/brand/preview.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_allowlist.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_claim_extract.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_distractor_gate.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_git_capture.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential",
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_learning_inputs.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_provider.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_redact.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "credential-in-url",
+        "possible-hardcoded-credential",
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_routes_providers.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "credential-in-url",
+        "possible-hardcoded-credential",
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_security_hardening.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "credential-in-url"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_stage1_task1.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential",
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/test_structured_output.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/tests/unit/serve/test_routes_growth_model.py",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential",
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/viewer/src/i18n/messages/en.json",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/viewer/src/i18n/messages/zh-CN.json",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "possible-hardcoded-credential"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/viewer/tests/unit/client.test.ts",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "provider-key-format"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "growth",
+      "path": "projects/growth/viewer/tests/unit/learn-mode-dialog.test.ts",
+      "reason": "suspected-credential-content-file-excluded",
+      "rules": [
+        "credential-in-url"
+      ],
+      "entry_type": "file"
+    },
+    {
+      "project": "vault-manager",
+      "path": "projects/vault-manager/assets/vault-manager-logo.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "vault-manager",
+      "path": "projects/vault-manager/assets/vault-manager.ico",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/home-light.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/custom-social-image-preview-dark.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/custom-social-image-preview-light.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/dns records.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/giscus-discussion.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/giscus-example.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/giscus-repo.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/giscus-results.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/github-init-repo-options.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/github-quick-setup.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/quartz transform pipeline.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/quartz-layout-desktop.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/quartz-layout-mobile.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/quartz-layout-tablet.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/social-image-preview-dark.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/docs/images/social-image-preview-light.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/quartz/static/icon.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "selfweb",
+      "path": "projects/selfweb/site/quartz/static/og-image.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-02-mobile-article.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-02-mobile-outline-final.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-02-mobile-outline.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-desktop-article.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-desktop-final.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-mobile-article.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-mobile-empty.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "obsidian-ai-writer",
+      "path": "projects/obsidian-ai-writer/output/playwright/ai-writer-statusbar-fixed.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": "projects/continuity-widget/assets/continuity-icon-16-preview.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": "projects/continuity-widget/assets/continuity-icon-chroma.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": "projects/continuity-widget/assets/continuity-icon-keyed.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": "projects/continuity-widget/assets/continuity-icon.png",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    },
+    {
+      "project": "continuity-widget",
+      "path": "projects/continuity-widget/assets/continuity-widget.ico",
+      "reason": "non-text-or-large-media-not-source",
+      "entry_type": "file"
+    }
+  ]
+}

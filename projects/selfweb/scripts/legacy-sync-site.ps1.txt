@@ -1,0 +1,1443 @@
+param(
+  [string]$VaultPath = 'C:\Code\notes\zxy',
+  [string]$SitePath = 'C:\Code\codex\selfweb\site',
+  [switch]$Build
+)
+
+$ErrorActionPreference = 'Stop'
+
+$allowedSections = @('home', 'wiki', 'software', 'blog', 'article', 'app-note')
+$requiredFields = @('title', 'publish', 'section', 'summary', 'created', 'updated')
+$softwareRequiredFields = @('software_id', 'status', 'platforms', 'pricing', 'open_source', 'official_url', 'download_url')
+$blockedRootDirs = @('daily', 'output')
+$sensitivePattern = '(?i)(authorization\s*[:=]|bearer\s+[A-Za-z0-9._-]+|sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|secret\s*[:=]\s*\S+|password\s*[:=]\s*\S+|token\s*[:=]\s*\S+|api[_ -]?key\s*[:=]\s*\S+|密钥\s*[:=：]\s*\S+|密码\s*[:=：]\s*\S+)'
+$sensitiveTermPattern = '(?i)(api[_ -]?key|token|secret|password|密钥|密码|账号)'
+$imageExtensions = @('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif')
+$vaultManagerExe = 'C:\Code\rust\vault-manager\bin\vault-manager-cli.exe'
+
+function Invoke-VaultSchemaValidation {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $vaultManagerExe -PathType Leaf)) {
+    throw "Vault Manager validator not found: $vaultManagerExe"
+  }
+
+  $validationOutput = & $vaultManagerExe validate --vault $Path --scope publish --json
+  $validationExitCode = $LASTEXITCODE
+  if ($validationExitCode -ne 0) {
+    throw "Vault Schema publish validation failed with exit code $validationExitCode.`n$($validationOutput -join "`n")"
+  }
+  return (($validationOutput -join "`n") | ConvertFrom-Json)
+}
+
+function Get-RelativePath {
+  param([string]$BasePath, [string]$Path)
+  return [System.IO.Path]::GetRelativePath($BasePath, $Path).Replace('\', '/')
+}
+
+function Read-MarkdownFile {
+  param([string]$Path)
+
+  $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+  $frontmatter = [ordered]@{}
+  $body = $text
+
+  if ($text.StartsWith("---`r`n") -or $text.StartsWith("---`n")) {
+    $newline = if ($text.StartsWith("---`r`n")) { "`r`n" } else { "`n" }
+    $start = 3 + $newline.Length
+    $endMarker = $newline + '---' + $newline
+    $end = $text.IndexOf($endMarker, $start)
+    if ($end -ge 0) {
+      $fmText = $text.Substring($start, $end - $start)
+      $body = $text.Substring($end + $endMarker.Length)
+      $currentKey = $null
+      foreach ($line in ($fmText -split "`r?`n")) {
+        if ($line -match '^([A-Za-z0-9_-]+):\s*(.*)$') {
+          $currentKey = $Matches[1]
+          $frontmatter[$currentKey] = $Matches[2].Trim()
+        } elseif ($currentKey -and $line -match '^\s+-\s+(.+)$') {
+          $existing = [string]$frontmatter[$currentKey]
+          if ($existing.StartsWith('[') -and $existing.EndsWith(']')) {
+            continue
+          }
+          $frontmatter[$currentKey] = (($frontmatter[$currentKey], $Matches[1].Trim()) | Where-Object { $_ }) -join ', '
+        }
+      }
+    }
+  }
+
+  return [pscustomobject]@{
+    Path = $Path
+    RelativePath = Get-RelativePath -BasePath $VaultPath -Path $Path
+    Frontmatter = $frontmatter
+    Body = $body
+    Text = $text
+  }
+}
+
+function Test-PublishTrue {
+  param($Doc)
+  return $Doc.Frontmatter.Contains('publish') -and $Doc.Frontmatter['publish'] -match '^true$'
+}
+
+function Convert-MarkdownPathToDirectoryIndex {
+  param([string]$RelativePath)
+
+  if ($RelativePath.EndsWith('/index.md')) {
+    return $RelativePath
+  }
+
+  $dir = [System.IO.Path]::GetDirectoryName($RelativePath).Replace('\', '/')
+  $stem = [System.IO.Path]::GetFileNameWithoutExtension($RelativePath)
+  if ([string]::IsNullOrWhiteSpace($dir)) {
+    return "$stem/index.md"
+  }
+  return "$dir/$stem/index.md"
+}
+
+function Convert-ContentRelativePath {
+  param($Doc)
+
+  $rel = $Doc.RelativePath
+  if ($rel -eq 'wiki/index.md') { return 'wiki/index.md' }
+  if ($rel.StartsWith('wiki/')) { return Convert-MarkdownPathToDirectoryIndex -RelativePath $rel }
+  if ($rel -eq 'notes/software/index.md') { return 'software/guide/index.md' }
+  if ($rel.StartsWith('notes/software/')) {
+    $id = $Doc.Frontmatter['software_id']
+    if ([string]::IsNullOrWhiteSpace($id)) {
+      $id = [System.IO.Path]::GetFileNameWithoutExtension($rel)
+    }
+    return "software/$id/index.md"
+  }
+  if ($rel.StartsWith('notes/blog/')) {
+    $name = [System.IO.Path]::GetFileName($rel)
+    if ($name -eq 'index.md') { return 'blog/index.md' }
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    return "blog/$stem/index.md"
+  }
+  if ($Doc.Frontmatter['section'] -eq 'blog') {
+    $name = [System.IO.Path]::GetFileName($rel)
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    return "blog/$stem/index.md"
+  }
+  if ($rel.StartsWith('notes/apps/')) {
+    $name = [System.IO.Path]::GetFileName($rel)
+    if ($name -eq 'index.md') { return 'app-notes/index.md' }
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    return "app-notes/$stem/index.md"
+  }
+  if ($Doc.Frontmatter['section'] -eq 'app-note') {
+    $name = [System.IO.Path]::GetFileName($rel)
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    return "app-notes/$stem/index.md"
+  }
+  if ($rel.StartsWith('raw/')) {
+    $name = [System.IO.Path]::GetFileName($rel)
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+    return "articles/$stem/index.md"
+  }
+  return Convert-MarkdownPathToDirectoryIndex -RelativePath $rel
+}
+
+function Get-ArrayValues {
+  param([string]$Value)
+  if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
+  $trimmed = $Value.Trim()
+  if ($trimmed.StartsWith('[') -and $trimmed.EndsWith(']')) {
+    return $trimmed.Trim('[', ']') -split ',' | ForEach-Object { $_.Trim().Trim('"', "'") } | Where-Object { $_ }
+  }
+  if ($trimmed -match ',') {
+    return $trimmed -split ',' | ForEach-Object { $_.Trim().Trim('"', "'") } | Where-Object { $_ }
+  }
+  return @($trimmed.Trim('"', "'"))
+}
+
+function Convert-ToQuartzSlugSegment {
+  param([string]$Value)
+
+  $slug = $Value.ToLowerInvariant()
+  $slug = $slug -replace '%', '-percent'
+  $slug = $slug -replace '&', '-and-'
+  $slug = $slug -replace '\+', '+'
+  $slug = $slug -replace '[\s]+', '-'
+  $slug = $slug -replace '[\?#[\]{}<>`"''|\\^~;:,@!$*()=]+', ''
+  $slug = $slug -replace '-+', '-'
+  $slug = $slug.Trim('-')
+  return $slug
+}
+
+function Get-ImageReferences {
+  param([string]$Text)
+  $refs = [System.Collections.Generic.List[string]]::new()
+
+  foreach ($match in [regex]::Matches($Text, '!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]')) {
+    [void]$refs.Add($match.Groups[1].Value.Trim())
+  }
+  foreach ($match in [regex]::Matches($Text, '!\[[^\]]*\]\(([^)]+)\)')) {
+    $target = $match.Groups[1].Value.Trim()
+    if ($target -notmatch '^(https?:)?//') {
+      [void]$refs.Add(($target -split '\s+"' | Select-Object -First 1).Trim())
+    }
+  }
+
+  return $refs
+}
+
+function Resolve-AssetPath {
+  param($Doc, [string]$Reference)
+
+  $cleanRef = [Uri]::UnescapeDataString(($Reference -split '#')[0]).Trim()
+  if ([string]::IsNullOrWhiteSpace($cleanRef)) { return $null }
+  $ext = [System.IO.Path]::GetExtension($cleanRef).ToLowerInvariant()
+  if ($imageExtensions -notcontains $ext) { return $null }
+
+  $candidates = @(
+    (Join-Path -Path (Split-Path -Parent $Doc.Path) -ChildPath $cleanRef),
+    (Join-Path -Path $VaultPath -ChildPath $cleanRef),
+    (Join-Path -Path (Join-Path $VaultPath 'assets') -ChildPath $cleanRef)
+  )
+
+  foreach ($candidate in $candidates) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      return (Resolve-Path -LiteralPath $candidate).Path
+    }
+  }
+
+  $fileName = [System.IO.Path]::GetFileName($cleanRef)
+  $found = Get-ChildItem -LiteralPath (Join-Path $VaultPath 'assets') -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq $fileName } |
+    Select-Object -First 1
+  if ($found) { return $found.FullName }
+  return $null
+}
+
+function Write-TextFile {
+  param([string]$Path, [string]$Value)
+  $dir = Split-Path -Parent $Path
+  if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Path $dir | Out-Null
+  }
+  Set-Content -LiteralPath $Path -Value $Value -Encoding UTF8
+}
+
+function Convert-PublicHtmlToDirectoryIndexes {
+  param([string]$PublicPath)
+
+  if (-not (Test-Path -LiteralPath $PublicPath)) { return }
+
+  $resolvedPublic = (Resolve-Path -LiteralPath $PublicPath).Path
+  $htmlFiles = Get-ChildItem -LiteralPath $PublicPath -Recurse -File -Filter '*.html' |
+    Where-Object { $_.Name -ne 'index.html' }
+
+  foreach ($file in $htmlFiles) {
+    $resolvedFile = (Resolve-Path -LiteralPath $file.FullName).Path
+    if (-not $resolvedFile.StartsWith($resolvedPublic, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Refusing to rewrite HTML outside public: $resolvedFile"
+    }
+
+    $targetDir = Join-Path $file.DirectoryName $file.BaseName
+    $resolvedTargetDirParent = (Resolve-Path -LiteralPath $file.DirectoryName).Path
+    if (-not $resolvedTargetDirParent.StartsWith($resolvedPublic, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Refusing to create clean URL outside public: $targetDir"
+    }
+
+    if (-not (Test-Path -LiteralPath $targetDir)) {
+      New-Item -ItemType Directory -Path $targetDir | Out-Null
+    }
+
+    $html = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+    $html = [regex]::Replace($html, '(?<attr>\b(?:href|src)=["''])(?<url>(?!https?:|mailto:|javascript:|#|/)[^"'']+)(?<end>["''])', {
+      param($match)
+      return $match.Groups['attr'].Value + '../' + $match.Groups['url'].Value + $match.Groups['end'].Value
+    })
+    $html = $html -replace 'fetch\("\.\./static/', 'fetch("../../static/'
+    Set-Content -LiteralPath (Join-Path $targetDir 'index.html') -Value $html -Encoding UTF8
+    Remove-Item -LiteralPath $file.FullName -Force
+  }
+}
+
+function Convert-ToPublicIndexSlug {
+  param([string]$Slug)
+
+  if ([string]::IsNullOrWhiteSpace($Slug)) { return '/' }
+
+  $clean = $Slug.Replace('\', '/').Trim()
+  $clean = $clean.TrimStart('/')
+  if ($clean -eq 'index') { return '/' }
+  if ($clean.EndsWith('/index')) {
+    $clean = $clean.Substring(0, $clean.Length - '/index'.Length)
+  }
+  $clean = $clean.TrimEnd('/')
+  if ([string]::IsNullOrWhiteSpace($clean)) { return '/' }
+  return $clean
+}
+
+function Normalize-ContentIndexForCleanUrls {
+  param([string]$PublicPath)
+
+  $indexPath = Join-Path $PublicPath 'static\contentIndex.json'
+  if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) { return }
+
+  $raw = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8
+  if ([string]::IsNullOrWhiteSpace($raw)) { return }
+
+  $index = $raw | ConvertFrom-Json -AsHashtable
+  $normalized = [ordered]@{}
+
+  foreach ($key in $index.Keys) {
+    $cleanKey = Convert-ToPublicIndexSlug -Slug ([string]$key)
+    if ($normalized.Contains($cleanKey)) {
+      continue
+    }
+
+    $entry = $index[$key]
+    if ($entry -is [System.Collections.IDictionary]) {
+      $entry['slug'] = $cleanKey
+      if ($entry.Contains('links') -and $entry['links']) {
+        $entry['links'] = @($entry['links'] | ForEach-Object { Convert-ToPublicIndexSlug -Slug ([string]$_) })
+      }
+    }
+
+    $normalized[$cleanKey] = $entry
+  }
+
+  $normalized | ConvertTo-Json -Depth 20 -Compress | Set-Content -LiteralPath $indexPath -Encoding UTF8
+}
+
+function Convert-PublicMarkdown {
+  param($Doc)
+
+  $text = $Doc.Text
+  if (-not ($text.StartsWith("---`r`n") -or $text.StartsWith("---`n"))) {
+    return $text
+  }
+
+  $newline = if ($text.StartsWith("---`r`n")) { "`r`n" } else { "`n" }
+  $start = 3 + $newline.Length
+  $endMarker = $newline + '---' + $newline
+  $end = $text.IndexOf($endMarker, $start)
+  if ($end -lt 0) { return $text }
+
+  $fmLines = [System.Collections.Generic.List[string]]::new()
+  $sourceBlock = $false
+  foreach ($line in ($text.Substring($start, $end - $start) -split "`r?`n")) {
+    if ($line -match '^published:\s*(?:null)?\s*$') {
+      continue
+    }
+    if ($line -match '^sources:\s*$') {
+      $sourceBlock = $true
+      continue
+    }
+    if ($sourceBlock -and $line -match '^\s+-\s+') {
+      continue
+    }
+    if ($sourceBlock -and $line -match '^[A-Za-z0-9_-]+:') {
+      $sourceBlock = $false
+    }
+    if (-not $sourceBlock) {
+      [void]$fmLines.Add($line)
+    }
+  }
+
+  $body = $text.Substring($end + $endMarker.Length)
+  $bodyLines = [System.Collections.Generic.List[string]]( $body -split "`r?`n" )
+  $outBody = [System.Collections.Generic.List[string]]::new()
+  $skipSourceSection = $false
+  foreach ($line in $bodyLines) {
+    if ($line -match '^##\s+来源\s*$') {
+      $skipSourceSection = $true
+      continue
+    }
+    if ($skipSourceSection -and $line -match '^##\s+') {
+      $skipSourceSection = $false
+    }
+    if (-not $skipSourceSection) {
+      [void]$outBody.Add($line)
+    }
+  }
+
+  $publicBody = ($outBody -join "`n")
+  $publicBody = [regex]::Replace($publicBody, '`(?:daily|output|raw)/[^`]+?\.md`', '未公开来源材料')
+  $publicBody = [regex]::Replace($publicBody, '(?m)^-\s*(?:daily|output|raw)/.+?\.md\s*$', '')
+  $publicBody = [regex]::Replace($publicBody, '\[([^\]]+)\]\((?:\.\./)?(?:原始材料|daily|output|raw)/[^)]+?\.md(?:\s+"[^"]*")?\)', '$1')
+  $publicBody = [regex]::Replace($publicBody, '(?m)^\[[^\]]+\]:\s+(?:\.\./)?(?:原始材料|daily|output|raw)/.+?\.md(?:\s+".*?")?\s*$', '')
+  $publicBody = [regex]::Replace($publicBody, '\[\[([^\]|#]+)(#[^\]|]+)?(\|[^\]]+)?\]\]', {
+    param($match)
+    $target = $match.Groups[1].Value.Trim()
+    $anchor = $match.Groups[2].Value
+    $alias = $match.Groups[3].Value
+    $targetExt = [System.IO.Path]::GetExtension(($target -split '#')[0]).ToLowerInvariant()
+    if ($imageExtensions -contains $targetExt) { return $match.Value }
+
+    $targetKey = Convert-WikilinkTargetToKey -Target $target
+    if ($script:publishedLinkTargets -and $script:publishedLinkTargets.ContainsKey($targetKey)) {
+      return '[[' + $script:publishedLinkTargets[$targetKey] + $anchor + $alias + ']]'
+    }
+    return $match.Value
+  })
+
+  if ($Doc.Frontmatter['section'] -eq 'wiki' -and $Doc.RelativePath -ne 'wiki/index.md') {
+    $kind = switch ($Doc.Frontmatter['type']) {
+      'concept' { '概念' }
+      'entity' { '实体' }
+      'topic' { '主题' }
+      default { '条目' }
+    }
+    $status = switch ($Doc.Frontmatter['status']) {
+      'mature' { '成熟' }
+      'stub' { '小条目' }
+      default { [string]$Doc.Frontmatter['status'] }
+    }
+    if ([string]::IsNullOrWhiteSpace($status)) { $status = '未标注' }
+    $tags = (Get-ArrayValues -Value ([string]$Doc.Frontmatter['tags']) | Select-Object -First 4) -join ' · '
+    if ([string]::IsNullOrWhiteSpace($tags)) { $tags = '无' }
+    $summary = [System.Net.WebUtility]::HtmlEncode([string]$Doc.Frontmatter['summary'])
+    $title = [System.Net.WebUtility]::HtmlEncode([string]$Doc.Frontmatter['title'])
+    $updated = [System.Net.WebUtility]::HtmlEncode([string]$Doc.Frontmatter['updated'])
+
+    $wikiFrame = @"
+<div class="wiki-entry">
+<aside class="wiki-infobox">
+<div class="wiki-infobox-title">$title</div>
+<div class="wiki-facts">
+<div><span>类型</span><strong>$kind</strong></div>
+<div><span>状态</span><strong>$status</strong></div>
+<div><span>更新</span><strong>$updated</strong></div>
+<div><span>标签</span><strong>$tags</strong></div>
+</div>
+</aside>
+<p class="wiki-lead">$summary</p>
+</div>
+
+"@
+    $publicBody = $wikiFrame + $publicBody
+  }
+
+  return "---`n" + ($fmLines -join "`n") + "`n---`n" + ($publicBody.TrimStart("`r", "`n"))
+}
+
+function Copy-ContentFile {
+  param($Doc, [string]$Destination)
+  $dir = Split-Path -Parent $Destination
+  if (-not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Path $dir | Out-Null
+  }
+  Set-Content -LiteralPath $Destination -Value (Convert-PublicMarkdown -Doc $Doc) -Encoding UTF8
+}
+
+function Get-SlugFromOutput {
+  param([string]$Output)
+  if ($Output -match '/index\.md$') {
+    return ($Output -replace '/index\.md$', '/')
+  }
+  return ($Output -replace '\.md$', '')
+}
+
+function Get-HrefFromOutput {
+  param([string]$Output)
+  $slug = Get-SlugFromOutput -Output $Output
+  $trailingSlash = $slug.EndsWith('/')
+  $segments = $slug.TrimEnd('/') -split '/'
+  $safeSegments = $segments | ForEach-Object { Convert-ToQuartzSlugSegment -Value $_ }
+  $href = ($safeSegments -join '/')
+  if ($trailingSlash) { $href += '/' }
+  return $href
+}
+
+function Convert-WikilinkTargetToKey {
+  param([string]$Target)
+
+  $clean = ($Target -split '#')[0].Trim().Trim('/')
+  $clean = $clean -replace '\.md$', ''
+  if ([string]::IsNullOrWhiteSpace($clean)) { return '' }
+
+  $segments = $clean -split '/'
+  return (($segments | ForEach-Object { Convert-ToQuartzSlugSegment -Value $_ }) -join '/')
+}
+
+function Add-PublishedOutputKey {
+  param([hashtable]$Map, [string]$Key)
+
+  if ([string]::IsNullOrWhiteSpace($Key)) { return }
+  $normalized = $Key.Trim().Trim('/')
+  if ([string]::IsNullOrWhiteSpace($normalized)) { return }
+  $Map[$normalized] = $true
+  $Map["$normalized/"] = $true
+  $Map["$normalized/index"] = $true
+}
+
+function Get-WikiKind {
+  param([string]$Output)
+  if ($Output -match '^wiki/concepts/') { return 'concept' }
+  if ($Output -match '^wiki/entities/') { return 'entity' }
+  if ($Output -match '^wiki/topics/') { return 'topic' }
+  return 'wiki'
+}
+
+function Get-SectionTitle {
+  param([string]$Section)
+  switch ($Section) {
+    'wiki' { 'Wiki' }
+    'software' { '软件库' }
+    'blog' { '博客' }
+    'article' { '文章' }
+    'app-note' { '应用笔记' }
+    default { $Section }
+  }
+}
+
+function Get-SortedEntries {
+  param($Items)
+  return @($Items | Sort-Object @{ Expression = 'created'; Descending = $true }, @{ Expression = 'updated'; Descending = $true }, @{ Expression = 'title'; Ascending = $true })
+}
+
+function New-EntryList {
+  param($Items, [string]$ExtraClass = '')
+  $className = 'entry-row'
+  if (-not [string]::IsNullOrWhiteSpace($ExtraClass)) {
+    $className = "$className $ExtraClass"
+  }
+  return ((Get-SortedEntries -Items $Items | ForEach-Object {
+    $href = Get-HrefFromOutput -Output $_.output
+    $title = [System.Net.WebUtility]::HtmlEncode([string]$_.title)
+    $summary = [System.Net.WebUtility]::HtmlEncode([string]$_.summary)
+    $created = [System.Net.WebUtility]::HtmlEncode([string]$_.created)
+    "<article class=`"$className`"><time>$created</time><div><a href=`"/$href`">$title</a><p>$summary</p></div></article>"
+  }) -join "`n")
+}
+
+function Convert-ToDataValue {
+  param([string]$Value)
+  return (Convert-ToQuartzSlugSegment -Value $Value)
+}
+
+function New-ExpandableEntryList {
+  param($Items, [string]$ContainerClass, [int]$VisibleCount = 12, [string]$EmptyText = '暂无内容。')
+
+  $sorted = @(Get-SortedEntries -Items $Items)
+  if ($sorted.Count -eq 0) { return $EmptyText }
+
+  $visible = @($sorted | Select-Object -First $VisibleCount)
+  $hidden = @($sorted | Select-Object -Skip $VisibleCount)
+  $visibleRows = New-EntryList -Items $visible
+  $html = @"
+<div class="$ContainerClass">
+$visibleRows
+</div>
+"@
+
+  if ($hidden.Count -gt 0) {
+    $hiddenRows = New-EntryList -Items $hidden -ExtraClass 'is-collapsed-entry'
+    $html += @"
+
+<details class="collection-more">
+<summary>查看更多 $($hidden.Count) 篇</summary>
+<div class="$ContainerClass collection-more-list">
+$hiddenRows
+</div>
+</details>
+"@
+  }
+
+  return $html
+}
+
+function Get-ContentCategories {
+  param($Item)
+  $tags = Get-ArrayValues -Value ([string]$Item.frontmatter['tags'])
+  if ($tags.Count -eq 0) { return @('未分类') }
+  return @($tags | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function New-WikiIndexCards {
+  param($Items)
+  return (($Items | Sort-Object title | ForEach-Object {
+    $href = '/' + (Get-HrefFromOutput -Output $_.output)
+    $title = [System.Net.WebUtility]::HtmlEncode([string]$_.title)
+    $summary = [System.Net.WebUtility]::HtmlEncode([string]$_.summary)
+    $updated = [System.Net.WebUtility]::HtmlEncode([string]$_.updated)
+    "<a class=`"wiki-index-item`" href=`"$href`"><strong>$title</strong><span>$summary</span><small>$updated</small></a>"
+  }) -join "`n")
+}
+
+function Get-SoftwareId {
+  param($SoftwareDoc)
+  return Convert-ToQuartzSlugSegment -Value ([string]$SoftwareDoc.Frontmatter['software_id'])
+}
+
+function Get-SoftwareAppNotes {
+  param($SoftwareDoc, [hashtable]$AppNotesBySoftware)
+  $softwareId = Get-SoftwareId -SoftwareDoc $SoftwareDoc
+  if ([string]::IsNullOrWhiteSpace($softwareId) -or -not $AppNotesBySoftware.ContainsKey($softwareId)) {
+    return @()
+  }
+  return @(Get-SortedEntries -Items $AppNotesBySoftware[$softwareId])
+}
+
+function New-SoftwareNoteBadge {
+  param([int]$Count)
+  if ($Count -gt 0) {
+    return "<span class=`"software-note-badge has-notes`">有 $Count 篇笔记</span>"
+  }
+  return '<span class="software-note-badge no-notes">暂无笔记</span>'
+}
+
+function New-CollectionFilterButton {
+  param([string]$Field, [string]$Value, [string]$Label, [int]$Count = -1, [switch]$Active)
+  $safeField = [System.Net.WebUtility]::HtmlEncode($Field)
+  $safeValue = [System.Net.WebUtility]::HtmlEncode($Value)
+  $safeLabel = [System.Net.WebUtility]::HtmlEncode($Label)
+  $className = if ($Active) { 'collection-filter-chip is-active' } else { 'collection-filter-chip' }
+  $countText = if ($Count -ge 0) { "<span>$Count</span>" } else { '' }
+  return "<button type=`"button`" class=`"$className`" data-filter-field=`"$safeField`" data-filter-value=`"$safeValue`">$safeLabel$countText</button>"
+}
+
+function New-ContentResultCard {
+  param($Item)
+  $href = Get-HrefFromOutput -Output $Item.output
+  $title = [System.Net.WebUtility]::HtmlEncode([string]$Item.title)
+  $summary = [System.Net.WebUtility]::HtmlEncode([string]$Item.summary)
+  $updated = [System.Net.WebUtility]::HtmlEncode([string]$Item.updated)
+  $categories = @(Get-ContentCategories -Item $Item)
+  $categoryValues = (($categories | ForEach-Object { Convert-ToDataValue -Value ([string]$_) }) -join ' ')
+  $tags = (($categories | ForEach-Object { '<span>' + [System.Net.WebUtility]::HtmlEncode([string]$_) + '</span>' }) -join '')
+  return @"
+<article class="collection-result-item entry-row" data-categories="$categoryValues">
+  <time>$updated</time>
+  <div>
+    <a href="/$href">$title</a>
+    <p>$summary</p>
+    <div class="collection-result-tags">$tags</div>
+  </div>
+</article>
+"@
+}
+
+function New-ContentBrowser {
+  param($Items, [string]$Title, [int]$PageSize = 12)
+
+  $sorted = @(Get-SortedEntries -Items $Items)
+  if ($sorted.Count -eq 0) { return '暂无内容。' }
+
+  $groups = @{}
+  foreach ($item in $sorted) {
+    foreach ($category in Get-ContentCategories -Item $item) {
+      if (-not $groups.ContainsKey($category)) { $groups[$category] = 0 }
+      $groups[$category] += 1
+    }
+  }
+
+  $filterButtons = [System.Collections.Generic.List[string]]::new()
+  [void]$filterButtons.Add((New-CollectionFilterButton -Field 'category' -Value 'all' -Label '全部' -Count $sorted.Count -Active))
+  foreach ($category in ($groups.Keys | Sort-Object)) {
+    [void]$filterButtons.Add((New-CollectionFilterButton -Field 'category' -Value (Convert-ToDataValue -Value $category) -Label $category -Count $groups[$category]))
+  }
+
+  $itemsHtml = (($sorted | ForEach-Object { New-ContentResultCard -Item $_ }) -join "`n")
+  return @"
+<section class="collection-finder" data-page-size="$PageSize">
+  <div class="collection-filter-panel">
+    <div class="collection-filter-strip">
+      <span class="collection-filter-title">$Title</span>
+      <div class="collection-filter-row" role="list" aria-label="$Title">
+$($filterButtons -join "`n")
+      </div>
+    </div>
+  </div>
+  <div class="collection-result-toolbar"><span data-result-count>$($sorted.Count) 项</span><span data-page-status></span></div>
+  <div class="collection-results article-list">
+$itemsHtml
+  </div>
+  <p class="collection-empty-state" data-empty-state hidden>没有匹配结果。</p>
+  <div class="collection-pagination" aria-label="分页"></div>
+</section>
+"@
+}
+
+function New-ExpandableHtmlList {
+  param([object[]]$Items, [scriptblock]$RenderItem, [string]$ContainerClass, [int]$VisibleCount = 12)
+
+  $itemsArray = @($Items)
+  if ($itemsArray.Count -eq 0) { return '' }
+
+  $visible = @($itemsArray | Select-Object -First $VisibleCount)
+  $hidden = @($itemsArray | Select-Object -Skip $VisibleCount)
+  $visibleRows = (($visible | ForEach-Object { & $RenderItem $_ }) -join "`n")
+  $html = @"
+<div class="$ContainerClass">
+$visibleRows
+</div>
+"@
+
+  if ($hidden.Count -gt 0) {
+    $hiddenRows = (($hidden | ForEach-Object { & $RenderItem $_ }) -join "`n")
+    $html += @"
+
+<details class="collection-more">
+<summary>查看更多 $($hidden.Count) 项</summary>
+<div class="$ContainerClass collection-more-list">
+$hiddenRows
+</div>
+</details>
+"@
+  }
+
+  return $html
+}
+
+function New-SoftwareDirectoryRows {
+  param($Items, [hashtable]$AppNotesBySoftware = @{})
+  return (($Items | Sort-Object { $_.Frontmatter['title'] } | ForEach-Object {
+    $fm = $_.Frontmatter
+    $title = [System.Net.WebUtility]::HtmlEncode([string]$fm['title'])
+    $softwareId = Get-SoftwareId -SoftwareDoc $_
+    $id = [System.Net.WebUtility]::HtmlEncode($softwareId)
+    $category = [System.Net.WebUtility]::HtmlEncode([string]$fm['category'])
+    $categoryValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['category'])))
+    $statusValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['status'])))
+    $pricingValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['pricing'])))
+    $openSource = if ([string]$fm['open_source'] -eq 'true') { '开源' } else { '非开源' }
+    $officialUrl = [System.Net.WebUtility]::HtmlEncode([string]$fm['official_url'])
+    $downloadUrl = [System.Net.WebUtility]::HtmlEncode([string]$fm['download_url'])
+    $updated = [System.Net.WebUtility]::HtmlEncode([string]$fm['updated'])
+    $noteCount = (Get-SoftwareAppNotes -SoftwareDoc $_ -AppNotesBySoftware $AppNotesBySoftware).Count
+    $noteText = if ($noteCount -gt 0) { "$noteCount 篇笔记" } else { '暂无笔记' }
+    @"
+<div class="software-directory-row collection-linked-item" data-item-id="$id" data-category="$categoryValue" data-status="$statusValue" data-pricing="$pricingValue">
+  <a class="software-directory-title" href="/software/$id/">$title</a>
+  <span class="software-directory-meta">$category</span>
+  <span class="software-directory-meta">$openSource</span>
+  <span class="software-directory-meta">$noteText</span>
+  <span class="software-directory-meta">$updated</span>
+  <span class="software-directory-actions"><a href="$officialUrl">官网</a><a href="$downloadUrl">下载</a></span>
+</div>
+"@
+  }) -join "`n")
+}
+
+function New-SoftwareCard {
+  param($SoftwareDoc, [hashtable]$AppNotesBySoftware)
+
+  $fm = $SoftwareDoc.Frontmatter
+  $title = [System.Net.WebUtility]::HtmlEncode([string]$fm['title'])
+  $softwareId = Get-SoftwareId -SoftwareDoc $SoftwareDoc
+  $id = [System.Net.WebUtility]::HtmlEncode($softwareId)
+  $summary = [System.Net.WebUtility]::HtmlEncode([string]$fm['summary'])
+  $status = [System.Net.WebUtility]::HtmlEncode([string]$fm['status'])
+  $category = [System.Net.WebUtility]::HtmlEncode([string]$fm['category'])
+  $pricing = [System.Net.WebUtility]::HtmlEncode([string]$fm['pricing'])
+  $categoryValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['category'])))
+  $statusValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['status'])))
+  $pricingValue = [System.Net.WebUtility]::HtmlEncode((Convert-ToDataValue -Value ([string]$fm['pricing'])))
+  $noteCount = (Get-SoftwareAppNotes -SoftwareDoc $SoftwareDoc -AppNotesBySoftware $AppNotesBySoftware).Count
+  $badge = New-SoftwareNoteBadge -Count $noteCount
+  return "  <a class=`"software-card-item collection-linked-item`" href=`"/software/$id/`" data-item-id=`"$id`" data-category=`"$categoryValue`" data-status=`"$statusValue`" data-pricing=`"$pricingValue`"><span class=`"software-card-topline`"><strong>$title</strong>$badge</span><span>$summary</span><small>$status · $category · $pricing</small></a>"
+}
+
+function Get-SoftwareCategoryValue {
+  param($SoftwareDoc, [string]$Field)
+  $value = [string]$SoftwareDoc.Frontmatter[$Field]
+  if ([string]::IsNullOrWhiteSpace($value)) { return '未分类' }
+  return $value
+}
+
+function New-SoftwareFilterGroup {
+  param($Items, [string]$Field, [string]$Label)
+
+  $groups = @{}
+  foreach ($item in $Items) {
+    $category = Get-SoftwareCategoryValue -SoftwareDoc $item -Field $Field
+    if (-not $groups.ContainsKey($category)) { $groups[$category] = 0 }
+    $groups[$category] += 1
+  }
+
+  $buttons = [System.Collections.Generic.List[string]]::new()
+  [void]$buttons.Add((New-CollectionFilterButton -Field $Field -Value 'all' -Label '全部' -Count $Items.Count -Active))
+  foreach ($category in ($groups.Keys | Sort-Object)) {
+    [void]$buttons.Add((New-CollectionFilterButton -Field $Field -Value (Convert-ToDataValue -Value $category) -Label $category -Count $groups[$category]))
+  }
+
+  return @"
+<div class="collection-filter-group" role="group" aria-label="$Label">
+  <span class="collection-filter-label">$Label</span>
+  <div class="collection-filter-row" role="list" aria-label="$Label">
+$($buttons -join "`n")
+  </div>
+</div>
+"@
+}
+
+function New-SoftwareBrowser {
+  param($Items, [hashtable]$AppNotesBySoftware, [int]$PageSize = 12)
+
+  $fieldLabels = [ordered]@{
+    category = '类型'
+    status = '状态'
+    pricing = '价格'
+  }
+
+  $sorted = @($Items | Sort-Object { $_.Frontmatter['title'] })
+  if ($sorted.Count -eq 0) { return '暂无软件条目。' }
+
+  $groupsHtml = [System.Collections.Generic.List[string]]::new()
+  foreach ($field in $fieldLabels.Keys) {
+    [void]$groupsHtml.Add((New-SoftwareFilterGroup -Items $sorted -Field $field -Label $fieldLabels[$field]))
+  }
+
+  $cardsHtml = (($sorted | ForEach-Object { New-SoftwareCard -SoftwareDoc $_ -AppNotesBySoftware $AppNotesBySoftware }) -join "`n")
+  $rowsHtml = New-SoftwareDirectoryRows -Items $sorted -AppNotesBySoftware $AppNotesBySoftware
+  return @"
+<section class="collection-finder software-finder" data-page-size="$PageSize">
+  <div class="collection-filter-panel">
+    <div class="collection-filter-strip">
+      <span class="collection-filter-title">筛选</span>
+$($groupsHtml -join "`n")
+    </div>
+  </div>
+  <div class="collection-result-toolbar"><span data-result-count>$($sorted.Count) 项</span><span data-page-status></span></div>
+  <div class="collection-results software-grid" data-result-surface="cards">
+$cardsHtml
+  </div>
+  <div class="software-directory-list" data-result-surface="table">
+$rowsHtml
+  </div>
+  <p class="collection-empty-state" data-empty-state hidden>没有匹配结果。</p>
+  <div class="collection-pagination" aria-label="分页"></div>
+</section>
+"@
+}
+
+function Get-AppNoteRelatedSoftware {
+  param($AppNote, [string[]]$SoftwareIds)
+
+  $explicit = [string]$AppNote.frontmatter['related_software']
+  if (-not [string]::IsNullOrWhiteSpace($explicit)) {
+    return (Convert-ToQuartzSlugSegment -Value $explicit)
+  }
+
+  $fileName = ($AppNote.source -split '/')[-1]
+  $stem = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+  foreach ($id in ($SoftwareIds | Sort-Object Length -Descending)) {
+    if ($stem -eq $id -or $stem.StartsWith("$id-", [System.StringComparison]::OrdinalIgnoreCase)) {
+      return $id
+    }
+  }
+
+  return $null
+}
+
+function New-SoftwareAppNoteSection {
+  param($Items)
+
+  if (-not $Items -or $Items.Count -eq 0) { return '' }
+  $sorted = @(Get-SortedEntries -Items $Items)
+  $visible = @($sorted | Select-Object -First 3)
+  $hidden = @($sorted | Select-Object -Skip 3)
+  $rows = New-EntryList -Items $visible
+  $more = ''
+  if ($hidden.Count -gt 0) {
+    $hiddenRows = New-EntryList -Items $hidden -ExtraClass 'is-collapsed-entry'
+    $more = @"
+<details class="software-app-notes-more">
+<summary>查看更多 $($hidden.Count) 篇</summary>
+<div class="note-list software-app-notes-more-list">
+$hiddenRows
+</div>
+</details>
+"@
+  }
+  return @"
+
+## 配套应用笔记
+
+<div class="note-list software-app-notes">
+$rows
+</div>
+$more
+"@
+}
+
+function Add-SectionAfterFirstHeading {
+  param([string]$Path, [string]$Section)
+  if ([string]::IsNullOrWhiteSpace($Section)) { return }
+
+  $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+  $lines = [System.Collections.Generic.List[string]]($text -split "`r?`n")
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match '^#\s+') {
+      $lines.Insert($i + 1, $Section.Trim("`r", "`n"))
+      Set-Content -LiteralPath $Path -Value ($lines -join "`n") -Encoding UTF8
+      return
+    }
+  }
+
+  Set-Content -LiteralPath $Path -Value ($Section.Trim("`r", "`n") + "`n" + $text) -Encoding UTF8
+}
+
+$contentPath = Join-Path $SitePath 'content'
+$reportDir = Join-Path (Split-Path -Parent $SitePath) 'reports'
+$reportJson = Join-Path $reportDir 'site-sync-report.json'
+$reportMd = Join-Path $reportDir 'site-sync-report.md'
+
+if (-not (Test-Path -LiteralPath $VaultPath)) { throw "Vault not found: $VaultPath" }
+if (-not (Test-Path -LiteralPath $SitePath)) { throw "Site not found: $SitePath" }
+
+$schemaValidation = Invoke-VaultSchemaValidation -Path $VaultPath
+
+$allMarkdown = Get-ChildItem -LiteralPath $VaultPath -Recurse -File -Filter '*.md' |
+  Where-Object { $_.FullName -notmatch '\\.obsidian\\' -and $_.FullName -notmatch '\\templates\\' }
+
+$docs = foreach ($file in $allMarkdown) { Read-MarkdownFile -Path $file.FullName }
+$published = @($docs | Where-Object { Test-PublishTrue -Doc $_ })
+$publishedMap = @{}
+foreach ($doc in $published) { $publishedMap[$doc.RelativePath] = $doc }
+
+$script:publishedLinkTargets = @{}
+foreach ($doc in $published) {
+  $destRel = Convert-ContentRelativePath -Doc $doc
+  $href = (Get-HrefFromOutput -Output $destRel).TrimEnd('/')
+  foreach ($key in @(
+    (Convert-WikilinkTargetToKey -Target $doc.RelativePath),
+    (Convert-WikilinkTargetToKey -Target $destRel),
+    (Convert-WikilinkTargetToKey -Target ([System.IO.Path]::GetFileNameWithoutExtension($doc.RelativePath))),
+    (Convert-WikilinkTargetToKey -Target ([string]$doc.Frontmatter['title']))
+  )) {
+    if (-not [string]::IsNullOrWhiteSpace($key) -and -not $script:publishedLinkTargets.ContainsKey($key)) {
+      $script:publishedLinkTargets[$key] = $href
+    }
+  }
+}
+
+$missingFields = [System.Collections.Generic.List[object]]::new()
+$blockedFiles = [System.Collections.Generic.List[object]]::new()
+$sensitiveHits = [System.Collections.Generic.List[object]]::new()
+$sensitiveTermHits = [System.Collections.Generic.List[object]]::new()
+$brokenLinks = [System.Collections.Generic.List[object]]::new()
+$placeholderHits = [System.Collections.Generic.List[object]]::new()
+$missingImages = [System.Collections.Generic.List[object]]::new()
+$copiedImages = [System.Collections.Generic.List[object]]::new()
+$privateImages = [System.Collections.Generic.List[object]]::new()
+$outputCollisions = [System.Collections.Generic.List[object]]::new()
+
+$publishedOutputs = @{}
+foreach ($doc in $published) {
+  $destRel = Convert-ContentRelativePath -Doc $doc
+  $outputKey = $destRel.ToLowerInvariant()
+  if ($publishedOutputs.ContainsKey($outputKey)) {
+    $previous = $publishedOutputs[$outputKey]
+    [void]$outputCollisions.Add([pscustomobject]@{ output = $destRel; first = $previous.RelativePath; second = $doc.RelativePath })
+    [void]$blockedFiles.Add([pscustomobject]@{ path = $previous.RelativePath; reason = "duplicate public output: $destRel" })
+    [void]$blockedFiles.Add([pscustomobject]@{ path = $doc.RelativePath; reason = "duplicate public output: $destRel" })
+  } else {
+    $publishedOutputs[$outputKey] = $doc
+  }
+}
+
+foreach ($doc in $published) {
+  $root = ($doc.RelativePath -split '/')[0]
+  if ($blockedRootDirs -contains $root) {
+    [void]$blockedFiles.Add([pscustomobject]@{ path = $doc.RelativePath; reason = 'blocked root directory' })
+  }
+  if ($doc.RelativePath.StartsWith('raw/') -and $doc.Frontmatter['section'] -ne 'article') {
+    [void]$blockedFiles.Add([pscustomobject]@{ path = $doc.RelativePath; reason = 'raw requires section: article' })
+  }
+  foreach ($field in $requiredFields) {
+    if (-not $doc.Frontmatter.Contains($field) -or [string]::IsNullOrWhiteSpace($doc.Frontmatter[$field])) {
+      [void]$missingFields.Add([pscustomobject]@{ path = $doc.RelativePath; field = $field })
+    }
+  }
+  if ($doc.Frontmatter.Contains('section') -and $allowedSections -notcontains $doc.Frontmatter['section']) {
+    [void]$missingFields.Add([pscustomobject]@{ path = $doc.RelativePath; field = 'section(valid enum)' })
+  }
+  if ($doc.Frontmatter['section'] -eq 'software' -and $doc.RelativePath -ne 'notes/software/index.md') {
+    foreach ($field in $softwareRequiredFields) {
+      if (-not $doc.Frontmatter.Contains($field) -or [string]::IsNullOrWhiteSpace($doc.Frontmatter[$field])) {
+        [void]$missingFields.Add([pscustomobject]@{ path = $doc.RelativePath; field = $field })
+      }
+    }
+  }
+  if ($doc.Text -match $sensitivePattern) {
+    [void]$sensitiveHits.Add([pscustomobject]@{ path = $doc.RelativePath; match = $Matches[0] })
+  } elseif ($doc.Text -match $sensitiveTermPattern) {
+    [void]$sensitiveTermHits.Add([pscustomobject]@{ path = $doc.RelativePath; match = $Matches[0] })
+  }
+  foreach ($match in [regex]::Matches($doc.Text, '\{\{[^}]+\}\}|YYYY-MM-DD|应用笔记标题|软件名称|一句话说明这篇应用笔记|一句话描述该软件')) {
+    [void]$placeholderHits.Add([pscustomobject]@{ path = $doc.RelativePath; match = $match.Value })
+  }
+}
+
+if (Test-Path -LiteralPath $contentPath) {
+  $resolvedContent = (Resolve-Path -LiteralPath $contentPath).Path
+  $resolvedSite = (Resolve-Path -LiteralPath $SitePath).Path
+  if (-not $resolvedContent.StartsWith($resolvedSite, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clear content outside site: $resolvedContent"
+  }
+  Remove-Item -LiteralPath $contentPath -Recurse -Force
+}
+New-Item -ItemType Directory -Path $contentPath | Out-Null
+
+$contentDocs = [System.Collections.Generic.List[object]]::new()
+foreach ($doc in $published) {
+  if ($blockedFiles | Where-Object { $_.path -eq $doc.RelativePath }) { continue }
+  $destRel = Convert-ContentRelativePath -Doc $doc
+  $dest = Join-Path $contentPath $destRel
+  Copy-ContentFile -Doc $doc -Destination $dest
+  [void]$contentDocs.Add([pscustomobject]@{
+    source = $doc.RelativePath
+    output = $destRel
+    title = $doc.Frontmatter['title']
+    section = $doc.Frontmatter['section']
+    summary = $doc.Frontmatter['summary']
+    created = $doc.Frontmatter['created']
+    updated = $doc.Frontmatter['updated']
+    frontmatter = $doc.Frontmatter
+  })
+}
+
+foreach ($doc in $published) {
+  foreach ($imageRef in Get-ImageReferences -Text $doc.Text) {
+    $resolved = Resolve-AssetPath -Doc $doc -Reference $imageRef
+    if (-not $resolved) {
+      [void]$missingImages.Add([pscustomobject]@{ page = $doc.RelativePath; image = $imageRef })
+      continue
+    }
+    $assetRel = Get-RelativePath -BasePath $VaultPath -Path $resolved
+    if ($assetRel -match '(^|/)private(/|$)' -or $assetRel.StartsWith('daily/') -or $assetRel.StartsWith('output/')) {
+      [void]$privateImages.Add([pscustomobject]@{ page = $doc.RelativePath; image = $assetRel })
+      continue
+    }
+    $dest = Join-Path $contentPath $assetRel
+    $dir = Split-Path -Parent $dest
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    Copy-Item -LiteralPath $resolved -Destination $dest -Force
+    [void]$copiedImages.Add([pscustomobject]@{ page = $doc.RelativePath; image = $assetRel })
+  }
+}
+
+$wikiDocs = @($contentDocs | Where-Object { $_.section -eq 'wiki' -and $_.output -ne 'wiki/index.md' })
+$conceptDocs = @($wikiDocs | Where-Object { $_.output -match '^wiki/concepts/' })
+$entityDocs = @($wikiDocs | Where-Object { $_.output -match '^wiki/entities/' })
+$topicDocs = @($wikiDocs | Where-Object { $_.output -match '^wiki/topics/' })
+$softwareDocs = @($published | Where-Object { $_.Frontmatter['section'] -eq 'software' })
+$softwareIndexDoc = @($softwareDocs | Where-Object { $_.RelativePath -eq 'notes/software/index.md' } | Select-Object -First 1)
+$softwareItemDocs = @($softwareDocs | Where-Object { $_.RelativePath -ne 'notes/software/index.md' })
+$articleDocs = @($contentDocs | Where-Object { $_.section -eq 'article' })
+$blogDocs = @($contentDocs | Where-Object { $_.section -eq 'blog' -and $_.output -ne 'blog/index.md' })
+$appNoteDocs = @($contentDocs | Where-Object { $_.section -eq 'app-note' -and $_.output -ne 'app-notes/index.md' })
+$softwareIds = @($softwareItemDocs | ForEach-Object { Convert-ToQuartzSlugSegment -Value ([string]$_.Frontmatter['software_id']) } | Where-Object { $_ })
+$appNotesBySoftware = @{}
+$unlinkedAppNotes = [System.Collections.Generic.List[object]]::new()
+foreach ($appNote in $appNoteDocs) {
+  $relatedSoftware = Get-AppNoteRelatedSoftware -AppNote $appNote -SoftwareIds $softwareIds
+  if ([string]::IsNullOrWhiteSpace($relatedSoftware) -or $softwareIds -notcontains $relatedSoftware) {
+    [void]$unlinkedAppNotes.Add([pscustomobject]@{
+      path = $appNote.source
+      title = $appNote.title
+      reason = 'missing or unknown related_software'
+    })
+    continue
+  }
+  if (-not $appNotesBySoftware.ContainsKey($relatedSoftware)) {
+    $appNotesBySoftware[$relatedSoftware] = [System.Collections.Generic.List[object]]::new()
+  }
+  [void]$appNotesBySoftware[$relatedSoftware].Add($appNote)
+}
+
+foreach ($softwareDoc in $softwareItemDocs) {
+  $softwareId = Convert-ToQuartzSlugSegment -Value ([string]$softwareDoc.Frontmatter['software_id'])
+  if ([string]::IsNullOrWhiteSpace($softwareId) -or -not $appNotesBySoftware.ContainsKey($softwareId)) {
+    continue
+  }
+
+  $softwareOutput = Convert-ContentRelativePath -Doc $softwareDoc
+  $softwareContentPath = Join-Path $contentPath $softwareOutput
+  if (-not (Test-Path -LiteralPath $softwareContentPath -PathType Leaf)) {
+    continue
+  }
+
+  $section = New-SoftwareAppNoteSection -Items $appNotesBySoftware[$softwareId]
+  if (-not [string]::IsNullOrWhiteSpace($section)) {
+    Add-SectionAfterFirstHeading -Path $softwareContentPath -Section $section
+  }
+}
+$latestDocs = @(
+  $contentDocs |
+    Where-Object { $_.created -and $_.source -notmatch '(^|/)index\.md$' } |
+    Sort-Object @{ Expression = 'created'; Descending = $true }, @{ Expression = 'updated'; Descending = $true }, @{ Expression = 'title'; Ascending = $true } |
+    Select-Object -First 12
+)
+
+$homePage = @"
+---
+title: 首页
+publish: true
+section: home
+summary: 公开个人知识库首页，提供并列栏目入口和最新公开内容。
+tags: [index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 公开知识库
+
+这是一个面向未来自己的公开知识空间。Wiki 是像维基百科一样的长期知识库；软件库、文章和博客是与它并列的内容栏目。
+
+<div class="section-grid home-sections">
+  <a class="section-card wiki-card" href="wiki/">
+    <span class="section-kicker">Knowledge Base</span>
+    <strong>Wiki</strong>
+    <small>概念、实体、主题，以百科条目方式组织。</small>
+  </a>
+  <a class="section-card software-card" href="software/">
+    <span class="section-kicker">Library</span>
+    <strong>软件库</strong>
+    <small>个人使用、测试、收藏的软件目录。</small>
+  </a>
+  <a class="section-card article-card" href="articles/">
+    <span class="section-kicker">Articles</span>
+    <strong>文章</strong>
+    <small>从素材中整理出的正式文章和研究稿。</small>
+  </a>
+  <a class="section-card blog-card" href="blog/">
+    <span class="section-kicker">Writing</span>
+    <strong>博客</strong>
+    <small>观点、复盘和阶段性写作。</small>
+  </a>
+</div>
+
+## Wiki 概览
+
+<div class="wiki-overview-list">
+  <a href="/wiki/concepts/"><strong>概念</strong><span>方法、术语、模型</span><small>$($conceptDocs.Count)</small></a>
+  <a href="/wiki/entities/"><strong>实体</strong><span>工具、产品、人物、组织</span><small>$($entityDocs.Count)</small></a>
+  <a href="/wiki/topics/"><strong>主题</strong><span>主题综述、工作流、问题域</span><small>$($topicDocs.Count)</small></a>
+</div>
+
+## 最新内容
+
+$((($latestDocs | ForEach-Object { "- [[" + ($_.output -replace '/index\.md$', '/index' -replace '\.md$', '') + "|" + $_.title + "]] - " + $_.summary }) -join "`n"))
+
+## 常用主题
+
+- [[wiki/concepts/ai-agent|AI Agent]]
+- [[wiki/topics/ai-note-taking-workflow|AI 笔记工作流]]
+- [[wiki/entities/obsidian|Obsidian]]
+"@
+Write-TextFile -Path (Join-Path $contentPath 'index.md') -Value $homePage
+
+$wikiIndex = @"
+---
+title: Wiki
+publish: true
+section: wiki
+summary: 独立的百科式知识库入口，按概念、实体和主题组织长期知识。
+tags: [wiki, index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# Wiki
+
+Wiki 是这个站点中独立存在的知识库，不是博客列表，也不是所有内容的混合目录。它只承载稳定、可追溯、可互相链接的知识条目。
+
+<div class="wiki-portal">
+  <a class="wiki-panel" href="/wiki/concepts/"><span>Concepts</span><strong>概念</strong><small>$($conceptDocs.Count) 个条目</small></a>
+  <a class="wiki-panel" href="/wiki/entities/"><span>Entities</span><strong>实体</strong><small>$($entityDocs.Count) 个条目</small></a>
+  <a class="wiki-panel" href="/wiki/topics/"><span>Topics</span><strong>主题</strong><small>$($topicDocs.Count) 个条目</small></a>
+</div>
+
+## 最近更新
+
+$((($wikiDocs | Sort-Object @{ Expression = 'created'; Descending = $true }, @{ Expression = 'updated'; Descending = $true }, @{ Expression = 'title'; Ascending = $true } | Select-Object -First 10 | ForEach-Object { "- [[" + (Get-SlugFromOutput -Output $_.output) + "|" + $_.title + "]] - " + $_.summary }) -join "`n"))
+"@
+Write-TextFile -Path (Join-Path $contentPath 'wiki\index.md') -Value $wikiIndex
+
+$conceptIndex = @"
+---
+title: 概念
+publish: true
+section: wiki
+summary: Wiki 中的方法、术语、模型和抽象概念索引。
+tags: [wiki, concepts]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 概念
+
+这里收录可复用的概念、方法、术语和模型。它们应该像百科条目一样解释“是什么、为什么重要、与什么相关”。
+
+<div class="wiki-index-list">
+$(New-WikiIndexCards -Items $conceptDocs)
+</div>
+"@
+Write-TextFile -Path (Join-Path $contentPath 'wiki\concepts\index.md') -Value $conceptIndex
+
+$entityIndex = @"
+---
+title: 实体
+publish: true
+section: wiki
+summary: Wiki 中的工具、产品、人物、组织和项目索引。
+tags: [wiki, entities]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 实体
+
+这里收录具体工具、产品、人物、组织和项目。实体页负责说明“它是谁、它做什么、它与哪些概念和主题有关”。
+
+<div class="wiki-index-list">
+$(New-WikiIndexCards -Items $entityDocs)
+</div>
+"@
+Write-TextFile -Path (Join-Path $contentPath 'wiki\entities\index.md') -Value $entityIndex
+
+$topicIndex = @"
+---
+title: 主题
+publish: true
+section: wiki
+summary: Wiki 中的主题综述、工作流和问题域索引。
+tags: [wiki, topics]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 主题
+
+这里收录主题综述、工作流和问题域。主题页负责把多个概念与实体组织成一条可理解的线索。
+
+<div class="wiki-index-list">
+$(New-WikiIndexCards -Items $topicDocs)
+</div>
+"@
+Write-TextFile -Path (Join-Path $contentPath 'wiki\topics\index.md') -Value $topicIndex
+
+$softwareIndex = @"
+---
+title: 软件库
+publish: true
+section: software
+summary: 个人使用、测试和收藏的软件目录。
+tags: [software, index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 软件库
+
+这里不是大型软件下载站，而是个人使用、测试和收藏的软件目录。软件条目由 ``notes/software/*.md`` 主动维护。
+
+维护方式见：[[software/guide/index|软件库维护规范]]
+
+$(New-SoftwareBrowser -Items $softwareItemDocs -AppNotesBySoftware $appNotesBySoftware)
+"@
+Write-TextFile -Path (Join-Path $contentPath 'software\index.md') -Value $softwareIndex
+
+if ($softwareIndexDoc) {
+  Copy-ContentFile -Doc $softwareIndexDoc -Destination (Join-Path $contentPath 'software\guide\index.md')
+}
+
+$articleList = New-ContentBrowser -Items $articleDocs -Title '分类筛选'
+$articleIndex = @"
+---
+title: 文章
+publish: true
+section: article
+summary: 从 raw 中筛选、整理和确认可公开的正式文章入口。
+tags: [index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 文章
+
+这里用于发布从素材中筛选、整理和确认可公开的正式文章。它与 Wiki 并列：文章负责完整叙述，Wiki 负责沉淀稳定知识。
+
+$articleList
+"@
+Write-TextFile -Path (Join-Path $contentPath 'articles\index.md') -Value $articleIndex
+
+$appNoteList = New-ExpandableEntryList -Items $appNoteDocs -ContainerClass 'note-list'
+$appNotesIndex = @"
+---
+title: 应用笔记
+publish: true
+section: app-note
+summary: 具体应用体验、配置记录和工作流笔记。
+tags: [app-note, index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 应用笔记
+
+应用笔记记录具体软件的配置、快捷操作、使用体验和工作流。它比 Wiki 更贴近操作现场，比软件库详情更偏个人实践。
+
+$appNoteList
+"@
+Write-TextFile -Path (Join-Path $contentPath 'app-notes\index.md') -Value $appNotesIndex
+
+$blogList = if ($blogDocs.Count -gt 0) {
+  New-ContentBrowser -Items $blogDocs -Title '分类筛选'
+} else {
+  "暂无公开博客。后续只发布明确标记 `publish: true` 的观点、复盘和阶段性写作。"
+}
+$blogIndex = @"
+---
+title: 博客
+publish: true
+section: blog
+summary: 观点、复盘和阶段性写作。
+tags: [blog, index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 博客
+
+博客是与 Wiki 并列的写作栏目，主要放观点、项目复盘和阶段性总结。
+
+$blogList
+"@
+Write-TextFile -Path (Join-Path $contentPath 'blog\index.md') -Value $blogIndex
+
+$latestIndex = @"
+---
+title: 最新内容
+publish: true
+section: wiki
+summary: 按 created 字段排序的最新公开内容列表。
+tags: [index]
+created: 2026-07-08
+updated: 2026-07-08
+---
+
+# 最新内容
+
+$((($latestDocs | ForEach-Object { "- [[" + ($_.output -replace '/index\.md$', '/index' -replace '\.md$', '') + "|" + $_.title + "]] - " + $_.created + " - " + $_.summary }) -join "`n"))
+"@
+Write-TextFile -Path (Join-Path $contentPath 'latest.md') -Value $latestIndex
+
+$publishedOutputs = @{}
+foreach ($item in $contentDocs) {
+  $slug = (Get-HrefFromOutput -Output $item.output).Trim('/')
+  Add-PublishedOutputKey -Map $publishedOutputs -Key $slug
+  Add-PublishedOutputKey -Map $publishedOutputs -Key (($slug -split '/')[-1])
+  Add-PublishedOutputKey -Map $publishedOutputs -Key (Convert-WikilinkTargetToKey -Target $item.source)
+  Add-PublishedOutputKey -Map $publishedOutputs -Key ([System.IO.Path]::GetFileNameWithoutExtension($item.source))
+}
+
+foreach ($doc in $published) {
+  foreach ($match in [regex]::Matches($doc.Text, '\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]')) {
+    $target = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($target)) { continue }
+    $targetExt = [System.IO.Path]::GetExtension(($target -split '#')[0]).ToLowerInvariant()
+    if ($imageExtensions -contains $targetExt) { continue }
+    $targetKey = Convert-WikilinkTargetToKey -Target $target
+    if (-not $publishedOutputs.ContainsKey($targetKey)) {
+      $possibleName = Convert-ToQuartzSlugSegment -Value ([System.IO.Path]::GetFileNameWithoutExtension($target))
+      if (-not $publishedOutputs.ContainsKey($possibleName)) {
+        [void]$brokenLinks.Add([pscustomobject]@{ page = $doc.RelativePath; link = $target })
+      }
+    }
+  }
+}
+
+$blockedUnpublished = @($docs | Where-Object { -not (Test-PublishTrue -Doc $_) -and (($_.RelativePath.StartsWith('daily/')) -or ($_.RelativePath.StartsWith('output/')) -or ($_.RelativePath.StartsWith('raw/'))) } | ForEach-Object {
+  [pscustomobject]@{ path = $_.RelativePath; reason = 'not publish:true' }
+})
+
+$report = [pscustomobject]@{
+  generatedAt = (Get-Date).ToString('s')
+  vaultPath = $VaultPath
+  sitePath = $SitePath
+  publishedPageCount = $contentDocs.Count + 4
+  sourcePublishedCount = $published.Count
+  softwareCount = $softwareItemDocs.Count
+  copiedImageCount = $copiedImages.Count
+  schemaValidation = $schemaValidation
+  outputCollisions = $outputCollisions
+  copiedPages = $contentDocs
+  missingFields = $missingFields
+  blockedFiles = @($blockedFiles + $blockedUnpublished)
+  sensitiveHits = $sensitiveHits
+  sensitiveTermHits = $sensitiveTermHits
+  brokenLinks = $brokenLinks
+  placeholderHits = $placeholderHits
+  unlinkedAppNotes = $unlinkedAppNotes
+  missingImages = $missingImages
+  copiedImages = $copiedImages
+  privateImages = $privateImages
+  canPublish = ($missingFields.Count -eq 0 -and $blockedFiles.Count -eq 0 -and $sensitiveHits.Count -eq 0 -and $brokenLinks.Count -eq 0 -and $placeholderHits.Count -eq 0 -and $unlinkedAppNotes.Count -eq 0 -and $missingImages.Count -eq 0 -and $privateImages.Count -eq 0)
+}
+
+if (-not (Test-Path -LiteralPath $reportDir)) { New-Item -ItemType Directory -Path $reportDir | Out-Null }
+$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportJson -Encoding UTF8
+
+$md = @"
+# 站点同步报告
+
+- 生成时间：$($report.generatedAt)
+- 公开源页面数：$($report.sourcePublishedCount)
+- Quartz 内容页面数：$($report.publishedPageCount)
+- 软件样例数：$($report.softwareCount)
+- 复制公开图片数：$($report.copiedImageCount)
+- Schema 校验错误数：$($schemaValidation.errors.Count)
+- Schema 校验提示数：$($schemaValidation.warnings.Count)
+- 公开输出冲突数：$($outputCollisions.Count)
+- 缺失字段数：$($missingFields.Count)
+- 断链数：$($brokenLinks.Count)
+- 占位符命中数：$($placeholderHits.Count)
+- 未关联应用笔记数：$($unlinkedAppNotes.Count)
+- 缺失图片数：$($missingImages.Count)
+- 敏感命中数：$($sensitiveHits.Count)
+- 敏感术语提示数：$($sensitiveTermHits.Count)
+- 是否可以发布：$($report.canPublish)
+
+## 已复制页面
+
+$((($contentDocs | Sort-Object output | ForEach-Object { "- $($_.output) <- $($_.source)" }) -join "`n"))
+
+## 被阻止或未公开文件
+
+$(((@($blockedFiles + $blockedUnpublished) | Select-Object -First 80 | ForEach-Object { "- $($_.path) ($($_.reason))" }) -join "`n"))
+
+## 公开输出冲突
+
+$((($outputCollisions | Select-Object -First 80 | ForEach-Object { "- $($_.output): $($_.first) <-> $($_.second)" }) -join "`n"))
+
+## 未关联软件的应用笔记
+
+$((($unlinkedAppNotes | Select-Object -First 80 | ForEach-Object { "- $($_.path) ($($_.reason))" }) -join "`n"))
+
+## 断链
+
+$((($brokenLinks | Select-Object -First 80 | ForEach-Object { "- $($_.page) -> $($_.link)" }) -join "`n"))
+
+## 占位符命中
+
+$((($placeholderHits | Select-Object -First 80 | ForEach-Object { "- $($_.path) ($($_.match))" }) -join "`n"))
+"@
+Set-Content -LiteralPath $reportMd -Value $md -Encoding UTF8
+
+Write-Output "Published pages: $($report.publishedPageCount)"
+Write-Output "Software pages: $($report.softwareCount)"
+Write-Output "Can publish: $($report.canPublish)"
+Write-Output "Report: $reportMd"
+
+if ($Build) {
+  Push-Location $SitePath
+  try {
+    rtk npx quartz build
+    if ($LASTEXITCODE -ne 0) {
+      throw "Quartz build failed with exit code $LASTEXITCODE"
+    }
+    Convert-PublicHtmlToDirectoryIndexes -PublicPath (Join-Path $SitePath 'public')
+    Normalize-ContentIndexForCleanUrls -PublicPath (Join-Path $SitePath 'public')
+  } finally {
+    Pop-Location
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "projects/growth/viewer/public/icons/growth-192.png": {
+    "sha256": "ca154c9dae9cc8fe79a83d18eaff405e89989915e6af4a925871876f00fe19c2",
+    "kind": "existing source application icon"
+  },
+  "projects/growth/viewer/public/icons/growth-512.png": {
+    "sha256": "b0afc1943fd1ea5566501e7b730e9f7135b24bd668518ffb305c417423fd136e",
+    "kind": "existing source application icon"
+  },
+  "projects/growth/viewer/src/assets/fonts/NotoSansSC.ttf": {
+    "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+    "kind": "font under included OFL license"
+  },
+  "projects/selfweb/site/quartz/static/icon.png": {
+    "sha256": "532d053e33c2c6bdefdd8145996cedc4be2fc32cfdac740c8488749457d131cf",
+    "kind": "existing source application icon"
+  }
+}

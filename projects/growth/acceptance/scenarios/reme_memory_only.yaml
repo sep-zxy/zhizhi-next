@@ -1,0 +1,78 @@
+# ReMe v0.4.1.12 acceptance profile: real file/BM25 memory without LLM jobs.
+# The app still owns identity, source revision, and account isolation in PostgreSQL.
+enable_logo: false
+service:
+  backend: http
+  host: 127.0.0.1
+  port: 18775
+  web_enabled: false
+  mcp_enabled: false
+jobs:
+  index_update_loop:
+    backend: background
+    watch_dirs: [daily_dir, digest_dir]
+    watch_suffixes: [md]
+    steps:
+      - backend: init_changes_step
+        monitor_type: file_store
+        monitor_name: default
+        dispatch_steps: [update_index_step]
+      - backend: watch_changes_step
+        dispatch_steps:
+          - backend: update_index_step
+            persist: false
+  version:
+    backend: base
+    steps:
+      - backend: version_step
+  reindex:
+    backend: base
+    steps:
+      - backend: reindex_step
+  search:
+    backend: base
+    steps:
+      - backend: search_step
+        vector_weight: 0.7
+        candidate_multiplier: 5.0
+        expand_links: true
+        max_links_per_direction: 10
+  write:
+    backend: base
+    steps:
+      - backend: write_step
+  delete:
+    backend: base
+    steps:
+      - backend: delete_step
+components:
+  file_chunker:
+    markdown:
+      backend: markdown
+      supported_extensions: [md]
+      embed_toc: true
+      max_ast_sections: 100
+      include_frontmatter_in_metadata: false
+      include_frontmatter_keys_in_metadata: []
+  tokenizer:
+    default:
+      backend: regex
+  keyword_index:
+    default:
+      backend: bm25
+      tokenizer: default
+  tag_index:
+    default:
+      backend: local
+      tag_key: memory_tags
+  file_graph:
+    default:
+      backend: local
+  file_store:
+    default:
+      backend: local
+      store_name: local
+      embedding_store: ""
+      keyword_index: default
+      file_graph: default
+      tag_index: default

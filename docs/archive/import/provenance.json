@@ -1,0 +1,250 @@
+{
+  "format_version": 1,
+  "restoration_commit": "33b4dc15583abe471a0ee2f49ff3f099d6ad24d6",
+  "recovery_note": "Reapplied from verified 33b4dc1 baseline; not recovery of lost later Git objects or test evidence.",
+  "projects": [
+    {
+      "name": "growth",
+      "local_root": "C:\\Code\\growth",
+      "snapshot_source": "current-filesystem-including-uncommitted-and-untracked-source",
+      "git": {
+        "repository_root": "C:\\Code\\growth",
+        "head": "4407eb6feefc63c9b8c6c4b36ef6c9a0a305611b",
+        "branch": "codex/issue-1-content-layout",
+        "shallow": true,
+        "origin_safe_summary": "https://github.com/sep-zxy/zhizhi",
+        "worktree_change_count": 0,
+        "status_digest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "source_changes": [],
+        "excluded_change_count": 0
+      }
+    },
+    {
+      "name": "vault-manager",
+      "local_root": "C:\\Code\\rust\\vault-manager",
+      "snapshot_source": "current-filesystem-including-uncommitted-and-untracked-source",
+      "git": null,
+      "git_status": "no .git found at project root; filesystem snapshot only"
+    },
+    {
+      "name": "selfweb",
+      "local_root": "C:\\Code\\codex\\selfweb",
+      "snapshot_source": "current-filesystem-including-uncommitted-and-untracked-source",
+      "git": {
+        "repository_root": "C:\\Code\\codex\\selfweb\\site",
+        "head": "d1ca50fc72a37436c82a1b88dddfbb2b408a04b3",
+        "branch": "v5",
+        "shallow": false,
+        "origin_safe_summary": "https://github.com/jackyzha0/quartz",
+        "worktree_change_count": 130,
+        "status_digest_sha256": "9a568775e636ba44b40b9d7d112ef8453559374887837998ef0fc0523a907086",
+        "source_changes": [
+          {
+            "status": " M",
+            "path": "quartz.config.yaml"
+          },
+          {
+            "status": " M",
+            "path": "quartz/components/renderPage.test.ts"
+          },
+          {
+            "status": " M",
+            "path": "quartz/components/renderPage.tsx"
+          },
+          {
+            "status": " M",
+            "path": "quartz/plugins/emitters/componentResources.ts"
+          },
+          {
+            "status": " M",
+            "path": "quartz/plugins/loader/config-loader.ts"
+          },
+          {
+            "status": " M",
+            "path": "quartz/plugins/transformers/index.ts"
+          },
+          {
+            "status": " M",
+            "path": "quartz/styles/base.scss"
+          },
+          {
+            "status": " M",
+            "path": "quartz/styles/custom.scss"
+          },
+          {
+            "status": " M",
+            "path": "quartz/styles/variables.scss"
+          },
+          {
+            "status": "??",
+            "path": "quartz/components/scripts/collectionFinder.inline.ts"
+          },
+          {
+            "status": "??",
+            "path": "quartz/plugins/transformers/nestedMarkdownHighlights.test.ts"
+          }
+        ],
+        "excluded_change_count": 119
+      }
+    },
+    {
+      "name": "obsidian-ai-writer",
+      "local_root": "C:\\Code\\obsidian-ai-writer",
+      "snapshot_source": "current-filesystem-including-uncommitted-and-untracked-source",
+      "git": {
+        "repository_root": "C:\\Code\\obsidian-ai-writer",
+        "head": "02ed179e1bbd798d135dbef544d75416535446c6",
+        "branch": "master",
+        "shallow": false,
+        "origin_safe_summary": null,
+        "worktree_change_count": 31,
+        "status_digest_sha256": "14fd171c82bf790442f244e01a3caee31c272b72d88015e34b5c7c1a31903755",
+        "source_changes": [
+          {
+            "status": " M",
+            "path": "README.md"
+          },
+          {
+            "status": " M",
+            "path": "manifest.json"
+          },
+          {
+            "status": " M",
+            "path": "package-lock.json"
+          },
+          {
+            "status": " M",
+            "path": "package.json"
+          },
+          {
+            "status": " M",
+            "path": "src/core/article.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/core/prompts.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/core/types.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/core/workflow.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/main.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/settings.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/style/khazixStylePack.ts"
+          },
+          {
+            "status": " M",
+            "path": "src/ui/AiWriterView.ts"
+          },
+          {
+            "status": " M",
+            "path": "styles.css"
+          },
+          {
+            "status": " M",
+            "path": "tests/article.test.ts"
+          },
+          {
+            "status": " M",
+            "path": "tests/fixtures/ui-preview.html"
+          },
+          {
+            "status": " M",
+            "path": "tests/prompts.test.ts"
+          },
+          {
+            "status": " M",
+            "path": "tests/workflow.test.ts"
+          },
+          {
+            "status": " M",
+            "path": "versions.json"
+          },
+          {
+            "status": "??",
+            "path": "src/core/articleStyles.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/articleTypes.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/illustrations.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/markdownQuality.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/outputValidation.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/session.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/core/templates.ts"
+          },
+          {
+            "status": "??",
+            "path": "src/ui/TemplateCreatorView.ts"
+          },
+          {
+            "status": "??",
+            "path": "tests/illustrations.test.ts"
+          },
+          {
+            "status": "??",
+            "path": "tests/markdownQuality.test.ts"
+          },
+          {
+            "status": "??",
+            "path": "tests/outputValidation.test.ts"
+          },
+          {
+            "status": "??",
+            "path": "tests/session.test.ts"
+          },
+          {
+            "status": "??",
+            "path": "tests/templates.test.ts"
+          }
+        ],
+        "excluded_change_count": 0
+      }
+    },
+    {
+      "name": "continuity-widget",
+      "local_root": "C:\\Code\\rust\\continuity-widget",
+      "snapshot_source": "current-filesystem-including-uncommitted-and-untracked-source",
+      "git": {
+        "repository_root": "C:\\Code\\rust\\continuity-widget",
+        "head": "15efb82d7a35df008d23e21465028780eb28212b",
+        "branch": "main",
+        "shallow": false,
+        "origin_safe_summary": null,
+        "worktree_change_count": 0,
+        "status_digest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "source_changes": [],
+        "excluded_change_count": 0
+      }
+    }
+  ],
+  "snapshot_started_utc": "2026-10-19T18:49:12.660749+00:00",
+  "snapshot_finished_utc": "2026-10-19T18:49:33.588594+00:00"
+}

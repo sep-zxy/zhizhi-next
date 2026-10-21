@@ -1,0 +1,2 @@
+# Preserve audited source and fixture bytes across cloud and Windows checkouts.
+* -text

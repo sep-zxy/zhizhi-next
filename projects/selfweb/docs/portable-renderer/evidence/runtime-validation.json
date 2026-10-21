@@ -1,0 +1,13 @@
+{
+  "positive_dynamic_builds": 2,
+  "negative_cases": 5,
+  "files": [
+    54,
+    54
+  ],
+  "fixed_resources": 41,
+  "different_content": true,
+  "compiler_packages_absent": true,
+  "unknown_resources_fail_closed": true,
+  "windows_execution": "not_run"
+}

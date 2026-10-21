@@ -1,0 +1,151 @@
+[
+  {
+    "path": "projects/selfweb/docs/pruning-v1/licenses/cname/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/docs/pruning-v1/licenses/explicit-publish/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/docs/pruning-v1/licenses/explorer/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/docs/pruning-v1/licenses/recent-notes/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/alias-redirects/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/article-title/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/backlinks/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/breadcrumbs/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/content-index/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/content-meta/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/content-page/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/crawl-links/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/created-modified-date/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/darkmode/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/description/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/favicon/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/folder-page/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/fonts/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/footer/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/github-flavored-markdown/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/graph/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/hard-line-breaks/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/latex/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/note-properties/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/obsidian-flavored-markdown/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/og-image/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/page-title/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/reader-mode/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/remove-draft/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/search/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/spacer/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/syntax-highlighting/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/table-of-contents/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/tag-list/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/.quartz/plugins/tag-page/LICENSE",
+    "sha256": "9286169531e7410e40342f7d971c9e927d93e3d1f448027b9cf30e5baec3285a"
+  },
+  {
+    "path": "projects/selfweb/site/LICENSE.txt",
+    "sha256": "3553b1bda6785a2fdb0ccb5f1c93ea0b7969ae1456d0bb734964ae73ef02a1dc"
+  },
+  {
+    "path": "projects/selfweb/docs/build-assets/NotoSansSC-OFL.txt",
+    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+    "license": "SIL OFL 1.1; required separate build asset"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "scope": "projects/selfweb",
+  "base_commit": "33b4dc15583abe471a0ee2f49ff3f099d6ad24d6",
+  "tracked_files": 1234,
+  "tracked_bytes": 23392018,
+  "net_fewer_files": 256,
+  "net_fewer_bytes": 900298,
+  "note": "Git index blob bytes, including provenance, licenses and this audit; excludes separately persisted font build assets."
+}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Writer visual fixture</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --background-primary: #ffffff;
+      --background-primary-alt: #f8f9fa;
+      --background-secondary: #f1f3f5;
+      --background-modifier-hover: #e9ecef;
+      --background-modifier-border: #d8dce1;
+      --text-normal: #20242a;
+      --text-muted: #69717b;
+      --text-faint: #9aa1aa;
+      --text-accent: #b84435;
+      --text-error: #bd3c43;
+      --text-success: #277558;
+      --interactive-accent: #d45f4c;
+      --color-green: #3f7a64;
+      --color-red: #bd3c43;
+      --font-text: "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-monospace: "Cascadia Code", monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #e7eaee; font-family: var(--font-text); }
+    button, textarea { font: inherit; }
+    .fixture { display: grid; min-height: 100vh; grid-template-columns: minmax(440px, 1fr) 390px; }
+    .fixture-main { position: relative; overflow: hidden; background: #f4f5f7; border-right: 1px solid #ccd1d7; }
+    .fixture-main::before { position: absolute; top: 12%; right: 16%; left: 14%; height: 72%; background: #fff; border: 1px solid #dfe2e6; content: ""; }
+    .workspace-leaf-content { position: relative; height: 100vh; background: var(--background-primary); overflow: hidden; }
+    .aiw-view { height: 100%; }
+    .status-bar { position: fixed; z-index: 20; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; width: 330px; height: 26px; padding: 0 12px; color: #565d66; background: #fff; border-top: 1px solid #d8dce1; box-shadow: -1px 0 0 #e5e7ea; font-size: 11px; }
+    svg { width: 1em; height: 1em; }
+    .fixture-icon { display: inline-grid; place-items: center; width: 14px; height: 14px; font-family: var(--font-monospace); font-size: 11px; }
+    @media (max-width: 600px) {
+      .fixture { display: block; }
+      .fixture-main { display: none; }
+      .workspace-leaf-content { width: 100vw; }
+      .status-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="fixture">
+    <div class="fixture-main" aria-hidden="true"></div>
+    <section class="workspace-leaf-content" data-type="ai-writer-view">
+      <div class="aiw-view">
+        <div class="aiw-shell" id="app"></div>
+      </div>
+    </section>
+    <footer class="status-bar"><span>0 条反向链接</span><span>151 个词</span><span>177 个字符</span><span>master</span></footer>
+  </main>
+  <script>
+    const state = new URLSearchParams(location.search).get("state") || "images";
+    const completed = state === "images" ? 4 : state === "article" ? 3 : state === "outline" ? 1 : 0;
+    const icons = { pen: "✎", file: "▤", select: "⌁", files: "▥", scan: "◎", close: "×", next: "→", retry: "↻", save: "+" };
+    const button = (label, icon, cls = "") => `<button class="aiw-button ${cls}"><span class="aiw-button-icon fixture-icon">${icons[icon] || "·"}</span><span>${label}</span></button>`;
+    const selectedStage = state === "images" ? 3 : state === "article" ? 2 : state === "outline" ? 0 : 0;
+    const stages = ["提纲", "初稿", "审校", "插图"].map((label, index) => `<button class="aiw-stage ${index < completed ? "is-complete" : ""} ${index === completed ? "is-current" : ""} ${index === selectedStage ? "is-selected" : ""}" ${index > completed ? "disabled" : ""}><span class="aiw-stage-index">${index < completed ? "✓" : index + 1}</span><span class="aiw-stage-label">${label}</span></button>`).join("");
+    const contexts = state === "empty" ? `<div class="aiw-empty-inline"><span class="fixture-icon">□</span><span>尚未加入素材</span></div>` : `
+      <div class="aiw-context-row"><span class="aiw-context-icon fixture-icon">${icons.file}</span><div class="aiw-context-copy"><div class="aiw-context-title">Obsidian AI Writer 产品草稿</div><div class="aiw-context-meta">项目/素材/产品草稿.md · 3,842 字符</div></div><button class="aiw-icon-button">×</button></div>
+      <div class="aiw-context-row"><span class="aiw-context-icon fixture-icon">${icons.select}</span><div class="aiw-context-copy"><div class="aiw-context-title">灵感记录 · 选区</div><div class="aiw-context-meta">临时选区 · 486 字符</div></div><button class="aiw-icon-button">×</button></div>`;
+    const prompts = [
+      ["分屏对比", "左侧是文件夹中图片按暖色、冷色、中性三组整齐排列的理想效果，文件夹标签清晰；右侧是混乱的分类结果，红色警示线条标注问题。整体采用清晰的信息图构图，界面元素使用中文，柔和自然光，适合知识管理主题文章。"],
+      ["传统代码注释差异", "画面左侧展示传统代码编辑器中的长篇注释和修复前后的差异，右侧展示经过整理后的简洁规则卡片。突出上下文从混乱对话转化为可复用工程规则的过程，低饱和专业配色，清晰网格布局。"],
+      ["四阶段写作流程", "一张横向中文流程信息图，依次展示素材、提纲、初稿、审校和插图，每个阶段都有明确图标、状态和回溯箭头，强调阶段可以返回修改，适合 Obsidian 知识工作场景。"],
+      ["版本恢复", "展示同一篇文章的三个历史版本沿时间轴排列，当前版本与待恢复版本有清晰标记，下游阶段在恢复后变为待重新生成状态，中文界面，克制的产品设计风格。"]
+    ];
+    const imageCards = prompts.map((item, index) => `<details class="aiw-image-prompt-card" ${index < 2 ? "open" : ""}><summary class="aiw-image-prompt-summary"><span class="aiw-image-prompt-index">${String(index + 1).padStart(2, "0")}</span><div class="aiw-context-copy"><div class="aiw-image-prompt-title"><strong>插图 ${String(index + 1).padStart(2, "0")}</strong><span class="aiw-image-prompt-ratio">16:9</span></div><div class="aiw-image-prompt-description">${item[0]}</div></div></summary><div class="aiw-image-prompt-body"><div class="aiw-image-prompt-header"><strong>中文生图提示词</strong>${button("复制此条", "file", "aiw-compact-button")}</div><pre class="aiw-image-prompt-code"><code>${item[1]}</code></pre><div class="aiw-image-prompt-meta">避免内容：避免水印、乱码、英文大段文字和无关装饰</div><div class="aiw-image-prompt-path">占位图：assets/ai-writer/example/placeholder-${String(index + 1).padStart(2, "0")}.svg</div></div></details>`).join("");
+    const manuscript = state === "images" ? `
+      <div class="aiw-tabs">${button("带图成稿", "file")}${button("生图提示词 4", "files", "is-active")}${button("版本", "retry")}</div>
+      <div class="aiw-image-prompt-toolbar"><div class="aiw-context-copy"><div class="aiw-context-title">4 张插图</div><div class="aiw-context-meta">逐张展开查看，或一次复制全部提示词</div></div><div class="aiw-image-prompt-actions">${button("全部展开", "next", "aiw-compact-button")}${button("复制全部", "file", "aiw-compact-button")}</div></div>
+      <div class="aiw-image-prompts">${imageCards}</div>` : state === "article" ? `
+      <div class="aiw-tabs">${button("内容", "file", "is-active")}${button("与初稿差异", "retry")}${button("版本", "files")}</div>
+      <div class="aiw-artifact-header"><div class="aiw-artifact-title"><strong>四层审校</strong><span class="aiw-artifact-meta">3,947 字</span></div><div class="aiw-artifact-actions"><button class="aiw-icon-button">▣</button><button class="aiw-icon-button">↻</button><button class="aiw-icon-button">✎</button></div></div>
+      <article class="aiw-markdown-preview"><h1>我终于把散落在 Obsidian 里的想法，写成了一篇文章</h1><p>事情是这样的。</p><p>我的 Vault 里躺着几十篇只写了三行的笔记。每次打开都觉得这里面应该有点东西，可真要动笔，又不知道从哪儿开始。</p><p>直到我把素材选择、提纲判断和成稿审校拆成了四步。</p><p>这并没有替我思考。它只是把那些已经存在、但一直没被组织起来的东西，重新摆到了桌面上。</p></article>
+      <div class="aiw-length-status is-within"><span class="fixture-icon">✓</span><span>约 3,947 字 · 目标 4,000 字（允许 ±10%）</span></div><div class="aiw-lint is-clean"><span class="fixture-icon">✓</span><span>本地硬规则检查通过</span></div><div class="aiw-field aiw-feedback-field"><label>规划插图前，有什么额外要求</label><textarea placeholder="例如：第二部分加入我的实际经历">只在两个核心转折处配图，不要装饰图。</textarea></div>` : state === "outline" ? `
+      <div class="aiw-artifact-header"><strong>选题与提纲</strong><div class="aiw-artifact-actions">${button("恢复初版", "retry", "aiw-compact-button")}</div></div><textarea class="aiw-artifact-editor is-outline"># 核心判断\n\n## 开头，从几十篇三行笔记切入\n\n## 第一部分，为什么素材一直没有变成文章\n\n## 第二部分，把写作拆成四个可确认阶段\n\n## 结尾，AI 组织素材但不替代思考</textarea><div class="aiw-field aiw-feedback-field"><label>生成初稿前，还要补充或修改什么</label><textarea>第二部分加入我第一次尝试失败的经历；结尾不要上价值。</textarea></div>` : `
+      <div class="aiw-manuscript-empty"><div class="aiw-empty-guide"><div class="aiw-guide-line"></div><div class="aiw-guide-line is-short"></div><div class="aiw-guide-line"></div></div><h3>稿纸还是空的</h3><p>加入素材，写清楚你真正想讲的事，然后从提纲开始。</p></div>`;
+    document.querySelector("#app").innerHTML = `
+      <header class="aiw-header"><div class="aiw-identity"><div class="aiw-mark fixture-icon">${icons.pen}</div><div><h2>AI Writer</h2><p class="aiw-kicker">从素材到成稿</p></div></div><div class="aiw-header-actions"><button class="aiw-icon-button">＋</button><div class="aiw-transport-badge">流式</div></div></header>
+      <div class="aiw-stage-rail">${stages}</div>
+      <section class="aiw-section"><div class="aiw-section-header"><h3>写作素材</h3><p>只有这里列出的内容会进入上下文</p></div>${state === "outline" || state === "article" || state === "images" ? `<div class="aiw-materials-compact"><span class="aiw-target-icon fixture-icon">▤</span><div class="aiw-context-copy"><div class="aiw-context-title">项目/素材/产品草稿.md</div><div class="aiw-context-meta">2 份素材 · 目标 4,000 字</div></div>${button("展开素材", "next", "aiw-compact-button")}</div>` : `<div class="aiw-target ${state !== "empty" ? "is-ready" : ""}"><span class="aiw-target-icon fixture-icon">▤</span><div><div class="aiw-target-label">${state !== "empty" ? "最终写回原文" : "尚未指定写回原文"}</div><div class="aiw-target-path">${state !== "empty" ? "项目/素材/产品草稿.md" : "点击“当前笔记”，生成完成后将直接修改这篇笔记。"}</div></div></div><div class="aiw-toolbar">${button("当前笔记", "file")}${button("当前选区", "select")}${button("选择笔记", "files")}</div><div class="aiw-context-list">${contexts}</div>${state !== "empty" ? `<details class="aiw-context-preview"><summary>发送内容预览 · 4,328 字符</summary></details>${button("从这些样本分析个人偏好", "scan", "aiw-link-button")}` : ""}<div class="aiw-brief-grid"><div class="aiw-field"><label>这篇文章想讲什么</label><textarea placeholder="写下核心观点、目标读者、必须保留的经历或你真正想表达的东西。">${state !== "empty" ? "把散落在 Vault 里的写作素材组织成长文，强调 AI 只辅助、不替代思考。" : ""}</textarea></div><div class="aiw-field aiw-length-field"><label>目标成稿字数</label><input type="number" value="4000"></div></div>`}</section>
+      <section class="aiw-section" id="aiw-stage-workspace"><div class="aiw-section-header"><h3>稿件</h3><p>${state === "images" ? "正在查看插入占位图，可编辑、复制或回溯版本" : state === "article" ? "正在查看四层审校，可编辑、复制或回溯版本" : "每一步都保留给你确认"}</p></div>${manuscript}</section>
+      <footer class="aiw-footer">${state === "images" ? button("写回原文", "save", "mod-cta aiw-primary-action aiw-save-action") : state === "article" ? `${button("插入占位图", "next", "mod-cta aiw-primary-action")}${button("写回原文", "save", "aiw-save-action")}` : state === "outline" ? button("生成初稿", "next", "mod-cta aiw-primary-action") : button("生成提纲", "next", "mod-cta aiw-primary-action")}</footer>`;
+    document.querySelector(".aiw-view").append(document.querySelector(".aiw-footer"));
+    const view = document.querySelector(".aiw-view");
+    const statusBar = document.querySelector(".status-bar");
+    const applyStatusBarOffset = () => {
+      const viewRect = view.getBoundingClientRect();
+      const barRect = statusBar.getBoundingClientRect();
+      const overlaps = getComputedStyle(statusBar).display !== "none" && barRect.right > viewRect.left && barRect.left < viewRect.right;
+      view.style.setProperty("--aiw-bottom-offset", `${overlaps ? Math.min(barRect.height, Math.max(0, viewRect.bottom - barRect.top)) : 0}px`);
+    };
+    applyStatusBarOffset();
+    addEventListener("resize", applyStatusBarOffset);
+  </script>
+</body>
+</html>

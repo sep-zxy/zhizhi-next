@@ -1,0 +1,31 @@
+[package]
+name = "continuity-widget"
+version = "0.3.0"
+edition = "2024"
+description = "SQLite-backed continuity core and CLI for the Continuity Widget"
+
+[lib]
+name = "continuity_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "continuity-cli"
+path = "src/bin/continuity-cli.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+encoding_rs = "0.8"
+regex = "1"
+rusqlite = { version = "0.39.0", features = ["backup", "bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+strip = true

@@ -1,0 +1,29 @@
+[package]
+name = "vault-manager"
+version = "0.1.0"
+edition = "2024"
+description = "Local metadata manager and validator for the zxy Obsidian vault"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+fs2 = "0.4"
+open = "5"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["full"] }
+walkdir = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
+[build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+lto = "thin"
+strip = true
