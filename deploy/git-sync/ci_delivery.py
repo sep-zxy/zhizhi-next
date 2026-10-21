@@ -25,7 +25,7 @@ PRIVATE_DIRECTORIES = ("data", "temp", "cache", "reports", "browser-profile")
 REQUIRED_PHASES = {
     "backend-isolated-fixtures", "graphify-performance-gate",
     "delivery-unit-gates", "portable-assembly-unit-gates",
-    "viewer-typecheck", "viewer-tests", "viewer-production-build",
+    "viewer-browser-install", "viewer-typecheck", "viewer-tests", "viewer-production-build",
     "private-wiki-locked-install", "private-wiki-types", "private-wiki-tests",
     "private-wiki-domain-capture", "private-wiki-domain-contract",
     "private-wiki-production-build",

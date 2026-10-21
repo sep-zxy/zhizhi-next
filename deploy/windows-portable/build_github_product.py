@@ -130,6 +130,11 @@ def build(repo: Path, work: Path) -> dict:
     growth = repo / "projects/growth"
     env["PYTHONPATH"] = str(growth / "src") + os.pathsep + str(growth)
     # Locked dependencies are installed by the workflow before this driver.
+    # Vitest also contains real Chromium DOM fixtures. Resolve the browser from
+    # this app's frozen lock before any long gates, not from another app or PATH.
+    run("viewer-browser-install",
+        ["pnpm", "--dir", str(growth / "viewer"), "exec", "playwright",
+         "install", "--with-deps", "chromium"])
     run("backend-isolated-fixtures", python("-m", "pytest", "tests/unit",
         "tests/knowledge_platform", "../../tests/e2e", "../../tests/repository",
         "--junitxml=" + str(evidence / "backend-isolated.xml")), growth,

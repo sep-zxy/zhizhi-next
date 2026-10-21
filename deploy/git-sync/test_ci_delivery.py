@@ -92,6 +92,19 @@ class CandidateTests(unittest.TestCase):
                 with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "gate"):
                     ci.validate_bundle(bundle, receipt, SOURCE)
 
+    def test_viewer_browser_install_cannot_be_missing_or_failed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle, original = fixture(Path(tmp))
+            self.assertIn("viewer-browser-install", ci.REQUIRED_PHASES)
+            for status in (None, "failed"):
+                receipt = copy.deepcopy(original)
+                receipt["phases"] = [phase for phase in receipt["phases"]
+                                     if phase["phase"] != "viewer-browser-install"]
+                if status is not None:
+                    receipt["phases"].append({"phase": "viewer-browser-install", "status": status})
+                with self.subTest(status=status), self.assertRaisesRegex(ValueError, "gate"):
+                    ci.validate_bundle(bundle, receipt, SOURCE)
+
     def test_runtime_private_directories_are_ignored_by_real_git(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

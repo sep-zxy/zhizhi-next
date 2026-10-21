@@ -12,6 +12,8 @@
 
 候选工作流先用 `uv sync --frozen --no-install-project` 安装锁定的第三方依赖（保留 dev、wechat、captions），而不是提前构建依赖 `viewer/dist` 的项目 wheel。后续驱动使用 `uv run --no-sync`，源码测试显式设置 `PYTHONPATH`；真实 viewer 生产构建通过后，才装配其 dist 与受 Git 跟踪的后端源码。不得创建占位 dist、删除 wheel 的 force-include 或省略前端构建来使依赖阶段通过。
 
+viewer 的 Vitest 包含真实 Chromium DOM fixture。GitHub 驱动先通过该应用冻结锁中的 `pnpm exec playwright install --with-deps chromium` 安装官方浏览器与系统依赖，失败立即停止；`viewer-browser-install` 是发布证据必需阶段。私有 Wiki 仍保留自己的 `npx --no-install playwright install --with-deps chromium`，不假设两份锁永远同版，不用系统浏览器或跳过浏览器测试兜底。这些隔离 fixture 不代表 Windows、真实身份或渠道 E2E 已验收。
+
 - `backend/`：项目 Python wheel 或完整运行源码，锁文件、Python 版本要求、启动入口及资源目录；由总装配准备 Windows 第三方 wheels。`viewer/` 必须是云端已构建静态资源。
 - `wiki-private/`：独立 `projects/wiki-private` 的锁定依赖、类型检查、测试与 GitHub 生产构建 `dist/`。装配参数 `--private-wiki`，固定静态入口 `/wiki/`；不使用学习 viewer 代替，不与公开 Wiki renderer 混淆。后端同源身份桥与浏览器操作必须独立验证。
 - `pi/`：固定 Pi 版本的已发布运行 JS/WASM/Windows x64 native 资源、云端预编译自有 JS 扩展、启动入口。不得在 Windows 调用 npm、npx、tsx、tsup、esbuild 或自动下载。扩展加载器的运行时转译和缓存必须明确验证并关闭/隔离。保留官方许可证及锁文件。

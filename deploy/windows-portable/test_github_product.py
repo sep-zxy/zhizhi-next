@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -61,6 +62,32 @@ class GitHubProductTests(unittest.TestCase):
         self.assertIn("@img/sharp-win32-x64@0.34.5", text)
         self.assertIn("@napi-rs/simple-git-win32-x64-msvc@0.1.22", text)
         self.assertIn("wiki-dynamic-fixture-gates", text)
+
+    def test_locked_viewer_browser_is_required_before_any_build_or_tests(self):
+        repo = HERE.resolve().parents[1]
+        # Offline control-flow test only: never spoof CI or invoke an installer.
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "product"
+            failure = subprocess.CalledProcessError(1, "synthetic-browser-install")
+            with patch.object(product, "github_identity", return_value={}), \
+                    patch.object(product.subprocess, "run", side_effect=failure) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    product.build(repo, output)
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[0], [
+                "pnpm", "--dir", str(repo / "projects/growth/viewer"), "exec",
+                "playwright", "install", "--with-deps", "chromium",
+            ])
+            phases = json.loads((output / "evidence/build-phases.json").read_text())
+            self.assertEqual(phases, [{"phase": "viewer-browser-install", "status": "failed",
+                                      "error_type": "CalledProcessError", "exit_code": 1}])
+            self.assertFalse((output / "bundle").exists())
+        text = (HERE / "build_github_product.py").read_text()
+        self.assertLess(text.index('run("viewer-browser-install",'),
+                        text.index('run("viewer-tests",'))
+        # The other app must continue to install its own locked browser, even
+        # while both current locks happen to resolve to the same Playwright.
+        self.assertIn('["npx", "--no-install", "playwright", "install", "--with-deps", "chromium"]', text)
 
     def test_private_wiki_is_independent_required_build(self):
         text = (HERE / "build_github_product.py").read_text()
