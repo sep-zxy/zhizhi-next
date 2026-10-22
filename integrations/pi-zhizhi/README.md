@@ -117,3 +117,21 @@ uv run --project projects/growth --no-sync python `
 该脚本运行真实 Pi TUI、loopback HTTP、SQLite 和 Git，使用临时 fixture owner 与合成键盘输入，检查保留/丢弃、取消、策略过期拒批、绑定审批与读取精确旧修订。它不使用真实账号，不调用模型，不证明真人已批准。脚本不会进入普通 pytest 收集。
 
 上述通过不等于真实订阅端到端通过。最终验收仍需要已授权的实际订阅、部署认证和受控真实来源，验证预览→明确保留→生成→独立复核→重大变更用户审批→提交→重启恢复完整链路。当前不能将未运行的真实订阅、IM/TUI 真人确认或真实账号额度场景标记为通过。
+
+## 本轮统一 CLI 补齐（2026-10-23）
+
+- `/zhizhi-help` 只列实际已注册能力与缺口，不测试网络、不调用模型、不显示凭据，不把 `kb …` 设计占位当已安装命令。
+- 只读工具新增 `zhizhi_inbox`、`zhizhi_intake_preview`、`zhizhi_tasks`、`zhizhi_task_events`。仍受服务端 owner/classification 与桥接的当前 allowed_tools 子集约束，注册不会自动扩大已有身份授权。
+- `/zhizhi-task-resume <task_id>` 与 `/zhizhi-task-cancel <task_id>` 仅本人 TUI：重新读 revision、展示状态、具体确认、提交 expected_revision。继续只是排队，仍受已有模型/审批/额度限制；取消不撤销正式提交。
+- 成功 HTTP 响应须含合法 data/task_id/trace_id；失败保留固定 code/HTTP/trace/retryable，不回显服务端私密 detail。列表数组仍是合法 data。
+
+### 本人学习命令（显式配置后才注册）
+
+只有同时显式注入 `ZHIZHI_LEARNING_VIEWER_URL` 与 `ZHIZHI_LEARNING_VIEWER_TOKEN` 才注册；地址必须带明确端口且是 HTTP(S) loopback origin，不能含路径、凭据、查询或片段。令牌必须是已经存在的 viewer 本人身份，不能复用领域 agent token。此版本不更改启动器环境白名单、不读取身份文件、不调用 token bootstrap、不新建登录、不猜端口。配置缺失或不合规时 `/zhizhi-help` 说明未启用。
+
+- `/zhizhi-learn <entry_id> <revision> <sha256>`：本人确认精确正式版本，创建复用的学习上下文。
+- `/zhizhi-learn-open <context_id>`：只读已有上下文与本人笔记。
+- `/zhizhi-learn-note <context_id>`：用本人 TUI 编辑器输入原话，确认后按 context_version 保存；取消不写入、不自动提交。
+- `/zhizhi-learn-submit <context_id>`：重新读取已保存原话、版本与 hash，本人确认后提交理解。请求只携带 context_version/note_sha256，不能让模型替写 user_text。
+
+这些不是模型工具，也不把本人输入追加给模型上下文。使用现有 `/api/growth/local/knowledge/entry-learning-contexts` 及其 note/understanding/submissions 路由、已有学习库/outbox，不另建数据库。创建/保存使用 request_id；同进程重试同语义复用 ID，未确认写入不自动重试，跨进程应先在已有学习页核对。每个上下文同一时刻仅允许一个命令。返回 pending/unknown 不展示为正式知识已提交；真实启用与 Windows E2E 待验。

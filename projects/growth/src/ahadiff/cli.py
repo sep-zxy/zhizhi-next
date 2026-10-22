@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import secrets
 import shutil
 import sqlite3
 import sys
@@ -2619,7 +2618,10 @@ def serve_cmd(
             require_portable_path,
             validate_portable_runtime,
         )
+        from .serve.session_token import serve_session_token
 
+        # Consume before workspace/Git discovery can spawn any child process.
+        session_token = serve_session_token()
         validate_portable_runtime(repo_root.resolve())
         root, has_git_repo = _resolve_learn_workspace_root(repo_root, allow_non_git=True)
         require_portable_path(root, state=True)
@@ -2641,7 +2643,7 @@ def serve_cmd(
 
         serve_state = _serve_state_cls()(
             state_dir=state_dir,
-            token=secrets.token_urlsafe(24),
+            token=session_token,
             locale=resolved_locale,
             cli_lang=lang,
             config_lang=config_lang,

@@ -63,12 +63,12 @@ test('packaged Python has a fixed executable/argv, isolated portable paths and n
     const runtime=join(root,'runtime','python'); const state=join(root,'data'); await mkdir(runtime,{recursive:true}); await mkdir(state);
     const python=join(runtime,'python.exe'); await writeFile(python,'not executable; path validation fixture only');
     const env:NodeJS.ProcessEnv={ZHIZHI_PORTABLE_ROOT:root,ZHIZHI_PI_PYTHON:python,ZHIZHI_PORTABLE_STATE:state,PATH:join(root,'runtime','git'),
-      OPENAI_API_KEY:'PRIVATE_EXCEPTION_SENTINEL',ZHIZHI_AGENT_TOKEN:'PRIVATE_EXCEPTION_SENTINEL',ZHIZHI_USER_TOKEN:'PRIVATE_EXCEPTION_SENTINEL',HTTP_PROXY:'https://example.invalid',PYTHONPATH:'/outside',NODE_OPTIONS:'forbidden'};
+      ZHIZHI_LEARNING_VIEWER_URL:'http://localhost:3210',ZHIZHI_LEARNING_VIEWER_TOKEN:'PRIVATE_EXCEPTION_SENTINEL',OPENAI_API_KEY:'PRIVATE_EXCEPTION_SENTINEL',ZHIZHI_AGENT_TOKEN:'PRIVATE_EXCEPTION_SENTINEL',ZHIZHI_USER_TOKEN:'PRIVATE_EXCEPTION_SENTINEL',HTTP_PROXY:'https://example.invalid',PYTHONPATH:'/outside',NODE_OPTIONS:'forbidden'};
     for(const name of ['HOME','USERPROFILE','APPDATA','LOCALAPPDATA','TEMP','TMP','TMPDIR','XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_CACHE_HOME'])env[name]=state;
     const value=packagedPython(env);
     assert.deepEqual(value.args,['-B','-s','-X','utf8','-m','ahadiff.knowledge_platform.model.pi_bridge','--owner-acceptance']);
     assert.equal(value.executable,python); assert.equal(value.env.PYTHONNOUSERSITE,'1'); assert.equal(value.env.ZHIZHI_PORTABLE_STATE,state);
-    assert.ok(!JSON.stringify(value).includes('PRIVATE_EXCEPTION_SENTINEL')); assert.equal(value.env.HTTP_PROXY,undefined); assert.equal(value.env.PYTHONPATH,undefined);
+    assert.ok(!JSON.stringify(value).includes('PRIVATE_EXCEPTION_SENTINEL')); assert.equal(value.env.ZHIZHI_LEARNING_VIEWER_URL,undefined); assert.equal(value.env.ZHIZHI_LEARNING_VIEWER_TOKEN,undefined); assert.equal(value.env.HTTP_PROXY,undefined); assert.equal(value.env.PYTHONPATH,undefined);
     assert.throws(()=>packagedPython({...env,ZHIZHI_PI_PYTHON:process.execPath}),/PACKAGED_RUNTIME/);
     assert.throws(()=>packagedPython({...env,HOME:tmpdir()}),/PORTABLE_PATH/);
     assert.throws(()=>packagedPython({...env,XDG_CONFIG_HOME:undefined}),/PORTABLE_PATH/);

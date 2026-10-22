@@ -1,5 +1,6 @@
 /** Audited Pi 1.3.0 domain tools. Formal knowledge remains owned by the HTTP service. */
 import { randomUUID } from "node:crypto";
+import { installLearningCommands } from "./learning-commands.ts";
 import { capabilitySummary } from "./capabilities.ts";
 import { Type, type Tool } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -208,11 +209,12 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
   pi.on("user_bash", () => ({ result: { output: "Shell is disabled in the knowledge host", exitCode: 1,
                                        cancelled: false, truncated: false } }));
 
+  const learningAvailable = installLearningCommands(pi, safeDecisionDisplay);
   pi.registerCommand("zhizhi-help", {
     description: "查看实际能力与未接入功能，不调用模型或改变权限",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui" || !ctx.hasUI) throw new Error("CAPABILITY_VIEW_REQUIRES_LOCAL_TUI");
-      ctx.ui.notify(capabilitySummary([...allowed], !bridge || !!process.env.ZHIZHI_USER_TOKEN), "info");
+      ctx.ui.notify(capabilitySummary([...allowed], !bridge || !!process.env.ZHIZHI_USER_TOKEN, learningAvailable), "info");
     },
   });
 

@@ -51,3 +51,20 @@
 - 命令：`PYTHONPATH=projects/growth/src UV_CACHE_DIR=/tmp/learning-bridge-uv-cache uv run --no-project --python /tmp/owner-test-env/bin/python python -m pytest projects/growth/tests/knowledge_platform/zhizhi projects/growth/tests/knowledge_platform/domain/test_desktop_relation_bridge.py projects/growth/tests/knowledge_platform/domain/test_relations.py -q`。
 - `git diff --check` 通过。共享测试环境没有 ruff，未声称 lint 全绿，也未为此更改共享依赖环境。
 - 尚待前端工作树合并后的浏览器联调与 GitHub 构建、Windows 真机验收。未运行真实模型或平台通知渠道，不能视为完整端到端全部通过。
+
+## 本人交互 CLI 学习入口的生产启动接线
+
+先前实际缺口：Viewer 在 `cli.py` 内生成临时 token，便携 launcher 虽已知道 Viewer loopback 端口，但仅向 Pi 注入 domain agent token。直接复用 agent token 是错误设计，学习命令因此只能显式禁用。
+
+本次最小接线将同一个 Viewer 临时会话 token 的随机生成位置上移到便携 launcher，仅适用于现有 `owner-pi-start` 本人交互分支：
+
+1. 父启动器在内存生成一次原有长度的随机 Viewer 会话 token，不创建 domain owner/device/长期凭据。
+2. Viewer 子进程仅收到 `AHADIFF_SERVE_SESSION_TOKEN`；`serve` 入口先取出并从 `os.environ` 删除，再做工作区/Git 探测或启动其他进程。格式不合法或非 portable 注入明确拒绝，不回显内容。
+3. 原有启动器等待 Viewer 健康检查成功后，仅向本人交互 Pi 注入 `ZHIZHI_LEARNING_VIEWER_URL=http://127.0.0.1:<实际端口>` 与 `ZHIZHI_LEARNING_VIEWER_TOKEN`。
+4. domain agent token 仍独立；不改身份、DPAPI、预算、模型工具、模型子进程环境白名单。模型桥白名单不接收上述字段。
+5. 不通过 HTTP bootstrap 抓 token，不写配置、状态文件、日志或 argv；不把这三项从调用者环境转发给无关进程。退出后无持久化 token。
+6. 普通 `serve` 仍自己生成原长度随机 token。owner acceptance/model、local-test、普通订阅与 `owner-pi-once` 不注入学习能力。固定 once 仍仅使用原八项环境；原启动环境隔离会移除外部传入学习 token。
+
+云端使用无效 fixture token 验证，未读取或使用任何实际 Windows token。Windows 实际启用与最终产物验收仍待用户开机并完成后续 GitHub 构建。
+
+启动范围测试首批：39 passed、99 subtests passed（新会话/token启动测试 + owner Pi/model/acceptance/local-test 原回归），0.76 秒。测试通过不代表真实模型/Windows E2E。

@@ -1,0 +1,502 @@
+{
+  "baseline": "57425bc",
+  "review_date": "2026-10-23 Asia/Shanghai",
+  "evidence_scope": "source inspection + cloud synthetic component tests; no new real model, Windows, channel or browser E2E",
+  "rows": [
+    {
+      "id": "P01",
+      "title": "知枝轻首页",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
+      "gap": "实际页面与批准稿视觉差异由学习域本轮复查；全浏览旅程未验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P02",
+      "title": "收件箱",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "真实官方渠道未验；页面视觉修订并行进行",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P03",
+      "title": "来源预览",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "实际平台正文/字幕/ASR覆盖未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P04",
+      "title": "知识目录",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/knowledge-pages.tsx",
+      "gap": "原生浏览搜索及完整目录视觉未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P05",
+      "title": "私有文章",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/knowledge-pages.tsx",
+      "gap": "精确版本/证据/公开资格浏览旅程未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P06",
+      "title": "学习库",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
+      "gap": "本轮学习UI复查未合入；原生学习旅程未验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P07",
+      "title": "学习会话",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
+      "gap": "真实本人浏览作答/离线恢复未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P08",
+      "title": "学习成果回写",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/learning/understanding.py",
+      "gap": "有成果接口，不能用终端证据替代完整浏览回写",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P09",
+      "title": "重大复核",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "本人真实高影响批准/退回/过期浏览闭环未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P10",
+      "title": "学习关系图",
+      "phase": "P1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/relations/routes.py",
+      "gap": "领域三类关系接口已有，viewer关系桥缺失；不得用旧调用图冒充知识关系",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P11",
+      "title": "任务历史",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "后端及CLI列表事件/控制已有；原生多端恢复未验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P12",
+      "title": "项目变更",
+      "phase": "P1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/serve/routes_growth.py",
+      "gap": "真实Git历史已有；职责演进和Continuity完整联动未实现",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P13",
+      "title": "工具与Skill",
+      "phase": "Later",
+      "implementation": "missing",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "完整动态治理中心未实现；只读规划页不计实现",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P14",
+      "title": "系统设置",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/workflow-pages.tsx",
+      "gap": "基础诊断已有；目标环境OpenBao恢复/全运维未验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P15",
+      "title": "统一CLI",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "已看真实15-cli-session.png；学习本人命令有条件注册，实际启用与真实Pi旅程待测",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P16",
+      "title": "公开首页",
+      "phase": "V1-minimal",
+      "implementation": "partial",
+      "source": "projects/selfweb/site/quartz.config.yaml",
+      "gap": "分类门户视觉复查并行；公开成品浏览导航待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P17",
+      "title": "公开文章",
+      "phase": "V1-minimal",
+      "implementation": "partial",
+      "source": "projects/selfweb/site/quartz.config.yaml",
+      "gap": "公开净化资产阅读/搜索/撤回浏览闭环待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "P18",
+      "title": "私有Wiki首页",
+      "phase": "V1-minimal",
+      "implementation": "partial",
+      "source": "projects/wiki-private/src/knowledge-pages.tsx",
+      "gap": "通用与学习分域已有；完整日用首页归P1完善",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F01",
+      "title": "统一入口与域路由",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "跨域本人学习命令有条件注册；自然语言学习计划/真实旅程未闭合",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F02",
+      "title": "收件与渠道",
+      "phase": "V1-manual",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/intake/routes.py",
+      "gap": "手动/CLI已有；官方微信/Telegram真实旅程P1待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F03",
+      "title": "解析与预览",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/intake/routes.py",
+      "gap": "真实小黑盒/抖音/ASR效果不能用fixture证明",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F04",
+      "title": "私有来源与证据",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/core_routes.py",
+      "gap": "source/evidence已有，真实素材范围验收未覆盖全部",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F05",
+      "title": "知识与检索",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/search/routes.py",
+      "gap": "中文/版本已有；Pi历史revision尚无参数",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F06",
+      "title": "生成增量",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/generation/__init__.py",
+      "gap": "常规生成已有；重要原子合并不可伪装为分步update/delete",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F07",
+      "title": "独立复核与重大决定",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/core_routes.py",
+      "gap": "TUI支持approve，显式reject/needs_evidence UX尚缺",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F08",
+      "title": "唯一Writer",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/writer.py",
+      "gap": "代码/组件覆盖已有；目标安装故障恢复仍单列",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F09",
+      "title": "学习与回写",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/learning/backend.py",
+      "gap": "正式版本学习/outbox及有条件注册的本人Pi学习命令已有；实际运行绑定/原生旅程待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F10",
+      "title": "关系与雷达",
+      "phase": "P1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/relations/routes.py",
+      "gap": "API/Pi只读已有，viewer三类图及完整建议回填未全验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F11",
+      "title": "任务与观测",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/tasks.py",
+      "gap": "本轮补Pi列表/事件/本人控制；原生恢复待测",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F12",
+      "title": "工程学习连续性",
+      "phase": "P1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/growth/history.py",
+      "gap": "history已有，职责演进/Continuity联合闭环缺",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F13",
+      "title": "动态工具治理",
+      "phase": "Later",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "只有固定受审清单；完整注册启停升级未实现",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F14",
+      "title": "订阅Provider",
+      "phase": "V1",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/model/pi_bridge.py",
+      "gap": "Codex/Pi适配已有，原生Pi超时修复待目标实测，actual model未知不得补造",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F15",
+      "title": "身份运维",
+      "phase": "V1-basic",
+      "implementation": "partial",
+      "source": "projects/growth/src/ahadiff/knowledge_platform/auth.py",
+      "gap": "遵守既有身份不重置；OpenBao/原生运维全验收缺",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "F16",
+      "title": "公开Adapter",
+      "phase": "V1-minimal",
+      "implementation": "partial",
+      "source": "projects/selfweb/site/quartz.config.yaml",
+      "gap": "确定性投影已有，实际完整公开浏览/部署分开验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C01",
+      "title": "双域路由",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "help清单已有；自然语言学习跨域仍缺",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C02",
+      "title": "收件箱与渠道",
+      "phase": "V1-scope",
+      "implementation": "implemented",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "新增zhizhi_inbox；真实渠道不是本轮fixture结论",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C03",
+      "title": "解析与预览",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "新增zhizhi_intake_preview；手工补料CLI仍缺",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C04",
+      "title": "保留或丢弃",
+      "phase": "V1-scope",
+      "implementation": "implemented",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "本人TUI保留版本确认；真实用户旅程待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C05",
+      "title": "来源证据定位",
+      "phase": "V1-scope",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "后端有source/evidence，Pi未注册专用工具",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C06",
+      "title": "检索与回答",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "zhizhi_search已有；高级scope命令族未实现",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C07",
+      "title": "阅读与版本",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "zhizhi_read_entry已有；revision/diff CLI未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C08",
+      "title": "知识提案",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "zhizhi_propose_patch已有；目标选择/dry-run族未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C09",
+      "title": "重大复核",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "队列+本人approve已有；reject/退修未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C10",
+      "title": "提交与恢复",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "任务状态已有；专用change/reconcile未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C11",
+      "title": "学习会话",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "已实现显式viewer绑定的本人创建/打开/编辑命令；默认未启用，完整学习计划与真实旅程待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C12",
+      "title": "成果回写",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "已实现本人保存版本/hash确认提交；复用viewer/outbox，运行注入与真实旅程待验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C13",
+      "title": "关系探索",
+      "phase": "P1",
+      "implementation": "implemented",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "三类邻接/有限遍历已有；不推出新事实",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C14",
+      "title": "学习雷达",
+      "phase": "P1",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "建议工具已有，accept/snooze CLI未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C15",
+      "title": "任务历史诊断",
+      "phase": "V1-scope",
+      "implementation": "implemented",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "新增列表/事件与本人resume/cancel；服务端门禁仍重新校验",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C16",
+      "title": "工程变更",
+      "phase": "P1",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "旧Git history已有；统一CLI未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C17",
+      "title": "工具Skill治理",
+      "phase": "Later",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "Later；help固定清单不等于动态治理",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C18",
+      "title": "模型健康",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "桥错误/状态已有；独立完整model status未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C19",
+      "title": "设置诊断",
+      "phase": "V1-scope",
+      "implementation": "partial",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "安装诊断脚本已有；统一doctor/config族未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C20",
+      "title": "公开发布",
+      "phase": "V1-scope",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "领域发布器已有；统一Pi publish族未接",
+      "real_e2e_verified": false
+    },
+    {
+      "id": "C21",
+      "title": "备份恢复",
+      "phase": "V1-scope",
+      "implementation": "missing",
+      "source": "integrations/pi-zhizhi/src/index.ts",
+      "gap": "领域备份已有；统一Pi恢复命令未接",
+      "real_e2e_verified": false
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import secrets
 import socket
 import stat
 import subprocess
@@ -244,6 +245,12 @@ def platform_command(config,local_test=False,owner_acceptance=False,learning_vie
 
 def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False):
  import msvcrt
+ # Never inherit a caller's Viewer capability into unrelated children. Only this
+ # launcher allocates the existing one-session token for its human Pi process.
+ env={key:value for key,value in env.items() if key not in {
+  'AHADIFF_SERVE_SESSION_TOKEN','ZHIZHI_LEARNING_VIEWER_URL','ZHIZHI_LEARNING_VIEWER_TOKEN'}}
+ if owner_pi and (not owner_acceptance or not owner_model or local_test):
+  raise ValueError('Interactive learning requires the existing owner Pi launch mode')
  lock_path=within('data/launcher.lock');lock_path.parent.mkdir(parents=True,exist_ok=True)
  lock=lock_path.open('a+b');lock.seek(0);lock.write(b'0');lock.flush();lock.seek(0)
  try:msvcrt.locking(lock.fileno(),msvcrt.LK_NBLCK,1)
@@ -254,6 +261,8 @@ def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi
  identities=config.get('identities_file')
  configured=local_test or owner_acceptance or bool(identities)
  viewer_env=dict(env)
+ viewer_session_token=secrets.token_urlsafe(24) if owner_pi else None
+ if viewer_session_token is not None:viewer_env['AHADIFF_SERVE_SESSION_TOKEN']=viewer_session_token
  # Allocate once before platform startup. A collision or later bind failure is
  # fatal, never a reason to scan ports or advertise a different viewer URL.
  viewer_port=None if local_test else free_port()
@@ -286,6 +295,10 @@ def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi
  url=status['private_wiki_url']
  if owner_pi:
   pi_env=dict(env);pi_env.update(owner_pi_environment())
+  if viewer_session_token in {pi_env.get('ZHIZHI_AGENT_TOKEN'),pi_env.get('ZHIZHI_USER_TOKEN')}:
+   raise ValueError('Viewer and domain credentials must remain separate')
+  pi_env['ZHIZHI_LEARNING_VIEWER_URL']=f'http://127.0.0.1:{viewer_port}'
+  pi_env['ZHIZHI_LEARNING_VIEWER_TOKEN']=viewer_session_token
   spawn([str(ROOT/'runtime/node/node.exe'),'--no-experimental-strip-types',str(ROOT/'app/pi/launch-codex-interactive.mjs')],
         'pi',pi_env,cwd=within('data/owner-acceptance/pi'),new_console=True)
   status.update(pi='fixed_read_search_started_not_verified',mode='owner-pi-read-search-acceptance')
