@@ -1,6 +1,7 @@
 import { IntakeSubmissionForm } from "./intake-submission";
 import { TextAttachmentForm } from "./text-attachment";
 import {
+  EvidenceReader,
   SupplementForm,
   SupplementHistory,
   TaskControls,
@@ -112,10 +113,8 @@ export function TasksPage({ api, id }: { api: WikiApi; id: string }) {
         placeholder="tsk_…"
         onOpen={(value) => navigate(routeHref("tasks", value))}
       />
-      {id ? (
-        <TaskDetail key={id} api={api} id={id} />
-      ) : (
-        <>
+      <div className={id ? "task-workspace" : ""}>
+        <section aria-label="任务列表">
           <div className="toolbar">
             <label>
               状态筛选{" "}
@@ -145,7 +144,10 @@ export function TasksPage({ api, id }: { api: WikiApi; id: string }) {
                   <div className="task-list">
                     {data.items.map((task) => (
                       <a
-                        className="task-row"
+                        className={
+                          "task-row" + (id === task.task_id ? " selected" : "")
+                        }
+                        aria-current={id === task.task_id ? "true" : undefined}
                         href={routeHref("tasks", task.task_id)}
                         key={task.task_id}
                       >
@@ -187,8 +189,13 @@ export function TasksPage({ api, id }: { api: WikiApi; id: string }) {
               </section>
             )}
           </ResourceView>
-        </>
-      )}
+        </section>
+        {id && (
+          <aside aria-label="任务详情">
+            <TaskDetail key={id} api={api} id={id} />
+          </aside>
+        )}
+      </div>
     </>
   );
 }
@@ -1057,10 +1064,27 @@ function ReviewContent({
           <pre className="metadata">{JSON.stringify(metadata, null, 2)}</pre>
         </section>
       </div>
-      <Notice>
-        这是正式提案中已保存的内容，不是 AI
-        临时生成的确认摘要。来源正文尚未在本页接入；证据不足时请选择“要求补证据”，不要默认已核验。
-      </Notice>
+      <section className="review-evidence" aria-label="本次差异的来源证据">
+        <h2>
+          <Icon name="book" /> 证据与来源
+        </h2>
+        <Notice>
+          以下引用绑定本次提案，按需读取已授权来源。引用存在不代表证据已经核验；缺失或不支持时可要求补证据。
+        </Notice>
+        {change.evidence_refs.length ? (
+          change.evidence_refs.map((reference, index) => (
+            <EvidenceReader
+              key={JSON.stringify(reference) + index}
+              api={api}
+              reference={reference}
+            />
+          ))
+        ) : (
+          <p className="muted">
+            本次提案未提供来源引用，请核对是否需要补证据。
+          </p>
+        )}
+      </section>
       {error && <Failure error={error} />}{" "}
       {result ? (
         <Notice title="服务已记录决定">
@@ -1322,15 +1346,82 @@ export function ToolsPage() {
         <Notice tone="warning" title="本页仅说明规划与权限边界">
           完整注册、安装、启用和升级管理尚未实现。不会因收录说明而获得执行权限。
         </Notice>
-        <h2>现有固定接口与未来注册中心分开</h2>
-        <p>
-          知识检索、来源预览与任务查询使用已注册的受限领域接口。未来的工具目录需要逐项来源、版本、许可证、输入输出、权限与验证证据。
-        </p>
-        <ul className="plain-list">
-          <li>不开放通用 Shell、任意网络或直接写库。</li>
-          <li>写入、公开与权限变更仍遵守独立确认和后端门禁。</li>
-          <li>未审查的材料不能自动变成可执行 Skill。</li>
-        </ul>
+        <div className="tools-planning-grid">
+          <section>
+            <h2>受审能力目录（规划说明）</h2>
+            <p className="muted">
+              以下是待实现的目录结构，不是已注册或可执行的工具清单。
+            </p>
+            {[
+              [
+                "知识检索",
+                "Tool",
+                "在已授权知识范围内返回条目、修订与引用。",
+                "query / filters / limit",
+                "entry_refs / revision / evidence",
+              ],
+              [
+                "来源预览",
+                "Tool",
+                "阅读已经授权的来源片段和完整度，不自动长期保存。",
+                "source_ref / revision",
+                "excerpt / provenance / missing",
+              ],
+              [
+                "任务查询",
+                "Tool",
+                "查询服务账本中的状态与检查点，不由日志推断成功。",
+                "task_id",
+                "state / checkpoint / events",
+              ],
+              [
+                "学习提炼",
+                "Skill",
+                "学习交互归知枝；成果仍经过提案、复核与唯一 Writer。",
+                "entry_ref / outcome_ref",
+                "candidate / evidence_refs",
+              ],
+            ].map(([name, kind, description, input, output]) => (
+              <details className="planning-tool" key={name}>
+                <summary>
+                  <Icon name={kind === "Skill" ? "branch" : "file"} />
+                  <strong>{name}</strong>
+                  <Badge tone="info">{kind}</Badge>
+                  <Badge tone="warning">规划 · 未注册</Badge>
+                </summary>
+                <p>{description}</p>
+                <dl>
+                  <Field label="计划输入">
+                    <code>{input}</code>
+                  </Field>
+                  <Field label="计划输出">
+                    <code>{output}</code>
+                  </Field>
+                  <Field label="版本与许可证">尚未登记，不能推断已验证。</Field>
+                </dl>
+              </details>
+            ))}
+          </section>
+          <aside className="planning-boundary">
+            <h2>
+              <Icon name="lock" /> 权限与实施边界
+            </h2>
+            <p>
+              现有固定接口与未来注册中心分开。当前固定领域接口的存在，不代表此注册中心已经完成。
+            </p>
+            <ul className="plain-list">
+              <li>不开放通用 Shell、任意网络或直接写库。</li>
+              <li>写入、公开与权限变更仍遵守独立确认和后端门禁。</li>
+              <li>未审查的材料不能自动变成可执行 Skill。</li>
+              <li>
+                未来登记必须包含来源、版本、许可证、权限、数据去向与验证证据。
+              </li>
+            </ul>
+            <Notice>
+              展开条目仅阅读规划说明，不安装、不启用、不授予任何执行权限。
+            </Notice>
+          </aside>
+        </div>
         <a className="button" href="#/settings">
           查看当前连接状态
         </a>

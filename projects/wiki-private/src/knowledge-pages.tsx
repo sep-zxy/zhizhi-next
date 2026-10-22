@@ -62,27 +62,47 @@ export function HomePage({
                   <>
                     <div className="category-grid">
                       {groups.slice(0, 4).map(({ name, count }, i) => (
-                        <a
-                          className={"category-card color-" + i}
-                          href={routeHref(
-                            "catalog",
-                            "",
-                            new URLSearchParams({ category: name }),
-                          )}
+                        <section
+                          className={"category-portal color-" + i}
                           key={name}
                         >
-                          <span className="category-icon">
-                            <Icon
-                              name={["file", "book", "grid", "globe"][i]}
-                              size={25}
-                            />
-                          </span>
-                          <div>
-                            <h3>{name}</h3>
-                            <p>当前页 {count} 条知识</p>
-                          </div>
-                          <span>→</span>
-                        </a>
+                          <a
+                            className={"category-card color-" + i}
+                            href={routeHref(
+                              "catalog",
+                              "",
+                              new URLSearchParams({ category: name }),
+                            )}
+                          >
+                            <span className="category-icon">
+                              <Icon
+                                name={["file", "book", "grid", "globe"][i]}
+                                size={25}
+                              />
+                            </span>
+                            <div>
+                              <h3>{name}</h3>
+                              <p>当前页 {count} 条知识</p>
+                            </div>
+                            <span>→</span>
+                          </a>
+                          <ul className="category-entries">
+                            {live
+                              .filter((entry) =>
+                                categories(entry).includes(name),
+                              )
+                              .slice(0, 3)
+                              .map((entry) => (
+                                <li key={entry.entry_id}>
+                                  <a href={routeHref("entry", entry.entry_id)}>
+                                    <Icon name="file" size={16} />
+                                    <span>{entry.title}</span>
+                                    <span aria-hidden="true">›</span>
+                                  </a>
+                                </li>
+                              ))}
+                          </ul>
+                        </section>
                       ))}
                     </div>
                     <p className="muted small">

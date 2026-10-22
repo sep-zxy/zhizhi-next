@@ -414,3 +414,56 @@ describe("isolated React DOM interaction", () => {
     expect(screen.getByText("尚未确认正式知识提交。")).toBeTruthy();
   });
 });
+
+describe("approved portal details (synthetic DOM, not screenshots)", () => {
+  it("links real loaded entries under their own category and invents no category", async () => {
+    render(<WikiApp api={fixture().api} />);
+    await screen.findByRole("heading", { name: "通用知识" });
+    const links = document.querySelectorAll(".category-entries a");
+    expect(links).toHaveLength(1);
+    expect(links[0].textContent).toContain(entry.title);
+    expect(links[0].getAttribute("href")).toBe("#/entry/ent_component");
+    expect(document.querySelectorAll(".category-portal")).toHaveLength(1);
+  });
+  it("retains task list and selected state while showing its details", async () => {
+    window.history.replaceState({}, "", "/wiki/#/tasks/tsk_component");
+    render(<WikiApp api={fixture().api} />);
+    await screen.findByRole("heading", { name: task.kind });
+    expect(
+      document.querySelector('.task-row[aria-current="true"]')?.textContent,
+    ).toContain(task.task_id);
+    expect(screen.getByLabelText("任务列表")).toBeTruthy();
+    expect(screen.getByLabelText("任务详情")).toBeTruthy();
+  });
+  it("exposes bound review evidence only on explicit read, without deciding anything", async () => {
+    const base = fixture();
+    let evidenceReads = 0;
+    const api = new WikiApi(async (input, init) => {
+      if (String(input).endsWith("/evidence/read")) {
+        evidenceReads++;
+        expect(JSON.parse(String(init?.body))).toEqual(change.evidence_refs[0]);
+        return response({
+          kind: "source",
+          source_id: "src_component",
+          revision: 3,
+          content_hash: "fixture",
+          title: "合成来源",
+          text: "明确合成的来源正文",
+          text_basis: "body",
+          body_complete: true,
+        });
+      }
+      return base.transport(input, init);
+    });
+    window.history.replaceState({}, "", "/wiki/#/review/chg_component");
+    render(<WikiApp api={api} />);
+    const button = await screen.findByRole("button", {
+      name: "读取已授权来源文本",
+    });
+    expect(evidenceReads).toBe(0);
+    await userEvent.setup().click(button);
+    await screen.findByText("明确合成的来源正文");
+    expect(evidenceReads).toBe(1);
+    expect(base.writes).toHaveLength(0);
+  });
+});

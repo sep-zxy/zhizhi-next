@@ -384,3 +384,51 @@ test("fixture: responsive shell has no horizontal overflow and no auto-loaded th
   });
   expect(await page.locator("img,iframe,video").count()).toBe(0);
 });
+
+test("fixture: approved private pages visual audit, not real channel E2E", async ({
+  page,
+}) => {
+  await fixtures(page);
+  const pages = [
+    ["P18", "home"],
+    ["P02", "inbox"],
+    ["P03", "intake/int_fixture"],
+    ["P04", "catalog"],
+    ["P05", "entry/ent_one"],
+    ["P09", "review/chg_fixture"],
+    ["P11", "tasks/tsk_fixture"],
+    ["P13", "tools"],
+    ["P14", "settings"],
+  ];
+  for (const [id, hash] of pages) {
+    await page.goto("#/" + hash);
+    await expect(page.locator(".loading")).toHaveCount(0);
+    await expect(page.locator("h1")).toBeVisible();
+    await page.evaluate(() => {
+      const label = document.createElement("div");
+      label.id = "fixture-evidence-label";
+      label.textContent =
+        "FIXTURE · 合成接口页面验收 · 不代表真实渠道 / 模型端到端通过";
+      label.style.cssText =
+        "position:fixed;bottom:0;left:0;right:0;background:#17223e;color:white;text-align:center;padding:5px;z-index:9999;font-size:12px";
+      document.querySelector("#fixture-evidence-label")?.remove();
+      document.body.append(label);
+    });
+    await page.screenshot({
+      path: `../../docs/implementation/private-wiki-review-20261023/${id}-desktop-fixture.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+      id + " mobile overflow",
+    ).toBe(true);
+    await page.screenshot({
+      path: `../../docs/implementation/private-wiki-review-20261023/${id}-mobile-fixture.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1586, height: 992 });
+  }
+});
