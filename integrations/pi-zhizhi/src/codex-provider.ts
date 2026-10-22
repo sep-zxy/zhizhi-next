@@ -6,6 +6,9 @@ import { assertDomainClassification } from './client.ts';
 import { BRIDGE_MODEL, BRIDGE_PROVIDER, BridgeError, bounded, canonical, capabilities, exact, fail, parseResponse, parseStrictJson, record, uuid,
   type BridgeCall, type BridgeCapabilities, type BridgeMessage, type BridgeResponse, type BridgeTransport } from './codex-bridge-protocol.ts';
 
+// Full immutable-package verification runs before the first hello response.
+// Startup only: model turn deadlines still come from signed capabilities.
+export const BRIDGE_STARTUP_TIMEOUT_MS = 90_000;
 export const CODEX_MODEL: Model<'zhizhi-codex-jsonl'> = { id: BRIDGE_MODEL, name: 'Codex CLI subscription · exact gpt-6.1-sol', provider: BRIDGE_PROVIDER,
   api: 'zhizhi-codex-jsonl', baseUrl: '', input: ['text'], reasoning: false, contextWindow: 32768, maxTokens: 4096,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
@@ -61,7 +64,7 @@ export class CodexBridgeProvider {
     // A failed handshake is sticky. Restarting is an explicit host action, never a hidden retry.
     return this.hello ??= (async () => {
       this.transport = this.factory(); const id = randomUUID();
-      const response = parseResponse(await this.transport.request({ version: 1, id, type: 'hello' }));
+      const response = parseResponse(await this.transport.request({ version: 1, id, type: 'hello' }, undefined, BRIDGE_STARTUP_TIMEOUT_MS));
       if (response.id !== id) fail(); const caps = capabilities(response);
       assertToolSchemas(this.trustedTools.filter(tool => caps.tools.some(value => value.name === tool.name)), this.trustedTools, caps);
       return caps;

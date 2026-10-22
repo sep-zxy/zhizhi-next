@@ -93,3 +93,15 @@ test('missing portable paths reject before the production factory can spawn any 
     patched.mock.restore(); syncBuiltinESMExports();
   }
 });
+
+
+test('fixture: actual subprocess hello after legacy 10-second deadline succeeds within startup budget', async () => {
+  const { BRIDGE_STARTUP_TIMEOUT_MS } = await import('../src/codex-provider.ts');
+  const { pipe, child } = transport('slow-hello');
+  const started = performance.now();
+  try {
+    assert.equal((await pipe.request(hello(), undefined, BRIDGE_STARTUP_TIMEOUT_MS)).status, 'ready');
+    assert.ok(performance.now() - started > 10000);
+  } finally { await pipe.close(); }
+  assert.ok(child.exitCode !== null || child.signalCode !== null);
+});

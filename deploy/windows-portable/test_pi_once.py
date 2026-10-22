@@ -47,7 +47,7 @@ def test_once_wrapper_is_fixed_and_tui_remains(tmp_path):
     assert "os.read(sys.stdin.fileno(),3-len(gate))" in source
 
 
-@pytest.mark.parametrize('failure', [None, 'assign', 'spent', 'invalid-events', 'proof', 'service-exit', 'output-limit', 'cancel'])
+@pytest.mark.parametrize('failure', [None, 'assign', 'spent', 'invalid-events', 'proof', 'service-exit', 'output-limit', 'cancel', 'deadline', 'process-exit'])
 def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, capsys, failure):
     from ahadiff.knowledge_platform import pi_acceptance as pi
     scope = Mock()
@@ -66,9 +66,9 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
     host.spawn = Mock(return_value=platform)
     child = Mock()
     child.poll.return_value = 0
-    if failure in {'service-exit', 'output-limit'}:
+    if failure in {'service-exit', 'output-limit', 'deadline'}:
         child.poll.return_value = None
-    child.returncode = 0
+    child.returncode = 7 if failure == 'process-exit' else 0
     child.stdout = io.BytesIO(b'{}' if failure == 'invalid-events' else events())
     child.stderr = io.BytesIO(b'PRIVATE-SYNTHETIC')
     if failure == 'output-limit':
@@ -82,7 +82,8 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
         host.JOB.assign.assert_called_once_with(child)
         assert data == b'GO\n' + pi.PI_PROMPT.encode()
     child.stdin.write.side_effect = assigned_then_write
-    with patch.dict('sys.modules', {'msvcrt': Mock()}), \
+    with patch.object(once.time, 'monotonic', side_effect=[0, 1, 400, 401] if failure == 'deadline' else None, return_value=0), \
+         patch.dict('sys.modules', {'msvcrt': Mock()}), \
          patch.object(pi, 'active_scope', return_value=scope), \
          patch.object(pi, 'completion_summary', return_value=summary,
                       side_effect=RuntimeError('PRIVATE-SYNTHETIC') if failure == 'proof' else None), \
@@ -104,6 +105,12 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
             assert '--once-json' in popen.call_args.args[0][-2]
             if failure in {'assign', 'cancel'}:
                 child.stdin.write.assert_not_called()
+    report = host.write_json.call_args.args[1]
+    assert report['stdout_bytes'] <= 2_000_001 and report['stderr_bytes'] <= 65_537
+    assert report['elapsed_ms'] >= 0
+    if failure:
+        assert report['code'] == 'PI_ONCE_STAGE_FAILED'
+        assert report['phase'] in {'scope_verification', 'job_assignment', 'pi_process', 'event_validation', 'receipt_verification'}
     assert 'PRIVATE-SYNTHETIC' not in capsys.readouterr().out
     assert 'PRIVATE-SYNTHETIC' not in repr(host.write_json.call_args)
 

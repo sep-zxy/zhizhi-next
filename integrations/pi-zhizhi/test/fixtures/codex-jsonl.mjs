@@ -15,6 +15,7 @@ reader.on('line', line => {
   }
   active = request.id;
   if (mode === 'ignore' || mode === 'cancel' || mode === 'late-success') return;
+  if (mode === 'slow-hello') { setTimeout(() => send(response(request.id,'ready')), 11000); return; }
   if (mode === 'duplicate') process.stdout.write(`{"version":1,"id":"${request.id}","type":"response","status":"ready","status":"succeeded"}\n`);
   else if (mode === 'oversize') process.stdout.write('x'.repeat(1048577));
   else if (mode === 'utf8') process.stdout.write(Buffer.from([0xff,10]));

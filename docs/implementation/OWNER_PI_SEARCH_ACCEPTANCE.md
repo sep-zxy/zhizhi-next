@@ -54,3 +54,28 @@ stdout/stderr 持续有界读取，模型文本和诊断不写日志、不回显
 离线测试使用明确惰性合成身份、mock transport、真实隔离 Domain/Git、ASGI 与 SearchService，覆盖旧激活不扩权、真实 Writer 源、独立密钥目的、预算不重置、篡改/分类漂移阻断及专用子进程环境。它们不是实际 Windows DPAPI、Codex、账号或 TUI 验收。真实执行与截图另由主协调冻结候选后安排。
 
 GitHub 候选在 Pi 锁内依赖就绪后、Pi 生产构建前强制执行 `pi-tool-schema-contract` 与 `pi-python-bridge-contract`。它们不属于 `npm test` 的通配收集，必须分别记录；Python 子进程绑定同一已安装锁内解释器并禁止下载。缺失、跳过或失败不允许发布。前者验证可信工具 JSON 与 TypeScript schema 一致，后者验证真实 Python JSONL 服务和 TypeScript Provider 互通但使用合成 runner，均不是真实模型验收。
+
+
+### Verified startup deadline and safe failure observations
+
+The private bridge hello has a separate fixed 90-second startup deadline, within the existing
+180-second transport cap. It covers immutable-package verification before Python reads hello.
+It does not change signed model-turn limits (120 seconds each), grants, or persistent budgets.
+Windows hello-only observations of about 34 seconds demonstrate the former 10-second default
+was insufficient; the earlier once failure lacks phase evidence, so its exact cause remains unproven.
+
+After GO and prompt EOF, the managed child journey is bounded to 360 seconds:
+90 startup + two existing 120-second model turns + 30 seconds for transport and exit.
+This is not a deadline for the entire command: synchronous distribution verification and platform
+startup happen before this child timer, and existing bounded cleanup follows it. No integrity checks
+are skipped or cached to shorten startup. Startup timeout is sticky; no automatic retry occurs.
+
+Failure reports contain only a fixed phase, cancellation flag, integer child exit code, elapsed
+milliseconds, and bounded stdout/stderr byte counts. They never include exception strings,
+raw pipe output, prompts, answers, environment values, or credentials. A phase is diagnostic
+metadata, not proof of a model/tool call; only the existing signed receipts establish success.
+Offline delayed-hello and cleanup tests are explicitly fixtures, not Windows or live-model E2E.
+The observations are a pre-cleanup snapshot: cancellation can leave child_exit_code null,
+readers may not yet have drained every byte, and elapsed_ms excludes final cleanup time.
+The pi_process phase alone does not distinguish deadline, stop request, output limit or
+platform exit; it must not be reported as a specific root cause without further evidence.

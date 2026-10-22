@@ -188,3 +188,29 @@ test('system-message insertion cannot turn an automatic retry into a new explici
   failed((await f.run([{role:'system',content:'changed host context',timestamp:0},user()])).message,/RETRY_REQUIRES/);
   assert.equal(f.requests.filter(r=>r.type==='turn').length,1);
 });
+
+test('fixture: slow verified hello has its own bounded startup allowance, not a longer model deadline', async () => {
+  const tools = registeredTools().filter(t => t.name === 'zhizhi_search');
+  const caps = makeCaps(tools, { timeout_seconds: 120 });
+  const timeouts: number[] = [];
+  let closed = 0;
+  const bridge = new CodexBridgeProvider(tools, () => ({
+    async request(request, _signal, timeoutMs = 10000) {
+      timeouts.push(timeoutMs);
+      if (request.type === 'hello') {
+        // Deterministic simulated 35-second package verification, no sleep or model.
+        if (timeoutMs < 35000) throw new Error('PRIVATE_EXCEPTION_SENTINEL');
+        assert.equal(timeoutMs, 90000);
+        assert.ok(timeoutMs <= 180000);
+        return { version: 1, id: request.id, type: 'response', status: 'ready', capabilities: caps };
+      }
+      assert.equal(timeoutMs, 120000);
+      return success(request, finalText);
+    }, async close() { closed++; },
+  }), true);
+  await bridge.initialize();
+  const stream = bridge.provider.streamSimple!(CODEX_MODEL, context([user()], tools), {});
+  assert.equal((await stream.result()).stopReason, 'stop');
+  assert.deepEqual(timeouts, [90000, 120000]);
+  await bridge.close(); assert.equal(closed, 1);
+});

@@ -9,12 +9,19 @@ import threading
 import time
 
 
-def consume(stream, limit, output, failed):
+# Child journey only, after the launcher's synchronous integrity preflight:
+# 90s verified bridge startup + 2 unchanged 120s turns + 30s transport/exit margin.
+CHILD_JOURNEY_SECONDS = 90 + 2 * 120 + 30
+
+
+def consume(stream, limit, output, failed, metrics=None):
     """Drain both pipes without logging model text, diagnostics, or credentials."""
     total = 0
     try:
         while block := stream.read(8192):
             total += len(block)
+            if metrics is not None:
+                metrics["bytes"] = min(total, limit + 1)
             if total > limit:
                 failed.set()
             elif output is not None:
@@ -74,6 +81,11 @@ def run_once(host, env):
     lock = lock_path.open('a+b')
     owned = False
     readers = []
+    started = time.monotonic()
+    phase = 'lock'
+    child = None
+    stdout_metrics = {'bytes': 0}
+    stderr_metrics = {'bytes': 0}
     result = {'status': 'blocked', 'code': 'PI_ONCE_INCOMPLETE', 'live_e2e': 'not_verified'}
     try:
         lock.seek(0)
@@ -85,37 +97,47 @@ def run_once(host, env):
         stop = host.within('data/stop.request')
         if stop.exists():
             stop.unlink()
+        phase = 'scope_verification'
         scope = active_scope(host.ROOT)
         scope.read_source()
         # A previous attempt is never a reason to run the model again.
         if any(scope.receipts.read(key) is not None for key in
                ('run', 'model-attempt:1', 'model-attempt:2', 'search-attempt', 'search-result')):
             raise ValueError('PI_ONCE_ATTEMPT_ALREADY_EXISTS')
+        phase = 'platform_configuration'
         config = host.load_config(owner_acceptance=True)
         args, port, authentication = host.platform_command(
             config, owner_acceptance=True, owner_model=True, owner_pi=True)
         args.append('--pi-search-only')
+        phase = 'platform_start'
         platform = host.spawn(args, 'platform', env)
+        phase = 'platform_health'
         host.await_health(platform, port, 'platform', authentication)
+        phase = 'pi_environment'
         pi_env = dict(env)
         pi_env.update(host.owner_pi_environment())
         command = [str(host.ROOT / 'runtime/node/node.exe'), '--no-experimental-strip-types',
                    str(host.ROOT / 'app/pi/launch-codex-interactive.mjs'), '--once-json']
         helper = [sys.executable, '-B', '-s', '-X', 'utf8', str(host.ROOT / 'app/launcher.py'),
                   '_child', json.dumps(command), 'pipe']
+        phase = 'helper_spawn'
         child = subprocess.Popen(helper, cwd=host.within('data/owner-acceptance/pi'), env=pi_env,
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         host.CHILDREN.append(child)
+        phase = 'job_assignment'
         host.JOB.assign(child)  # No child execution before the ownership gate.
         failed = threading.Event()
         output = []
-        for stream, limit, target in ((child.stdout, 2_000_000, output), (child.stderr, 65_536, None)):
-            thread = threading.Thread(target=consume, args=(stream, limit, target, failed), daemon=True)
+        for stream, limit, target, metrics in ((child.stdout, 2_000_000, output, stdout_metrics),
+                                               (child.stderr, 65_536, None, stderr_metrics)):
+            thread = threading.Thread(target=consume, args=(stream, limit, target, failed, metrics), daemon=True)
             thread.start()
             readers.append(thread)
+        phase = 'prompt_pipe'
         child.stdin.write(b'GO\n' + PI_PROMPT.encode('utf-8'))
         child.stdin.close()  # Official Pi print mode reads the exact prompt until EOF.
-        deadline = time.monotonic() + 300
+        phase = 'pi_process'
+        deadline = time.monotonic() + CHILD_JOURNEY_SECONDS
         while child.poll() is None:
             if failed.is_set() or stop.exists() or time.monotonic() >= deadline or platform.poll() is not None:
                 raise ValueError('PI_ONCE_INTERRUPTED')
@@ -124,14 +146,21 @@ def run_once(host, env):
             thread.join(timeout=2)
         if child.returncode != 0 or failed.is_set() or any(thread.is_alive() for thread in readers):
             raise ValueError('PI_ONCE_PROCESS_FAILED')
+        phase = 'event_validation'
         counts = checked_events(b''.join(output))
         answer = counts.pop('answer_sha256')
         search = counts.pop('search_result_hash')
+        phase = 'receipt_verification'
         result = {**completion_summary(host.ROOT, answer_sha256=answer, search_result_hash=search), **counts}
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as error:
+        result.update(phase=phase, code='PI_ONCE_STAGE_FAILED',
+                      cancelled=isinstance(error, KeyboardInterrupt))
         # Never expose exception strings from subprocesses or private runtime state.
         raise RuntimeError('PI_ONCE_FAILED_CLOSED') from None
     finally:
+        result.update(elapsed_ms=max(0, int((time.monotonic() - started) * 1000)),
+                      stdout_bytes=stdout_metrics['bytes'], stderr_bytes=stderr_metrics['bytes'],
+                      child_exit_code=child.returncode if child is not None and type(child.returncode) is int else None)
         if host.JOB is not None:
             host.JOB.close()
         for child in reversed(host.CHILDREN):
