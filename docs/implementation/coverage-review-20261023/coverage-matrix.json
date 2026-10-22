@@ -170,9 +170,9 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：完整CLI族尚有C03/C06/C07/C08/C10/C11/C18-C21细项；核心16工具与本人学习启动接线已合入；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
+      "gap": "实现缺口：完整CLI仍有C06/C08/C10/C11/C18-C20细项；C03手工补料、C07历史差异及核心18工具/本人启动链已合入代码；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
       "real_e2e_verified": false,
-      "code_gap": "完整CLI族尚有C03/C06/C07/C08/C10/C11/C18-C21细项；核心16工具与本人学习启动接线已合入",
+      "code_gap": "完整CLI仍有C06/C08/C10/C11/C18-C20细项；C03手工补料、C07历史差异及核心18工具/本人启动链已合入代码",
       "verification_gap": "生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入"
     },
     {
@@ -261,12 +261,13 @@
       "id": "F05",
       "title": "知识与检索",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/search/routes.py",
-      "gap": "实现缺口：版本列表/差异展示CLI未齐；中文检索与Pi可选精确revision及错版拒绝已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "核心实现：中文检索、精确revision、正式历史列表/diff与只读CLI已实现；验证：真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
       "real_e2e_verified": false,
-      "code_gap": "版本列表/差异展示CLI未齐；中文检索与Pi可选精确revision及错版拒绝已实现",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "",
+      "verification_gap": "真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
+      "implemented_scope": "中文检索、精确revision、正式历史列表/diff与只读CLI已实现"
     },
     {
       "id": "F06",
@@ -421,12 +422,13 @@
       "id": "C03",
       "title": "解析与预览",
       "phase": "V1-scope",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：手工补料统一CLI未接；真实临时预览工具已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "核心实现：本人editor补料、预览版本CAS、幂等回执、取消/防重入已接真实supplement API；不自动keep；验证：真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
       "real_e2e_verified": false,
-      "code_gap": "手工补料统一CLI未接；真实临时预览工具已有",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "",
+      "verification_gap": "真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
+      "implemented_scope": "本人editor补料、预览版本CAS、幂等回执、取消/防重入已接真实supplement API；不自动keep"
     },
     {
       "id": "C04",
@@ -467,12 +469,13 @@
       "id": "C07",
       "title": "阅读与版本",
       "phase": "V1-scope",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：正式版本列表/diff API及CLI未齐；精确revision读取/错版拒绝已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "核心实现：正式版本列表/diff API与Pi两只读工具、本人命令已实现；完整18工具握手容量已修复；验证：真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
       "real_e2e_verified": false,
-      "code_gap": "正式版本列表/diff API及CLI未齐；精确revision读取/错版拒绝已实现",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "",
+      "verification_gap": "真实domain/隔离Git-SQLite/ASGI响应与TS命令fixture通过；本轮Windows/真实模型完整旅程未验",
+      "implemented_scope": "正式版本列表/diff API与Pi两只读工具、本人命令已实现；完整18工具握手容量已修复"
     },
     {
       "id": "C08",
@@ -503,10 +506,11 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：专用change/reconcile入口未接；任务状态与受控继续/取消已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "实现缺口：reconcile修复动作无正式安全接口，未伪装已实现；已实现：本人只读change状态与复核记录已接；任务状态与受控继续/取消已有；验证：CLI只读fixture与正式后端接口对照通过；本轮Windows/真实模型完整旅程未验",
       "real_e2e_verified": false,
-      "code_gap": "专用change/reconcile入口未接；任务状态与受控继续/取消已有",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "reconcile修复动作无正式安全接口，未伪装已实现",
+      "verification_gap": "CLI只读fixture与正式后端接口对照通过；本轮Windows/真实模型完整旅程未验",
+      "implemented_scope": "本人只读change状态与复核记录已接；任务状态与受控继续/取消已有"
     },
     {
       "id": "C11",
@@ -614,23 +618,27 @@
       "id": "C20",
       "title": "公开发布",
       "phase": "V1-scope",
-      "implementation": "missing",
+      "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：缺统一CLI eligibility(entry)、固定revision preview、固定manifest build入口；既有资格/投影/验证/Quartz可复用。构建不等于公网部署；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "实现缺口：尚缺per-entry资格查询、preview/build统一命令编排；既有独立发布模块可复用，不造空命令；已实现：本地publish-verify针对现有清单按可信DB/Git/策略复验资格；不运行site build/deploy；验证：root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
       "real_e2e_verified": false,
-      "code_gap": "缺统一CLI eligibility(entry)、固定revision preview、固定manifest build入口；既有资格/投影/验证/Quartz可复用。构建不等于公网部署",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "尚缺per-entry资格查询、preview/build统一命令编排；既有独立发布模块可复用，不造空命令",
+      "verification_gap": "root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "integrated_source": "projects/growth/src/ahadiff/knowledge_platform/operations_preview/",
+      "implemented_scope": "本地publish-verify针对现有清单按可信DB/Git/策略复验资格；不运行site build/deploy"
     },
     {
       "id": "C21",
       "title": "备份恢复",
       "phase": "V1-scope",
-      "implementation": "missing",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：缺用户侧指定snapshot inspect和restore plan --dry-run；最小范围仅只读校验Git/SQLite/对象清单并输出隔离恢复计划，不要求真实覆盖恢复API；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "gap": "核心实现：本地backup-inspect快照一致性检查及restore-plan --dry-run已实现；仅输出隔离恢复计划，recovery_proven=false；验证：root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
       "real_e2e_verified": false,
-      "code_gap": "缺用户侧指定snapshot inspect和restore plan --dry-run；最小范围仅只读校验Git/SQLite/对象清单并输出隔离恢复计划，不要求真实覆盖恢复API",
-      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
+      "code_gap": "",
+      "verification_gap": "root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "integrated_source": "projects/growth/src/ahadiff/knowledge_platform/operations_preview/",
+      "implemented_scope": "本地backup-inspect快照一致性检查及restore-plan --dry-run已实现；仅输出隔离恢复计划，recovery_proven=false"
     }
   ],
   "real_e2e_scope": "历史证据边界：R20 release8b60220415b9-39812737484-1 已实测固定 R18 身份复用、5 次真实模型调用的材料/学习两条链路及两个正式 Writer 条目通过；同次 Pi 仍为 BRIDGE_TIMEOUT 失败，browser 未测。本矩阵 real_e2e_verified=false 仅表示本轮新源码与完整功能验收尚未真实全旅程通过，不否认这些历史局部通过，也不把历史结果自动覆盖今晚的新改动。",
@@ -640,6 +648,8 @@
     "docs/implementation/learning-bridge-review-20261023/README.md",
     "docs/implementation/private-wiki-review-20261023/REVIEW.md",
     "docs/implementation/public-wiki-review-20261023/阶段记录.md",
-    "docs/implementation/cloud-integration-review-20261023/README.md"
-  ]
+    "docs/implementation/cloud-integration-review-20261023/README.md",
+    "docs/implementation/operator-preview-review-20261023/README.md"
+  ],
+  "follow_up_implementation": "C07正式后端a92ee58、CLI 5f26092、握手修复445f3c6；C03/C10本人接线以本阶段源码及测试为准。未提前标记其他并行任务完成。"
 }

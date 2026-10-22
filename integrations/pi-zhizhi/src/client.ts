@@ -141,6 +141,7 @@ function routeAllowed(method: string, path: string, user: boolean): boolean {
   if (path === "/evidence/read") return method === "POST";
   if (["/intakes", "/changes", "/radar/runs"].includes(path)) return method === "POST";
   if (!user) return false;
+  if (/^\/intakes\/[A-Za-z0-9_.:%-]+\/supplement$/.test(path)) return method === "POST";
   if (/^\/intakes\/[A-Za-z0-9_.:%-]+\/decision$/.test(path)) return method === "POST";
   if (/^\/changes\/[A-Za-z0-9_.:%-]+\/decision-challenge$/.test(path)) return method === "GET";
   if (/^\/changes\/[A-Za-z0-9_.:%-]+\/decisions$/.test(path)) return method === "POST";

@@ -107,3 +107,57 @@ PYTHONPATH="$SNAPSHOT/projects/growth/src" UV_CACHE_DIR="$CACHE_DIR" uv run --no
 - 微信、抖音、小黑盒等实际渠道端到端链路。
 
 此报告证明云端列明范围的回归结果，不宣称所有功能完全写完，也不代表最终端到端全部通过或可交付。
+
+## 第二轮最终集成：d78a91da
+
+验证时间：2026-10-23 03:35–03:37 UTC+08:00。固定源码 **d78a91dacac0b728ae1a06295849085bb90f63b8**，独立 `git archive` 快照；原 d115fe02 记录保留，不混为同一版本。
+
+复用上节已备妥的独立可选依赖环境，版本不变，没有安装更多依赖、修改源代码、创建真实身份、触发构建或操作 Windows。Node package-lock SHA256 仍与只读复用依赖一致。
+
+| 本轮实际执行组 | passed | skipped | failure/error |
+|---|---:|---:|---:|
+| 全 knowledge_platform + portable_asr + Viewer token | 1742 | 2 | 0 |
+| repository + e2e + Windows portable + 全旧 integration + CLI | 207 | 0 | 0 |
+| Pi TypeScript | 107 | 0 | 0 |
+
+Python 主测试合计 **1949 passed、2 skipped**，另 **182 subtests passed**，不将子测试混入主测试数。第一组耗时83.22秒，第二组9.07秒；Pi测试13.87秒。原 benchmark fixture 收集错误在本轮已消除，完整旧 integration 和 CLI 是本报告执行者重新运行的结果。
+
+下列额外检查全部成功：
+
+- TypeScript noEmit 检查。
+- **18工具** Python/TypeScript JSON 契约同步。
+- 实际 Python serve → JSONL → TS provider 的完整18工具握手，工具执行与模型调用均为0，预算限额保持原值。
+- 实际 Python JSONL 子进程与 TS provider 的合成 runner 双轮，1个工具回执，真实模型调用0。
+- 实际 ASGI、Git、SQLite 生成历史版本与diff回执，经 TypeScript 客户端解析验证。
+- 实际 Python intake/CAS生成补料回执，经本人 TypeScript 交互命令消费和核验。
+
+最后两项使用 fixture fetch 将真实 Python 回执交给 TS，并未建立真实网络服务或使用真实账户；不能把它们标为真实渠道端到端通过。
+
+### 本轮命令
+
+沿用前文环境变量定义，但 `SNAPSHOT` 指本轮 d78a91da 快照，`REPORT_DIR` 指本轮独立结果目录，`OPTIONAL_PYTHON` 指已安装可选依赖的环境。
+
+```sh
+cd "$SNAPSHOT"
+export PYTHONPATH="$SNAPSHOT/projects/growth/src"
+export UV_CACHE_DIR="$CACHE_DIR"
+uv run --no-project --python "$OPTIONAL_PYTHON" python -m pytest projects/growth/tests/knowledge_platform projects/growth/tests/portable_asr projects/growth/tests/unit/test_serve_session_token.py -q -ra --junitxml="$REPORT_DIR/knowledge.xml"
+uv run --no-project --python "$OPTIONAL_PYTHON" python -m pytest tests/repository tests/e2e deploy/windows-portable projects/growth/tests/integration projects/growth/tests/unit/test_cli.py -q -ra --junitxml="$REPORT_DIR/repo-portable-integration.xml"
+cd "$SNAPSHOT/integrations/pi-zhizhi"
+export UV_PYTHON="$OPTIONAL_PYTHON"
+npm test
+npm run typecheck
+node --import tsx test/bridge-schema-contract.mts
+node --import tsx test/python-bridge-contract.mts
+node --import tsx test/all-tools-python-handshake.mts
+node --import tsx test/history-python-contract.mts
+node --import tsx test/material-python-contract.mts
+```
+
+### 新增模块覆盖与版本界限
+
+相较第一轮，新增覆盖了只读条目历史列表与精确版本diff、分类权限与目录篡改拒绝、只读备份检查和恢复计划、发布manifest检查，以及本人CLI补料交互及CAS回执核验。备份恢复仅检查和dry-run，不执行实际恢复或发布，也不证明灾难恢复完成。
+
+冻结之后提交 `55d198d` 仅涉及CLI help和矩阵本地ops入口同步。其2项help测试和2项矩阵测试通过是主集成执行者提供的证据，不是本轮完整快照测试所覆盖的提交；本报告不把 d78a91da 的全套结果延伸为对所有后续提交的验证。
+
+仅两项 skip 仍为缺真实模型权重/语音的离线ASR测试。浏览器socket和实际页面交互、当前版本构建产物、Windows新Git子树与真实模型Pi、实际平台渠道的最终验证仍待执行。本轮无失败不等于所有功能完成或端到端交付通过。

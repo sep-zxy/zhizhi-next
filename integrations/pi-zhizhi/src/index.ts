@@ -1,3 +1,4 @@
+import { installMaterialCommand } from "./material-commands.ts";
 import { readVersions, readDiff } from "./entry-history.ts";
 /** Audited Pi 1.3.0 domain tools. Formal knowledge remains owned by the HTTP service. */
 import { randomUUID } from "node:crypto";
@@ -270,9 +271,21 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
     },
   });
 
+  pi.registerCommand("zhizhi-change", {
+    description: "只读变更提案状态与复核记录，不执行apply或reconcile",
+    handler: async (args, ctx) => {
+      if (ctx.mode !== "tui" || !ctx.hasUI) throw new Error("CHANGE_READ_REQUIRES_LOCAL_TUI");
+      const id = args.trim();
+      const result = await agentClient().request("change.read", "GET", `/changes/${safeId(id)}`);
+      if (result.data.change_id !== id || typeof result.data.state !== "string") throw new Error("CHANGE_READ_UNVERIFIED");
+      ctx.ui.notify(safeDecisionDisplay(JSON.stringify(result) + "\n仅状态读取；ready/approved不代表Writer已提交，reconcile_required不代表已修复。"), "info");
+    },
+  });
+
   // The read-only bridge slot receives no human identity: do not advertise approval commands.
   // Existing explicit routes keep their original TUI-only confirmation semantics.
   if (bridge && !process.env.ZHIZHI_USER_TOKEN) return;
+  installMaterialCommand(pi, userClient, safeDecisionDisplay);
   for (const decision of ["keep", "discard"] as const) {
     pi.registerCommand(`zhizhi-${decision}`, {
       description: `${decision === "keep" ? "收藏" : "丢弃"}指定预览，必须本人确认`,
