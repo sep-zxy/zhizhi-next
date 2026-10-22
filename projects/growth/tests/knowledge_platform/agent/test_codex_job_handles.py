@@ -80,3 +80,23 @@ def test_successful_assignment_is_not_clean_when_process_handle_close_fails(kern
     assert caught.value.winerror == 5
     assert caught.value.codex_cleanup_error.winerror == 5
     assert job.handle == 101
+
+
+def test_terminate_fallback_targets_only_owned_job_and_preserves_handle(kernel):
+    kernel.TerminateJobObject = Call(True)
+    job = job_module.CodexOwnedJob()
+    job.terminate()
+    assert kernel.TerminateJobObject.calls == [(101, 1)]
+    assert job.handle == 101
+    job.close()
+    job.terminate()
+    assert kernel.TerminateJobObject.calls == [(101, 1)]
+
+
+def test_terminate_failure_is_not_reported_as_success(kernel):
+    kernel.TerminateJobObject = Call(False)
+    job = job_module.CodexOwnedJob()
+    with pytest.raises(OSError) as caught:
+        job.terminate()
+    assert caught.value.winerror == 5
+    assert job.handle == 101

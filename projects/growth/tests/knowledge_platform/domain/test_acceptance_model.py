@@ -398,3 +398,26 @@ def test_real_intake_preview_contract_uses_only_fixed_text(scoped):
     entries = domain.list_entries(actor=USER)
     assert len(entries) == 1 and entries[0]["commit_sha"]
     assert transport.run.await_count == 3  # Actual services: preview, generate, independent review.
+
+
+def test_list_entries_checks_exact_returned_seal_without_duplicate_git(scoped, monkeypatch):
+    """Real synthetic Domain/Git, no model; one Git read per returned entry."""
+    domain, _, _, _ = scoped
+    proposal = generated(scoped, retained(scoped))['change']
+    assert approved(scoped, proposal['change_id'])['status'] == 'approved'
+    domain.apply_change(proposal['change_id'], actor=WRITER, idempotency_key='list-read-once')
+    original = domain.writer.read_entry
+    calls = []
+    def read(*args, **kwargs):
+        calls.append(args)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(domain.writer, 'read_entry', read)
+    entries = domain.list_entries(actor=USER)
+    assert len(entries) == len(calls) == 1
+    original_receipt = domain.scope_receipts.read
+    def tampered(key):
+        value = original_receipt(key)
+        return {**value, 'digest': '0' * 64} if key.startswith('entry:') else value
+    monkeypatch.setattr(domain.scope_receipts, 'read', tampered)
+    with pytest.raises(DomainError):
+        domain.list_entries(actor=USER)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import hmac
 import json
@@ -25,7 +26,7 @@ from .auth import Actor, classification_labels, enforce_read_classification
 from .errors import DomainError
 from .model.codex_runner import CodexModelRunner, CodexRunnerConfig
 from .model.contracts import ModelResult, ModelTask, canonical_hash
-from .model.pi_bridge import BridgeLimits, PiBridge, PiBridgeConfig
+from .model.pi_bridge import BridgeLimits, PiBridge, PiBridgeConfig, check_turn_deadline
 from .model.pi_runner import SubscriptionRoute
 from .model.validation import contains_obvious_secret
 from .owner_acceptance import _existing_cli_path, _json, verified_binding
@@ -178,6 +179,12 @@ class PiScope:
             raise AcceptanceScopeError("PI_SOURCE_CHANGED")
         return source
 
+    async def read_source_async(self) -> dict[str, Any]:
+        source = await asyncio.to_thread(self.read_source)
+        self.require_active()
+        check_turn_deadline()
+        return source
+
     def agent_token(self) -> str:
         self.require_active()
         return (
@@ -200,6 +207,15 @@ class PiScope:
 
     def authorize(self, request: dict[str, Any]) -> bool:
         self.read_source()
+        return self._authorize_checked(request)
+
+    async def authorize_async(self, request: dict[str, Any]) -> bool:
+        # Only read-only Git/SQLite/seal work may outlive cancellation. No
+        # pending request, grant, or attempt is mutated in the worker thread.
+        await self.read_source_async()
+        return self._authorize_checked(request)
+
+    def _authorize_checked(self, request: dict[str, Any]) -> bool:
         messages = request.get("messages")
         first = {"role": "user", "text": PI_PROMPT}
         turn = request.get("turn")
@@ -227,6 +243,15 @@ class PiScope:
 
     def reserve_model(self, task: ModelTask) -> bool:
         self.read_source()
+        return self._reserve_model_checked(task)
+
+    async def reserve_model_async(self, task: ModelTask) -> bool:
+        await self.read_source_async()
+        # Stay on the event-loop thread through the durable reservation. Never
+        # put this part in to_thread: a cancelled worker could consume a grant.
+        return self._reserve_model_checked(task)
+
+    def _reserve_model_checked(self, task: ModelTask) -> bool:
         request = self.pending
         self.pending = None
         if (
@@ -299,14 +324,14 @@ class _PiTransport:
         if not attempt or attempt["fingerprint"] != task.fingerprint:
             return blocked()
         try:
-            self.scope.read_source()
+            await self.scope.read_source_async()
         except (AcceptanceScopeError, DomainError):
             return blocked()
         result = await self.transport.run(task)
         if result.status != "succeeded":
             return result
         try:
-            self.scope.read_source()
+            await self.scope.read_source_async()
         except (AcceptanceScopeError, DomainError):
             return blocked()
         if (
@@ -396,8 +421,8 @@ def create_bridge(root: Path) -> PiBridge:
                 timeout_seconds=120,
             ),
         ),
-        authorize=scope.authorize,
-        reserve_attempt=scope.reserve_model,
+        authorize=scope.authorize_async,
+        reserve_attempt=scope.reserve_model_async,
     )
 
 

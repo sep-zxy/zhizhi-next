@@ -194,6 +194,7 @@ def run_once(host, env):
     owned = False
     readers = []
     started = time.monotonic()
+    prompt_started = child_started = child_finished = None
     phase = 'lock'
     child = None
     stdout_metrics = {'bytes': 0}
@@ -247,10 +248,12 @@ def run_once(host, env):
             thread.start()
             readers.append(thread)
         phase = 'prompt_pipe'
+        prompt_started = time.monotonic()  # Preflight ends immediately before GO/prompt write.
         child.stdin.write(b'GO\n' + PI_PROMPT.encode('utf-8'))
         child.stdin.close()  # Official Pi print mode reads the exact prompt until EOF.
         phase = 'pi_process'
-        deadline = time.monotonic() + CHILD_JOURNEY_SECONDS
+        child_started = time.monotonic()  # Existing budget begins only after prompt EOF.
+        deadline = child_started + CHILD_JOURNEY_SECONDS
         while child.poll() is None:
             if failed.is_set():
                 process_failure = 'output_limit' if stdout_metrics.get('output_limit') or stderr_metrics.get('output_limit') else 'pipe_read_failed'
@@ -263,6 +266,7 @@ def run_once(host, env):
             if process_failure is not None:
                 raise ValueError('PI_ONCE_INTERRUPTED')
             time.sleep(.05)
+        child_finished = time.monotonic()
         for thread in readers:
             thread.join(timeout=2)
         if child.returncode != 0 or failed.is_set() or any(thread.is_alive() for thread in readers):
@@ -283,6 +287,9 @@ def run_once(host, env):
         # Never expose exception strings from subprocesses or private runtime state.
         raise RuntimeError('PI_ONCE_FAILED_CLOSED') from None
     finally:
+        cleanup_started = time.monotonic()
+        if child_started is not None and child_finished is None:
+            child_finished = cleanup_started
         pi_child = child
         if host.JOB is not None:
             host.JOB.close()
@@ -306,7 +313,17 @@ def run_once(host, env):
         lock.close()
         projection = event_summary(b''.join(output))
         projection['truncated'] = projection['truncated'] or bool(stdout_metrics.get('output_limit'))
-        result.update(elapsed_ms=max(0, int((time.monotonic() - started) * 1000)),
+        finished = time.monotonic()
+        def milliseconds(begin, end):
+            return max(0, int((end - begin) * 1000))
+        # Fixed numeric diagnostics only. Prompt piping and post-child verification
+        # are separate so neither is mistaken for the unchanged 360s child budget.
+        result.update(elapsed_ms=milliseconds(started, finished),
+                      preflight_ms=milliseconds(started, prompt_started if prompt_started is not None else cleanup_started),
+                      prompt_pipe_ms=milliseconds(prompt_started, child_started if child_started is not None else cleanup_started) if prompt_started is not None else 0,
+                      child_elapsed_ms=milliseconds(child_started, child_finished) if child_started is not None else 0,
+                      verification_ms=milliseconds(child_finished, cleanup_started) if child_finished is not None else 0,
+                      cleanup_ms=milliseconds(cleanup_started, finished),
                       stdout_bytes=stdout_metrics['bytes'], stderr_bytes=stderr_metrics['bytes'],
                       child_exit_code=pi_child.returncode if pi_child is not None and type(pi_child.returncode) is int else None,
                       event_summary=projection, process_failure=process_failure)

@@ -107,6 +107,15 @@ class CodexOwnedJob:
                     primary.__dict__["codex_cleanup_error"] = cleanup_error
                     raise primary
 
+    def terminate(self) -> None:
+        """Best-effort fallback for this owned Job only if handle closure fails."""
+        if self.handle:
+            terminate = self.kernel.TerminateJobObject
+            terminate.argtypes = [wintypes.HANDLE, wintypes.UINT]
+            terminate.restype = wintypes.BOOL
+            if not terminate(self.handle, 1):
+                raise ctypes.WinError(ctypes.get_last_error())
+
     def close(self) -> None:
         """Release job ownership and terminate all remaining job members."""
         if self.handle:

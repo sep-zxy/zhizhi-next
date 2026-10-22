@@ -376,7 +376,12 @@ class AcceptanceDomain(DomainService):
     def list_entries(self, *, actor: Actor, **kwargs: Any) -> list[dict[str, Any]]:
         entries = super().list_entries(actor=actor, **kwargs)
         for entry in entries:
-            self.get_entry(entry["entry_id"], actor=actor)
+            # The parent already read and validated this exact immutable Git body.
+            # Check its seal, rather than rereading Git and checking a different
+            # snapshot while returning the first one.
+            proof = self.scope_receipts.read(f"entry:{entry['entry_id']}:{entry['revision']}")
+            if not proof or proof["digest"] != _entry_digest(entry):
+                raise _deny()
         return entries
 
     def checked_change(self, change_id: str, actor: Actor) -> dict[str, Any]:

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import inspect
 import json
 import re
 import uuid
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,7 +25,21 @@ from .contracts import Classification, ModelResult, ModelRunner, ModelTask, cano
 from .validation import contains_obvious_secret
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
+
+
+_TURN_DEADLINE: ContextVar[float | None] = ContextVar("pi_turn_deadline", default=None)
+
+
+def check_turn_deadline() -> None:
+    """Call immediately before durable reservation; a late read is not permission."""
+    task = asyncio.current_task()
+    if task is not None and task.cancelling():
+        raise asyncio.CancelledError
+    deadline = _TURN_DEADLINE.get()
+    if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+        raise TimeoutError
+
 
 PROVIDER = "zhizhi-codex-cli"
 MODEL = "gpt-6.1-sol"
@@ -224,8 +240,8 @@ class PiBridge:
         runner: ModelRunner,
         config: PiBridgeConfig,
         *,
-        authorize: Callable[[dict[str, Any]], bool],
-        reserve_attempt: Callable[[ModelTask], bool],
+        authorize: Callable[[dict[str, Any]], bool | Awaitable[bool]],
+        reserve_attempt: Callable[[ModelTask], bool | Awaitable[bool]],
     ) -> None:
         self.runner, self.config = runner, config
         self._authorize, self._reserve = authorize, reserve_attempt
@@ -233,6 +249,7 @@ class PiBridge:
         self._issued: dict[str, dict[str, Any]] = {}
         self._cache: dict[str, tuple[str, dict[str, Any]]] = {}
         self._active: set[str] = set()
+        self._inflight: set[str] = set()
         self._calls = 0
 
     def hello(self, request_id: str) -> dict[str, Any]:
@@ -364,7 +381,38 @@ class PiBridge:
                 )
         return {"oneOf": variants}
 
+    async def _permission(self, callback: Any, value: Any) -> bool:
+        check_turn_deadline()
+        result = callback(value)
+        if inspect.isawaitable(result):
+            result = await result
+        check_turn_deadline()
+        return result is True
+
     async def turn(self, request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            request_id = _uuid(request.get("id"))
+        except (AttributeError, BridgeRejected):
+            return self.error(None, "BRIDGE_INVALID_REQUEST")
+        # Async authorization now yields before reservation. Own the request
+        # before the first await, including cache reauthorization and failures.
+        if request_id in self._inflight:
+            return self.error(request_id, "BRIDGE_REQUEST_IN_PROGRESS")
+        if self._inflight:
+            return self.error(request_id, "BRIDGE_BUSY")
+        self._inflight.add(request_id)
+        deadline = asyncio.get_running_loop().time() + self.config.limits.timeout_seconds
+        token = _TURN_DEADLINE.set(deadline)
+        try:
+            async with asyncio.timeout_at(deadline):
+                return await self._turn(request)
+        except TimeoutError:
+            return self.error(request.get("id"), "BRIDGE_TIMEOUT", status="cancelled")
+        finally:
+            self._inflight.discard(request_id)
+            _TURN_DEADLINE.reset(token)
+
+    async def _turn(self, request: dict[str, Any]) -> dict[str, Any]:
         request_id: str | None = None
         try:
             request_id = _uuid(request.get("id"))
@@ -387,7 +435,7 @@ class PiBridge:
                 # model finished. Reauthorize without reserving another attempt.
                 if not self.config.enabled:
                     raise BridgeRejected("MODEL_PROCESSING_DISABLED")
-                if self._authorize(copy.deepcopy(request)) is not True:
+                if not await self._permission(self._authorize, copy.deepcopy(request)):
                     raise BridgeRejected("BRIDGE_INPUT_NOT_AUTHORIZED")
                 return copy.deepcopy(result)
             if request_id in self._active:
@@ -417,7 +465,7 @@ class PiBridge:
                 raise BridgeRejected("BRIDGE_TRANSCRIPT_CHANGED")
             if contains_obvious_secret(messages):
                 raise BridgeRejected("SECRET_INPUT_FORBIDDEN")
-            if self._authorize(copy.deepcopy(request)) is not True:
+            if not await self._permission(self._authorize, copy.deepcopy(request)):
                 raise BridgeRejected("BRIDGE_INPUT_NOT_AUTHORIZED")
             if self._calls >= self.config.limits.model_calls_per_process:
                 raise BridgeRejected("BRIDGE_PROCESS_BUDGET_EXHAUSTED")
@@ -463,7 +511,7 @@ class PiBridge:
                 max_output_tokens=4096,
                 instructions=_INSTRUCTIONS,
             )
-            if self._reserve(task) is not True:
+            if not await self._permission(self._reserve, task):
                 raise BridgeRejected("BRIDGE_ATTEMPT_NOT_AUTHORIZED")
             # Consume before execution, including invalid output, timeout and cancellation.
             self._calls += 1
@@ -488,6 +536,8 @@ class PiBridge:
             return result
         except BridgeRejected as exc:
             return self.error(request_id, str(exc))
+        except TimeoutError:
+            raise
         except Exception:
             return self.error(request_id, "BRIDGE_INVALID_REQUEST")
 

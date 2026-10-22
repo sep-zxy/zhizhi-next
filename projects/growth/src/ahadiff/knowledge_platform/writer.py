@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,7 @@ import yaml
 
 from .contracts import identifier
 from .errors import DomainError
+from .git_process import run_git
 from .portable import portable_root, require_portable_path
 
 
@@ -120,11 +120,9 @@ class GitWriter:
         environment: dict[str, str] | None = None,
         allow_failure: bool = False,
     ) -> bytes:
-        result = subprocess.run(
+        result = run_git(
             _git_command("--git-dir", str(self.repository), *args),
-            input=input_data,
-            capture_output=True,
-            check=False,
+            input_data=input_data,
             env=environment or self._environment(),
             cwd=self.repository,
             timeout=30,
@@ -151,10 +149,8 @@ class GitWriter:
                 )
         else:
             self.repository.mkdir(parents=True, exist_ok=True)
-            result = subprocess.run(
+            result = run_git(
                 _git_command("init", "--bare", "--template=", str(self.repository)),
-                capture_output=True,
-                check=False,
                 timeout=30,
                 env=self._environment(),
                 cwd=self.repository,
@@ -275,12 +271,10 @@ class GitWriter:
         head = head or self.head()
         if head is None:
             return False
-        result = subprocess.run(
+        result = run_git(
             _git_command(
                 "--git-dir", str(self.repository), "merge-base", "--is-ancestor", commit, head
             ),
-            capture_output=True,
-            check=False,
             timeout=30,
             env=self._environment(),
             cwd=self.repository,

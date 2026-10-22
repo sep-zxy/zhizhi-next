@@ -538,3 +538,104 @@ def test_unknown_write_result_only_allows_read_only_reconciliation():
         "zhizhi_job_status",
     }
     assert len(bridge._issued) == 1
+
+
+def test_turn_deadline_includes_async_preflight_not_just_model():
+    from ahadiff.knowledge_platform.model.pi_bridge import BridgeLimits
+    """Synthetic delay fixture: one shared deadline, no actual provider."""
+    async def scenario():
+        bridge, runner = setup(limits=BridgeLimits(timeout_seconds=1))
+        cancelled = asyncio.Event()
+        async def authorize(_request):
+            await asyncio.sleep(.6)
+            return True
+        async def slow_model(_task):
+            try:
+                await asyncio.sleep(.6)
+                raise AssertionError('shared deadline did not cover authorization')
+            finally:
+                cancelled.set()
+        bridge._authorize = authorize
+        runner.run = slow_model
+        result = await bridge.turn(request())
+        assert result['status'] == 'cancelled'
+        assert cancelled.is_set()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('stage', ['authorize', 'reserve'])
+def test_async_preflight_keeps_exclusive_inflight_ownership(stage):
+    """Mocked callback fixture, not a real model request."""
+    async def scenario():
+        bridge, runner = setup()
+        entered, release = asyncio.Event(), asyncio.Event()
+        reserves = []
+        async def permission(_value):
+            entered.set()
+            await release.wait()
+            return True
+        def reserve(task):
+            reserves.append(task.task_id)
+            return True
+        async def slow_reserve(task):
+            await permission(task)
+            return reserve(task)
+        bridge._reserve = slow_reserve if stage == 'reserve' else reserve
+        if stage == 'authorize':
+            bridge._authorize = permission
+        first_request = request()
+        first = asyncio.create_task(bridge.turn(first_request))
+        await entered.wait()
+        assert (await bridge.turn(request()))['error_code'] == 'BRIDGE_BUSY'
+        assert (await bridge.turn(first_request))['error_code'] == 'BRIDGE_REQUEST_IN_PROGRESS'
+        release.set()
+        await first
+        assert len(reserves) == 1
+        assert not bridge._inflight
+    asyncio.run(scenario())
+
+
+def test_real_jsonl_pipe_cancels_readonly_preflight_before_reservation():
+    """Real local pipe and serve loop, deterministic read fixture, zero model calls."""
+    import os
+    import threading
+    async def scenario():
+        bridge, runner = setup()
+        entered, release = threading.Event(), threading.Event()
+        answered = asyncio.Event()
+        reserves = []
+        def readonly():
+            entered.set()
+            assert release.wait(3)
+            return True
+        async def authorize(_request):
+            return await asyncio.to_thread(readonly)
+        bridge._authorize = authorize
+        bridge._reserve = lambda task: reserves.append(task.task_id) or True
+        class Output(io.StringIO):
+            def write(self, text):
+                count = super().write(text)
+                if '"status":"cancelled"' in text:
+                    answered.set()
+                return count
+        read_fd, write_fd = os.pipe()
+        source = os.fdopen(read_fd, 'rb')
+        output = Output()
+        server = asyncio.create_task(serve(bridge, source, output))
+        value = request()
+        try:
+            os.write(write_fd, (json.dumps(value)+'\n').encode())
+            assert await asyncio.to_thread(entered.wait, 2)
+            cancel = {'version':1,'id':identity(),'type':'cancel','request_id':value['id']}
+            os.write(write_fd, (json.dumps(cancel)+'\n').encode())
+            await asyncio.wait_for(answered.wait(), 1)
+            assert [json.loads(line)['status'] for line in output.getvalue().splitlines()] == ['cancel_requested','cancelled']
+            release.set()
+            await asyncio.sleep(.01)
+            assert not reserves and not runner.calls and not bridge._inflight
+        finally:
+            release.set()
+            os.close(write_fd)
+            await asyncio.wait_for(server, 2)
+            source.close()
+    asyncio.run(scenario())

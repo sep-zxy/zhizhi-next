@@ -131,3 +131,32 @@ initialize 对新版本拒绝创建身份，缺失或损坏的锚点也不回退
 运行状态仍隔离；唯一跨版本路径是上述固定身份只读锚点、配置锁和新运行账本。
 保留旧版本目录和历史账本，不能为清理磁盘删除锚点。部分初始化或丢失账本应停下诊断，不能删除预约“修复”。
 云端的模拟 DPAPI、文件及封装测试不是 Windows DPAPI、真实模型或最终 E2E 验收。
+
+### Pi turn 前置读检查与时限
+
+Pi 的 120 秒 turn 截止时间覆盖输入授权、来源重读、预算预留和模型调用，而不是在模型开始后另计时。
+生产授权与预留入口只把只读来源/Git/签封检查交给后台线程；返回后重新核对 activation 与截止时间，
+仍在事件循环中执行原预算写入。取消后台读取不表示操作系统强制中断该线程，但它不能迟到写入
+run/attempt 或启动模型；进程与后代仍由现有 Job 和 child 截止清理。没有新增重试、额度或时限。
+列表直接对已经从 Git 验证过的返回条目核对签封，不再为同一列表重复读 Git；授权和预留两个时点
+仍各自重新读源，不以跨请求缓存替代来源或分类检查。
+
+一次性报告固定输出 preflight_ms、prompt_pipe_ms、child_elapsed_ms、verification_ms、cleanup_ms，
+均为单调时钟数值，不包含原始请求、路径、凭据或模型文本。原 elapsed_ms 是含预检与清理的总时间；
+child_elapsed_ms 才对应 EOF 后原有 360 秒 child 预算，不能仅因总时间超过 360 秒就断言 child 超时。
+云端延迟与取消 fixture 只能证明这些控制边界，不证明历史 Windows 超时的具体卡点或真实 E2E 通过。
+
+Git 子进程不继承 Pi JSONL 协议输入：无显式输入的 Git 使用 DEVNULL，写入对象时只传入调用方指定的字节。
+所有 Writer Git 调用使用每次调用独占的子树：Windows 在 GO 门放行前加入独立嵌套 Job，POSIX 使用独立进程组。
+Git 执行截止仍为 30 秒；超时或完成后先终止该调用残留子树，再最多等待直接进程 5 秒和输入线程 5 秒。
+Windows Job 关闭失败时，仅对同一个 Job 尝试 TerminateJobObject，仍报告失败，不终止整个产品的外层 Job或按进程名称清理。
+stdout/stderr 临时捕获到自动关闭删除的 TemporaryFile（便携环境沿用受控 TEMP）；这不是全内存捕获，
+但不会写入诊断报告或长期日志。这样孙进程继承输出句柄也不会导致 communicate 无限等待管道 EOF。
+云端的假 Git、孙进程和模拟 Windows Job 测试仅证明这些控制边界，不代替真实 Windows Pi 验收。
+
+修复后的第一步应是现有打包 Node transport 的无模型拒绝诊断，而不是 owner-pi-once：
+沿用同一 spawnPackagedBridge/JSONL 通路，hello 后仅发送固定未授权文本 DIAGNOSTIC_NOT_AUTHORIZED 的 turn=1 请求，
+不发送 PI_PROMPT，不调用 reserve/model/search，不创建或恢复授权。诊断观察边界为 hello 180 秒、turn 原有 120 秒、外层 Job 240 秒；
+这些是无模型探针的观察上限，不改变产品 hello 90 秒或模型 turn 120 秒。
+应收到固定授权拒绝，并核对调用前后所有账本文件摘要不变、该次 Git 父孙进程均已退出且外层 Job 仍受控。
+只记录固定状态、耗时、所属进程类型/退出，不保存 argv、环境、原始请求或输出；若失败停下诊断，不自动转为真实模型调用。

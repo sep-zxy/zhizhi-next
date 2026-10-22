@@ -108,8 +108,8 @@ def bridge(scope, output=None):
                 timeout_seconds=120,
             ),
         ),
-        authorize=scope.authorize,
-        reserve_attempt=scope.reserve_model,
+        authorize=scope.authorize_async,
+        reserve_attempt=scope.reserve_model_async,
     )
     return result, transport
 
@@ -497,3 +497,114 @@ def test_cached_success_rechecks_current_source_classification(slot, turn):
     slot[1]["classification_labels"] = ["personal"]
     assert asyncio.run(instance.turn(replay))["status"] == "succeeded"
     assert transport.run.await_count == original_calls
+
+
+@pytest.mark.parametrize('blocked_read', [1, 2])
+@pytest.mark.parametrize('interrupt', ['cancel', 'deadline', 'revocation'])
+def test_production_async_preflight_cannot_late_reserve_or_block_loop(slot, blocked_read, interrupt):
+    """Deterministic read-only delay fixture, not a model or Windows execution."""
+    import threading
+    scope = enabled(slot)
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    original = scope.read_source
+    count = 0
+    worker_ids = []
+
+    def delayed_read():
+        nonlocal count
+        worker_ids.append(threading.get_ident())
+        entry = original()
+        count += 1
+        if count == blocked_read:
+            entered.set()
+            assert release.wait(4), 'fixture release missing'
+            finished.set()
+        return entry
+
+    async def journey():
+        runner = Mock(run=AsyncMock())
+        instance = PiBridge(runner, PiBridgeConfig(
+            owner_id=pi.OWNER, device_id=scope.context.identity.device_id,
+            deployment_id='synthetic-async', allowed_tools=('zhizhi_search',), enabled=True,
+            limits=BridgeLimits(model_calls_per_run=2, model_calls_per_process=2,
+                                tool_calls_per_run=1, timeout_seconds=1)),
+            authorize=scope.authorize_async, reserve_attempt=scope.reserve_model_async)
+        with patch.object(scope, 'read_source', side_effect=delayed_read):
+            task = asyncio.create_task(instance.turn(request()))
+            try:
+                assert await asyncio.to_thread(entered.wait, 2)
+                heartbeat = asyncio.Event()
+                asyncio.get_running_loop().call_soon(heartbeat.set)
+                await asyncio.wait_for(heartbeat.wait(), .2)
+                assert not runner.run.called
+                if interrupt == 'cancel':
+                    task.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await task
+                elif interrupt == 'deadline':
+                    result = await task
+                    assert result['error_code'] == 'BRIDGE_TIMEOUT'
+                else:
+                    with patch.object(scope, 'require_active', side_effect=AcceptanceScopeError('PRIVATE-FIXTURE')):
+                        release.set()
+                        result = await task
+                    assert result['error_code'] == 'BRIDGE_INVALID_REQUEST'
+                    assert 'PRIVATE-FIXTURE' not in json.dumps(result)
+            finally:
+                release.set()
+                assert await asyncio.to_thread(finished.wait, 2)
+                await asyncio.sleep(.01)
+            runner.run.assert_not_called()
+            for key in ('run', 'model-attempt:1', 'model-attempt:2'):
+                assert scope.receipts.read(key) is None
+            assert worker_ids and threading.get_ident() not in worker_ids
+    asyncio.run(journey())
+
+
+def test_packaged_factory_uses_cancellable_read_callbacks_without_calls(slot):
+    scope = enabled(slot)
+    scope.context.base_activation.update(codex_exe='/synthetic/codex.exe', codex_home='/synthetic')
+    with patch.object(pi, 'active_scope', return_value=scope), \
+         patch.object(pi, '_existing_cli_path', side_effect=lambda path, **kwargs: str(path)):
+        instance = pi.create_bridge(scope.context.root)
+    assert instance._authorize == scope.authorize_async
+    assert instance._reserve == scope.reserve_model_async
+    assert instance.config.limits.timeout_seconds == 120
+    assert instance.config.limits.model_calls_per_process == 2
+    assert scope.receipts.read('run') is None
+
+
+@pytest.mark.parametrize('blocked_read', [3, 4])
+def test_transport_source_rechecks_cancel_without_late_model_or_result(slot, blocked_read):
+    """Production wrapper with synthetic runner; no external model or credentials."""
+    import threading
+    from dataclasses import replace
+    scope = enabled(slot)
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    original = scope.read_source
+    calls = 0
+    def delayed_read():
+        nonlocal calls
+        value = original()
+        calls += 1
+        if calls == blocked_read:
+            entered.set()
+            assert release.wait(4)
+            finished.set()
+        return value
+    async def journey():
+        instance, runner = bridge(scope)
+        instance.config = replace(instance.config, limits=replace(instance.config.limits, timeout_seconds=1))
+        with patch.object(scope, 'read_source', side_effect=delayed_read):
+            task = asyncio.create_task(instance.turn(request()))
+            try:
+                assert await asyncio.to_thread(entered.wait, 2)
+                assert (await task)['status'] == 'cancelled'
+            finally:
+                release.set()
+                assert await asyncio.to_thread(finished.wait, 2)
+                await asyncio.sleep(.01)
+        assert runner.run.await_count == (0 if blocked_read == 3 else 1)
+        assert scope.receipts.read('model-attempt:1') is not None
+        assert scope.receipts.read('model-result:1') is None
+    asyncio.run(journey())

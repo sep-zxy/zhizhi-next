@@ -90,7 +90,13 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
         if failure == 'stop':
             (tmp_path / 'data/stop.request').touch()
     child.stdin.write.side_effect = assigned_then_write
-    with patch.object(once.time, 'monotonic', side_effect=[0, 1, 400, 401] if failure == 'deadline' else None, return_value=0), \
+    clock = [0]
+    if failure == 'deadline':
+        def timed_out_poll():
+            clock[0] = once.CHILD_JOURNEY_SECONDS
+            return None
+        child.poll.side_effect = timed_out_poll
+    with patch.object(once.time, 'monotonic', side_effect=lambda: clock[0]), \
          patch.dict('sys.modules', {'msvcrt': Mock()}), \
          patch.object(pi, 'active_scope', return_value=scope), \
          patch.object(pi, 'completion_summary', return_value=summary,
@@ -116,6 +122,12 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
     report = host.write_json.call_args.args[1]
     assert report['stdout_bytes'] <= 2_000_001 and report['stderr_bytes'] <= 65_537
     assert report['elapsed_ms'] >= 0
+    assert all(type(report[key]) is int and report[key] >= 0 for key in
+               ('preflight_ms', 'prompt_pipe_ms', 'child_elapsed_ms', 'verification_ms', 'cleanup_ms'))
+    if failure in {'spent', 'assign', 'cancel'}:
+        assert report['child_elapsed_ms'] == report['prompt_pipe_ms'] == 0
+    if failure == 'deadline':
+        assert report['child_elapsed_ms'] == 360_000
     if failure:
         assert report['code'] == 'PI_ONCE_STAGE_FAILED'
         assert report['phase'] in {'scope_verification', 'job_assignment', 'pi_process', 'event_validation', 'receipt_verification'}
@@ -271,3 +283,59 @@ def test_provider_failure_projection_rejects_wrong_shapes_and_bounds(monkeypatch
     summary = once.event_summary(raw)
     assert summary['provider_failure_stages'] == {'OTHER': 2}
     assert 'SECRET_CANARY' not in json.dumps(summary)
+
+
+@pytest.mark.parametrize('timeout', [False, True])
+def test_preflight_prompt_child_verification_and_cleanup_have_distinct_clocks(tmp_path, timeout):
+    from ahadiff.knowledge_platform import pi_acceptance as pi
+    clock = [0.0]
+    def advance(seconds):
+        clock[0] += seconds
+    scope = Mock()
+    scope.receipts.read.return_value = None
+    host = SimpleNamespace(ROOT=tmp_path, CHILDREN=[], LOGS=[], JOB=Mock())
+    host.within = lambda name: tmp_path / name
+    host.load_config = Mock(return_value={})
+    host.platform_command = Mock(return_value=(['platform'], 8766, 'configured'))
+    host.await_health = Mock(side_effect=lambda *args: advance(400))
+    host.owner_pi_environment = Mock(return_value={})
+    host.write_json = Mock()
+    platform = Mock()
+    platform.poll.return_value = None
+    host.spawn = Mock(return_value=platform)
+    child = Mock(returncode=0, stdout=io.BytesIO(events()), stderr=io.BytesIO())
+    child.stdin.write.side_effect = lambda data: advance(7)
+    child.stdin.close.side_effect = lambda: advance(3) if clock[0] == 407 else None
+    polls = [0]
+    def poll():
+        if polls[0] == 0:
+            advance(360 if timeout else 20)
+        polls[0] += 1
+        return None if timeout else 0
+    child.poll.side_effect = poll
+    host.JOB.close.side_effect = lambda: advance(4)
+    def complete(*args, **kwargs):
+        advance(6)
+        return {'status': 'pi_source_search_verified', 'final_delivery': False}
+    with patch.object(once.time, 'monotonic', side_effect=lambda: clock[0]), \
+         patch.dict('sys.modules', {'msvcrt': Mock()}), \
+         patch.object(pi, 'active_scope', return_value=scope), \
+         patch.object(pi, 'completion_summary', side_effect=complete), \
+         patch.object(once.subprocess, 'Popen', return_value=child):
+        if timeout:
+            with pytest.raises(RuntimeError, match='PI_ONCE_FAILED_CLOSED'):
+                once.run_once(host, {})
+        else:
+            once.run_once(host, {})
+    report = host.write_json.call_args.args[1]
+    assert once.CHILD_JOURNEY_SECONDS == 360
+    assert report['preflight_ms'] == 400_000
+    assert report['prompt_pipe_ms'] == 10_000
+    assert report['child_elapsed_ms'] == (360_000 if timeout else 20_000)
+    assert report['verification_ms'] == (0 if timeout else 6_000)
+    assert report['cleanup_ms'] == 4_000
+    assert report['elapsed_ms'] == (774_000 if timeout else 440_000)
+    assert report['elapsed_ms'] > once.CHILD_JOURNEY_SECONDS * 1000
+    assert report['process_failure'] == ('timeout' if timeout else None)
+    if not timeout:
+        assert report['status'] == 'pi_source_search_verified'
