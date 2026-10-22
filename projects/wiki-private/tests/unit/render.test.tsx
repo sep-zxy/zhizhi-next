@@ -39,3 +39,34 @@ describe("safe source and planning rendering", () => {
     expect(html).toContain("不能自动变成可执行 Skill");
   });
 });
+
+describe("private article safe structured reading", () => {
+  it("renders actual bullets, ordered steps and emphasis without executing markup", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownBody
+        body={
+          '## 机制\n- **单写者**：使用 `CAS`\n- <img src="https://evil.test/x" />\n\n3. 核对\n4. 提交\n\n```\n- not a list\n```'
+        }
+      />,
+    );
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<strong>单写者</strong>");
+    expect(html).toContain("<code>CAS</code>");
+    expect(html).toContain('<ol start="3">');
+    expect(html).toContain("<pre><code>- not a list</code></pre>");
+    expect(html).not.toContain("<img");
+  });
+  it("keeps remote links and images as inert text", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownBody
+        body={
+          "- [go](javascript:alert(1))\n- ![image](https://tracker.test/x)\n- **<script>bad</script>**"
+        }
+      />,
+    );
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});

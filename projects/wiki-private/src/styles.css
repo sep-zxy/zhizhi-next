@@ -1580,3 +1580,47 @@ summary {
     gap: 8px;
   }
 }
+
+.inbox-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+button.intake-row {
+  width: 100%;
+  background: white;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+button.intake-row.selected {
+  background: var(--tint);
+  outline: 1px solid #a5d7c9;
+  border-radius: 6px;
+}
+.intake-inspector .panel-heading {
+  align-items: flex-start;
+}
+@media (max-width: 1100px) {
+  .inbox-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.8em;
+  margin: 12px 0 18px;
+}
+.markdown-body li {
+  margin: 6px 0;
+}
+.markdown-body li::marker {
+  color: var(--teal);
+}
+.markdown-body :not(pre) > code {
+  background: #f0f3f7;
+  padding: 2px 5px;
+  border-radius: 4px;
+}

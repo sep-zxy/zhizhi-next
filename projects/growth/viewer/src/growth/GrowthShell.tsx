@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, FolderGit2, Menu, X, House, GitBranch, FilePenLine, Lightbulb, Radar, ExternalLink, Terminal } from 'lucide-react';
+import { BookOpen, FolderGit2, Menu, X, House, GitBranch, FilePenLine, Lightbulb, Radar, ExternalLink, Terminal, MessageCircle, Search } from 'lucide-react';
 
 import { useTranslation } from '../i18n/useTranslation';
 import './GrowthShell.css';
@@ -10,6 +10,7 @@ const NAV = [
   { view: 'home', label: '首页', Icon: House },
   { view: 'projects', label: '工程项目', Icon: FolderGit2 },
   { view: 'library', label: '学习库', Icon: BookOpen },
+  { view: 'session', label: '学习会话', Icon: MessageCircle },
   { view: 'understanding', label: '我的理解', Icon: Lightbulb },
   { view: 'writeback', label: '成果回填', Icon: FilePenLine },
   { view: 'radar', label: '学习雷达', Icon: Radar },
@@ -27,7 +28,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
   const menuButton = useRef<HTMLButtonElement>(null);
   const requested = new URLSearchParams(location.search).get('view') ?? 'overview';
   const canonicalView = zhizhiView(requested);
-  const activeView = ['session','exercise','candidates','topic-management','entry-context','wiki-learning'].includes(canonicalView) ? 'library' : canonicalView;
+  const activeView = ['exercise','candidates','topic-management','entry-context','wiki-learning'].includes(canonicalView) ? 'library' : canonicalView;
   const currentLabel = location.pathname === '/settings'
     ? '设置' : NAV.find((item) => item.view === activeView)?.label ?? '知识卡';
   const projectQuery = projectId ? '&project=' + encodeURIComponent(projectId) : '';
@@ -66,7 +67,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
       </div>
       <nav id="growth-navigation" aria-label={t('Growth.nav_section')}>
         {NAV.map(({ view, label, Icon }) => <Link key={view}
-          to={`/growth?view=${view}${projectQuery}`}
+          to={`/growth?view=${view}${projectQuery}${view==='session'&&new URLSearchParams(location.search).get('card')?'&card='+encodeURIComponent(new URLSearchParams(location.search).get('card')!):''}`}
           aria-current={location.pathname === '/growth' && activeView === view ? 'page' : undefined}
           className="growth-shell__nav-item">
           <Icon size={19} aria-hidden="true" /><span>{label}</span>
@@ -89,6 +90,7 @@ export default function GrowthShell({ children, projects, projectId, onProjectCh
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
         <span className="growth-shell__breadcrumb">知枝 / {currentLabel}</span>
+        <Link className="growth-shell__search" to={`/growth?view=library${projectQuery}`}><Search size={18}/><span>搜索工程知识与学习记录</span></Link>
         {projects && onProjectChange && <label className="growth-shell__project-switcher">
           <FolderGit2 size={16} aria-hidden="true" />
           <span className="sr-only">工作区项目</span>

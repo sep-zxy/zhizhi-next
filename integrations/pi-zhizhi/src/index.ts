@@ -1,5 +1,6 @@
 /** Audited Pi 1.3.0 domain tools. Formal knowledge remains owned by the HTTP service. */
 import { randomUUID } from "node:crypto";
+import { capabilitySummary } from "./capabilities.ts";
 import { Type, type Tool } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { DomainClient, requestKey, safeId, type Envelope } from "./client.ts";
@@ -168,6 +169,14 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
   pi.on("user_bash", () => ({ result: { output: "Shell is disabled in the knowledge host", exitCode: 1,
                                        cancelled: false, truncated: false } }));
 
+  pi.registerCommand("zhizhi-help", {
+    description: "查看实际能力与未接入功能，不调用模型或改变权限",
+    handler: async (_args, ctx) => {
+      if (ctx.mode !== "tui" || !ctx.hasUI) throw new Error("CAPABILITY_VIEW_REQUIRES_LOCAL_TUI");
+      ctx.ui.notify(capabilitySummary([...allowed], !bridge || !!process.env.ZHIZHI_USER_TOKEN), "info");
+    },
+  });
+
   // The read-only bridge slot receives no human identity: do not advertise approval commands.
   // Existing explicit routes keep their original TUI-only confirmation semantics.
   if (bridge && !process.env.ZHIZHI_USER_TOKEN) return;
@@ -181,7 +190,12 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
         const revision = preview.data.preview_revision;
         if (!Number.isInteger(revision)) throw new Error("PREVIEW_REVISION_REQUIRED");
         if (!await ctx.ui.confirm(decision === "keep" ? "收藏这份资料？" : "丢弃这份预览？",
-          safeDecisionDisplay(`Intake: ${args.trim()}\nPreview revision: ${revision}\n${JSON.stringify(preview.data.preview)}`))) return;
+          safeDecisionDisplay(`Intake: ${args.trim()}\nPreview revision: ${revision}\n${JSON.stringify(preview.data.preview)}\n` +
+            (decision === "keep" ? "保留仅授权私有保存并进入知识处理；不代表已写入正式知识或已公开。" :
+              "仅丢弃这份临时预览，不删除正式知识。")))) {
+          ctx.ui.notify("未提交决定，预览状态未因本次取消而改变。", "info");
+          return;
+        }
         const response = await client.request(`intake.${decision}`, "POST", `/intakes/${id}/decision`,
           { decision, preview_revision: revision }, `tui-${randomUUID()}`);
         ctx.ui.notify(safeDecisionDisplay(JSON.stringify(response)), "info");
@@ -209,7 +223,10 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
         `旧元数据/公开范围:\n${decisionFields(old?.data ?? null)}\n` +
         `新元数据/公开范围:\n${decisionFields(current)}\n` +
         "选择“是”批准以上正文及元数据；选择“否”不提交任何决定。"));
-      if (!accepted) return;
+      if (!accepted) {
+        ctx.ui.notify("未提交决定；取消不等于拒绝，提案状态未因本次取消而改变。", "info");
+        return;
+      }
       const response = await client.request("review.decide", "POST", `/changes/${id}/decisions`, {
         decision: "approve", reason: "用户在受信任本地 TUI 审阅具体差异后确认",
         expected_patch_hash: challenge.data.patch_hash, base_revision: challenge.data.base_revision,

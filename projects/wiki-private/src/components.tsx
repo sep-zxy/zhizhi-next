@@ -241,19 +241,52 @@ export function Field({
     </div>
   );
 }
+function inlineText(value: string): ReactNode[] {
+  return value
+    .split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
+    .map((part, index) =>
+      part.startsWith("`") && part.endsWith("`") ? (
+        <code key={index}>{part.slice(1, -1)}</code>
+      ) : part.startsWith("**") && part.endsWith("**") ? (
+        <strong key={index}>{part.slice(2, -2)}</strong>
+      ) : (
+        part
+      ),
+    );
+}
 /** Escaped text only: no HTML injection, remote images, executable links or embeds. */
 export function MarkdownBody({ body }: { body: string }) {
   const blocks: ReactNode[] = [];
   let code: string[] | null = null;
   let paragraph: string[] = [];
+  let list: { ordered: boolean; start: number; items: string[] } | null = null;
+  function flushList() {
+    if (!list) return;
+    const children = list.items.map((item, index) => (
+      <li key={index}>{inlineText(item)}</li>
+    ));
+    blocks.push(
+      list.ordered ? (
+        <ol key={"l" + blocks.length} start={list.start}>
+          {children}
+        </ol>
+      ) : (
+        <ul key={"l" + blocks.length}>{children}</ul>
+      ),
+    );
+    list = null;
+  }
   function flush() {
     if (paragraph.length) {
-      blocks.push(<p key={"p" + blocks.length}>{paragraph.join("\n")}</p>);
+      blocks.push(
+        <p key={"p" + blocks.length}>{inlineText(paragraph.join("\n"))}</p>,
+      );
       paragraph = [];
     }
   }
   for (const line of body.split("\n")) {
     if (/^```/.test(line)) {
+      flushList();
       flush();
       if (code) {
         blocks.push(
@@ -269,20 +302,32 @@ export function MarkdownBody({ body }: { body: string }) {
       code.push(line);
       continue;
     }
+    const bullet = /^\s*(?:([-+*])|([0-9]+)\.)\s+(.+)$/.exec(line);
+    if (bullet) {
+      flush();
+      const ordered = !!bullet[2];
+      if (list && list.ordered !== ordered) flushList();
+      if (!list)
+        list = { ordered, start: ordered ? Number(bullet[2]) : 1, items: [] };
+      list.items.push(bullet[3]);
+      continue;
+    }
+    flushList();
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
     if (heading) {
       flush();
       blocks.push(
         heading[1].length === 1 ? (
-          <h2 key={"h" + blocks.length}>{heading[2]}</h2>
+          <h2 key={"h" + blocks.length}>{inlineText(heading[2])}</h2>
         ) : (
-          <h3 key={"h" + blocks.length}>{heading[2]}</h3>
+          <h3 key={"h" + blocks.length}>{inlineText(heading[2])}</h3>
         ),
       );
     } else if (!line.trim()) flush();
     else paragraph.push(line);
   }
   flush();
+  flushList();
   if (code)
     blocks.push(
       <pre key="unclosed-code">

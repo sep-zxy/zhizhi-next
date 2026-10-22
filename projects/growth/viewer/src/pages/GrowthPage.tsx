@@ -10,7 +10,7 @@ import ZhizhiProjects from './ZhizhiProjects';
 import ZhizhiWriteback from './ZhizhiWriteback';
 import ZhizhiTopics from './ZhizhiTopics';
 import WikiLearningPage from './WikiLearningPage';
-import WikiLearningLibrary from './WikiLearningLibrary';
+import ZhizhiLibrary from './ZhizhiLibrary';
 import EntryContextPage from './EntryContextPage';
 import { entryReference } from '../api/entry-context';
 import KnowledgeStudy from './KnowledgeStudy';
@@ -54,14 +54,15 @@ export default function GrowthPage() {
     {view==='topic-management'&&<ZhizhiTopics/>}
     {view==='entry-context'&&<EntryContextPage key={params.get('entry_id')+':'+params.get('revision')} reference={entryReference(params)}/>}
     {view==='wiki-learning'&&<WikiLearningPage key={params.get('context_id')??''} contextId={params.getAll('context_id').length===1?params.get('context_id')??'':''}/>}
-    {view==='library'&&!cardId&&<WikiLearningLibrary/>}
+    {!loading&&index&&view==='library'&&!cardId&&<ZhizhiLibrary cards={cards} current={current} projectId={projectId} projects={state?.projects??[]}/>}
     {!loading&&index&&view==='home'&&<>
       <div className="zz-grid"><section className="zz-panel"><h2><BookOpen/>{current?.card_id===lastCardId?'继续上次学习':'继续工程学习'}</h2>{current?<><h3>{current.title}</h3><p>{current.front_question}</p><p className="zz-muted">{readingLabel(current)} · 回答与 AI 讲解分开保存</p><Link className="zz-button" to={learningUrl('session',projectId,current.card_id)}>继续学习 <ArrowRight size={16}/></Link></>:<div className="zz-empty"><h3>从自己的项目或笔记开始</h3><p>这里还没有学习材料，不会自动生成“我的理解”。</p><Link className="zz-button" to={learningUrl('projects',projectId)}>选择工程证据</Link></div>}</section>
       <section className="zz-panel"><h2><Lightbulb/>我的下一步</h2><Link className="zz-next" to={learningUrl('library',projectId)}>选择一个架构问题 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('understanding',projectId)}>用自己的话解释机制与边界 <ArrowRight size={16}/></Link><Link className="zz-next" to={learningUrl('writeback',projectId)}>核对学习成果与回填状态 <ArrowRight size={16}/></Link></section></div>
       <section className="zz-panel"><h2><GitBranch/>工程中的学习线索</h2>{candidates.slice(0,3).map(item=><div className="zz-list-row" key={item.candidate_id}><FileText/><div><strong>{item.title}</strong><p>{item.reason}</p></div><Link className="zz-button secondary" to={learningUrl('candidates',projectId)}>核对证据</Link></div>)}{!candidates.length&&<p className="zz-muted">暂无候选。选择已授权项目中的具体提交后再开始。</p>}</section>
       <div className="zz-grid"><section className="zz-panel"><h2>最近学习材料</h2>{cards.slice(0,3).map(card=><Link className="zz-next" key={card.card_id} to={learningUrl('session',projectId,card.card_id)}>{card.title}<ArrowRight size={16}/></Link>)}</section><section className="zz-panel"><h2>成果回填</h2><p>{cards.filter(card=>card.wiki_draft_status==='draft').length} 份候选草稿</p><p className="zz-muted">提交不等于正式写入，正式写入也不代表已公开。</p><Link to={learningUrl('writeback',projectId)}>查看相关成果 →</Link></section></div>
     </>}
-    {!loading&&index&&['library','understanding'].includes(view)&&!cardId&&<><div className="zz-toolbar"><label>搜索学习材料<input value={params.get('q')??''} onChange={event=>filter('q',event.target.value)} placeholder="搜索问题、机制与边界"/></label><Link className="zz-button secondary" to={learningUrl('projects',projectId)}>从工程项目开始</Link></div><div className="zz-notice">阅读、自己的表达与实践证据分别记录，不换算成掌握分数。</div><section className="zz-panel">{cardLinks}{!cards.length&&<div className="zz-empty"><BookOpen/><h2>还没有符合条件的材料</h2><p>调整搜索或项目范围，也可以从真实提交选择学习目标。</p></div>}</section></>}
+    {!loading&&index&&view==='understanding'&&!cardId&&<><div className="zz-toolbar"><label>搜索学习材料<input value={params.get('q')??''} onChange={event=>filter('q',event.target.value)} placeholder="搜索问题、机制与边界"/></label><Link className="zz-button secondary" to={learningUrl('projects',projectId)}>从工程项目开始</Link></div><div className="zz-notice">阅读、自己的表达与实践证据分别记录，不换算成掌握分数。</div><section className="zz-panel">{cardLinks}{!cards.length&&<div className="zz-empty"><BookOpen/><h2>还没有符合条件的材料</h2><p>调整搜索或项目范围，也可以从真实提交选择学习目标。</p></div>}</section></>}
+    {!loading&&index&&view==='session'&&!cardId&&<section className="zz-panel"><h2>选择要继续的学习会话</h2>{cardLinks}{!cards.length&&<div className="zz-empty">暂无学习会话。<Link to={learningUrl('library',projectId)}>从学习库开始</Link></div>}</section>}
     {index&&cardId&&['session','understanding','library'].includes(view)&&<ZhizhiSession key={cardId} cardId={cardId} projectId={projectId} providerName={binding?.provider_names[0]??''} onChanged={refresh}/>}
     {view==='writeback'&&index&&<ZhizhiWriteback key={cardId||'list'} index={index} projectId={projectId} cardId={cardId} onChanged={refresh}/>}
     {view==='projects'&&state&&<ZhizhiProjects key={projectId} state={state} projectId={projectId} onChanged={refresh}/>}

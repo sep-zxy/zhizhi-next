@@ -144,7 +144,7 @@ async function serve(page:Page,options:{failIndex?:boolean;empty?:boolean;failSa
   });
   return {wikiCreates,wikiNotes,wikiSubmits,wikiRelease:()=>wikiRelease(),saves:()=>saves,publishes:()=>publishes,requests,decisions,completions,chats,submissionBodies,contextBodies,revokeContext:()=>{contextRevoked=true;},releaseSubmission:()=>releaseSubmission(),confirmWrite:()=>{committed=true;}};
 }
-test('专域首页与空态不制造设计示例数据',async({page})=>{await serve(page,{empty:true});await page.goto('/#/growth?view=home');await expect(page.getByRole('heading',{name:'继续你的工程学习'})).toBeVisible();await expect(page.getByText('从自己的项目或笔记开始')).toBeVisible();const nav=page.locator('#growth-navigation');await expect(nav.getByRole('link')).toHaveCount(6);await expect(nav).not.toContainText('收件箱');await expect(nav).not.toContainText('重要确认');await expect(page.getByText('SQLite 单写与 Git CAS')).toHaveCount(0);});
+test('专域首页与空态不制造设计示例数据',async({page})=>{await serve(page,{empty:true});await page.goto('/#/growth?view=home');await expect(page.getByRole('heading',{name:'继续你的工程学习'})).toBeVisible();await expect(page.getByText('从自己的项目或笔记开始')).toBeVisible();const nav=page.locator('#growth-navigation');await expect(nav.getByRole('link')).toHaveCount(7);await expect(nav).not.toContainText('收件箱');await expect(nav).not.toContainText('重要确认');await expect(page.getByText('SQLite 单写与 Git CAS')).toHaveCount(0);});
 test('API 错误不是空成功',async({page})=>{await serve(page,{failIndex:true});await page.goto('/#/growth?view=library');await expect(page.getByRole('alert')).toContainText('读取未完成');await expect(page.getByText('还没有符合条件的材料')).toHaveCount(0);});
 test('学习主题设置保留旧深链接，学习库也有明确入口',async({page})=>{await serve(page);await page.goto('/#/growth?view=settings');await expect(page.getByRole('heading',{name:'学习主题管理',exact:true})).toBeVisible();await expect(page.locator('#growth-cloud-url')).toBeVisible();await page.getByRole('link',{name:'返回学习库'}).click();await page.getByRole('link',{name:'学习主题管理',exact:true}).click();await expect(page.getByRole('heading',{name:'学习主题管理',exact:true})).toBeVisible();});
 test('保存本人原话，双击只一次，AI 讲解不代写',async({page})=>{const calls=await serve(page);await page.goto('/#/growth?view=session&card='+cardId);const answer=page.getByRole('textbox',{name:'我的理解',exact:true});await expect(answer).toHaveValue('本人已保存的原话');await answer.fill('这是我自己的架构取舍');await page.getByRole('button',{name:'保存我的理解',exact:true}).dblclick();await expect(page.getByText('本人原话已保存到本机学习记录，未自动回填或公开。')).toBeVisible();expect(calls.saves()).toBe(1);await expect(answer).toHaveValue('这是我自己的架构取舍');await expect(page.getByRole('button',{name:'发送追问'})).toBeDisabled();});
@@ -410,4 +410,20 @@ test('候选刷新失去授权时连同缓存原话一起撤出 DOM',async({page
   calls.revokeContext();await page.getByRole('button',{name:'刷新自由理解提交',exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('textbox',{name:'自由学习本人原话',exact:true})).toHaveCount(0);await expect(page.getByLabel('自由学习正式原文')).toHaveCount(0);await expect(page.getByLabel('自由理解候选差异')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('独立自由理解旧稿');await expect(page.locator('body')).not.toContainText('从本人原话整理的独立解释');expect(calls.wikiSubmits).toHaveLength(1);
+});
+
+// Isolated visual evidence only: no real user knowledge or model calls.
+test('六页设计对照截图：隔离 fixture，不代表真实模型端到端', async ({page}) => {
+  await serve(page, {writeback:true});
+  const folder=process.env.ZHIZHI_REVIEW_SCREENSHOTS;
+  test.skip(!folder, 'Only generate local screenshots for an explicit design review.');
+  await page.setViewportSize({width:1586,height:992});
+  for(const [name,query] of [['P01','home'],['P06','library'],['P07','session&card='+cardId],['P08','writeback&card='+cardId],['P10','radar'],['P12','projects&project=p1']]) {
+    await page.goto('/#/growth?view='+query);
+    await expect(page.getByText('本地服务已响应',{exact:true})).toBeVisible();
+    if(name==='P07') await expect(page.getByRole('textbox',{name:'我的理解',exact:true})).toBeVisible();
+    if(name==='P08') await expect(page.getByLabel('正式知识与候选差异')).toBeVisible();
+    if(name==='P12') await expect(page.getByRole('heading',{name:'选择具体提交'})).toBeVisible();
+    await page.screenshot({path:folder+'/'+name+'.png',fullPage:true});
+  }
 });

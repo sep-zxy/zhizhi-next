@@ -387,6 +387,7 @@ export function InboxPage({ api }: { api: WikiApi }) {
   const [page, setPage] = useState(0);
   const [state, setState] = useState("");
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState("");
   const list = useResource("intakes:" + page + ":" + state, (signal) =>
     api.intakes(page * PAGE_SIZE, state, signal),
   );
@@ -447,67 +448,155 @@ export function InboxPage({ api }: { api: WikiApi }) {
         </span>
       </div>
       <ResourceView resource={list}>
-        {({ data }) => (
-          <section className="panel">
-            {data.items.length ? (
-              <div className="intake-list">
-                {data.items.map((item) => (
-                  <a
-                    href={routeHref("intake", item.intake_id)}
-                    className="intake-row"
-                    key={item.intake_id}
+        {({ data }) => {
+          const active =
+            data.items.find((item) => item.intake_id === selected) ||
+            data.items[0];
+          const doc = fields(fields(active?.preview).document);
+          return (
+            <div className="inbox-workspace">
+              <section className="panel">
+                {data.items.length ? (
+                  <div className="intake-list">
+                    {data.items.map((item) => (
+                      <button
+                        type="button"
+                        aria-pressed={active?.intake_id === item.intake_id}
+                        onClick={() => setSelected(item.intake_id)}
+                        className={
+                          "intake-row" +
+                          (active?.intake_id === item.intake_id
+                            ? " selected"
+                            : "")
+                        }
+                        key={item.intake_id}
+                      >
+                        <Icon name="inbox" />
+                        <span>
+                          <strong>
+                            {item.title || item.url || "等待来源标题"}
+                          </strong>
+                          <small>
+                            接收渠道：{item.channel || "未提供"} ·{" "}
+                            {item.intake_id}
+                          </small>
+                        </span>
+                        <Badge
+                          tone={
+                            item.source_id
+                              ? "success"
+                              : item.state === "partial"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {intakeLabel(item.state)}
+                        </Badge>
+                        <time>{formatTime(item.created_at)}</time>
+                        <span>›</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <Empty title="当前没有符合条件的收件">
+                    可以投递链接或文本；通道不可用与收件为空是不同状态。
+                  </Empty>
+                )}
+                <div className="pagination">
+                  <button
+                    className="button"
+                    disabled={!page}
+                    onClick={() => setPage(page - 1)}
                   >
-                    <Icon name="inbox" />
-                    <span>
-                      <strong>
-                        {item.title || item.url || "等待来源标题"}
-                      </strong>
-                      <small>
-                        接收渠道：{item.channel || "未提供"} · {item.intake_id}
-                      </small>
-                    </span>
-                    <Badge
-                      tone={
-                        item.source_id
-                          ? "success"
-                          : item.state === "partial"
-                            ? "warning"
-                            : "neutral"
+                    上一页
+                  </button>
+                  <span>
+                    第 {page + 1} 页 · 本页 {data.items.length} 项
+                  </span>
+                  <button
+                    className="button"
+                    disabled={!data.has_more}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    下一页
+                  </button>
+                </div>
+              </section>
+              <aside className="panel intake-inspector" aria-label="收件概览">
+                {active ? (
+                  <>
+                    <div className="panel-heading">
+                      <h2>{active.title || active.url || "等待来源标题"}</h2>
+                      <Badge>{intakeLabel(active.state)}</Badge>
+                    </div>
+                    <Notice
+                      title={
+                        active.source_id ? "已有私有来源" : "尚未确认长期保留"
                       }
                     >
-                      {intakeLabel(item.state)}
-                    </Badge>
-                    <time>{formatTime(item.created_at)}</time>
-                    <span>›</span>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <Empty title="当前没有符合条件的收件">
-                可以投递链接或文本；通道不可用与收件为空是不同状态。
-              </Empty>
-            )}
-            <div className="pagination">
-              <button
-                className="button"
-                disabled={!page}
-                onClick={() => setPage(page - 1)}
-              >
-                上一页
-              </button>
-              <span>
-                第 {page + 1} 页 · 本页 {data.items.length} 项
-              </span>
-              <button
-                className="button"
-                disabled={!data.has_more}
-                onClick={() => setPage(page + 1)}
-              >
-                下一页
-              </button>
+                      这里只预览服务返回的收件概况，不自动收藏或公开。
+                    </Notice>
+                    <dl>
+                      <Field label="接收渠道">
+                        {active.channel || "未提供"}
+                      </Field>
+                      <Field label="来源平台">
+                        {text(doc.platform) || "未识别"}
+                      </Field>
+                      <Field label="内容依据">
+                        {text(fields(doc.metadata).text_basis) || "尚未提供"}
+                      </Field>
+                      <Field label="内容完整度">
+                        {doc.body_complete === true
+                          ? "服务标记正文完整"
+                          : doc.body_complete === false
+                            ? "正文不完整"
+                            : "未确认"}
+                      </Field>
+                      <Field label="接收时间">
+                        {formatTime(active.created_at)}
+                      </Field>
+                      <Field label="预览修订">
+                        {active.preview_revision || "尚未生成"}
+                      </Field>
+                      <Field label="临时到期">
+                        {formatTime(active.expires_at)}
+                      </Field>
+                    </dl>
+                    <h3>已取得正文片段</h3>
+                    <p className="excerpt">
+                      {text(doc.body_text).slice(0, 400) ||
+                        "当前列表没有返回正文，请打开完整预览核对。"}
+                    </p>
+                    {strings(doc.warnings).map((warning) => (
+                      <Notice key={warning} tone="warning">
+                        {warning}
+                      </Notice>
+                    ))}
+                    <a
+                      className="button primary full"
+                      href={routeHref("intake", active.intake_id)}
+                    >
+                      查看完整预览 →
+                    </a>
+                    {active.task_id && (
+                      <a
+                        className="button full"
+                        href={routeHref("tasks", active.task_id)}
+                      >
+                        查看处理任务 →
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <Empty title="选择一份收件">
+                    来源、完整度与处理任务会在这里显示。
+                  </Empty>
+                )}
+              </aside>
             </div>
-          </section>
-        )}
+          );
+        }}
       </ResourceView>
     </>
   );

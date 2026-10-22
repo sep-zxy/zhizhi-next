@@ -104,6 +104,38 @@ test("read-only bridge slot does not advertise human approval commands without a
   try {
     extension({registerTool() {}, registerProvider() {}, on() {}, registerCommand: (name: string) => commands.push(name)} as unknown as ExtensionAPI,
       {bridge: tools => new CodexBridgeProvider(tools, () => {throw new Error('NO_PROCESS_EXPECTED');})});
-    assert.deepEqual(commands, []);
+    assert.deepEqual(commands, ["zhizhi-help"]);
   } finally {if (prior === undefined) delete process.env.ZHIZHI_USER_TOKEN; else process.env.ZHIZHI_USER_TOKEN = prior;}
+});
+
+test("keep and discard distinguish private processing from publication, cancellation writes nothing", async () => {
+  type Command = { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> };
+  const commands = new Map<string, Command>();
+  const previous = { token: process.env.ZHIZHI_USER_TOKEN, fetch: globalThis.fetch };
+  const methods: string[] = [], prompts: string[] = [], notices: string[] = [];
+  try {
+    process.env.ZHIZHI_USER_TOKEN = "fixture-human-token";
+    globalThis.fetch = (async (_url, init) => {
+      methods.push(String(init?.method));
+      return Response.json({ data: { preview_revision: 2, preview: { completeness: "subtitles_only" } },
+        task_id: "fixture-task", trace_id: "fixture" });
+    }) as typeof fetch;
+    extension({ registerTool() {}, registerCommand: (name: string, command: Command) => commands.set(name, command), on() {} } as unknown as ExtensionAPI);
+    const ctx = { mode: "tui", hasUI: true, ui: {
+      confirm: async (_title: string, text: string) => { prompts.push(text); return false; },
+      notify: (text: string) => notices.push(text),
+    } } as unknown as ExtensionCommandContext;
+    await commands.get("zhizhi-keep")!.handler("intake-1", ctx);
+    await commands.get("zhizhi-discard")!.handler("intake-1", ctx);
+    assert.deepEqual(methods, ["GET", "GET"]);
+    assert.match(prompts[0], /私有保存/);
+    assert.match(prompts[0], /不代表已写入正式知识或已公开/);
+    assert.match(prompts[1], /不删除正式知识/);
+    assert.equal(notices.length, 2);
+    assert.ok(notices.every(text => text.includes("未提交决定")));
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.token === undefined) delete process.env.ZHIZHI_USER_TOKEN;
+    else process.env.ZHIZHI_USER_TOKEN = previous.token;
+  }
 });

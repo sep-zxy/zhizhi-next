@@ -13,6 +13,20 @@ export type AuditEvent = {
 };
 export type AuditSink = (event: AuditEvent) => void;
 
+/** Keep failure metadata without reflecting untrusted server prose or credentials. */
+export class DomainRequestError extends Error {
+  constructor(readonly code: string, readonly status: number, readonly traceId: string,
+              readonly retryable: boolean) {
+    super(`${code} (HTTP ${status}, trace ${traceId}, retryable=${retryable})`);
+    this.name = "DomainRequestError";
+  }
+}
+const objectRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const correlationId = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.exec(value)?.[0] === value;
+
+
 const CLASSIFICATIONS = new Set(["public", "personal", "third_party_private", "employer", "secret"]);
 const CLASSIFICATION_FIELDS = new Set([
   "data_classification", "classification", "input_classification", "evidence_classification", "classification_labels",
@@ -153,14 +167,17 @@ export class DomainClient {
         if (size > 1_048_576) { await reader.cancel(); throw new Error("DOMAIN_RESPONSE_TOO_LARGE"); }
         chunks.push(chunk.value);
       }
-      const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+      let value: unknown;
+      try { value = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+      catch { throw new Error("DOMAIN_RESPONSE_INVALID_JSON"); }
       if (!response.ok) {
-        const error = value.error as Record<string, unknown> | undefined;
+        const error = objectRecord(value) && objectRecord(value.error) ? value.error : undefined;
         const code = typeof error?.code === "string" && /^[A-Z0-9_]+$/.test(error.code)
           ? error.code : "DOMAIN_REQUEST_FAILED";
-        throw new Error(`${code} (HTTP ${response.status}, trace ${traceId})`);
+        throw new DomainRequestError(code, response.status, traceId, error?.retryable === true);
       }
-      if (!("data" in value) || typeof value.trace_id !== "string") {
+      if (!objectRecord(value) || value.data === null || typeof value.data !== "object" || !correlationId(value.trace_id) ||
+          !(value.task_id === null || correlationId(value.task_id))) {
         throw new Error("DOMAIN_ENVELOPE_INVALID");
       }
       // TUI user commands show owned content to the actual user, not to a model.

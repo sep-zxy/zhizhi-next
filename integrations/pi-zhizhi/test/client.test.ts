@@ -109,3 +109,52 @@ test("resource IDs reject a trailing newline rather than relying on dollar ancho
   for (const value of ["entry-1\n", "entry-1\r", "entry-1\r\n"]) assert.throws(() => safeId(value), /INVALID_RESOURCE_ID/);
   assert.equal(safeId("entry-1"), "entry-1");
 });
+
+test("malformed successful replies never become durable success evidence", async () => {
+  const valid = { data: {}, task_id: null, trace_id: "fixture", data_classification: "public" };
+  for (const reply of [null, [], "ok", { ...valid, data: null },
+    { ...valid, data: "success" }, { ...valid, task_id: undefined }, { ...valid, task_id: false },
+    { ...valid, trace_id: "" }, { ...valid, trace_id: "trace\n" }, { ...valid, task_id: "a/b" }]) {
+    for (const human of [false, true]) {
+      const client = new DomainClient("https://knowledge.example", "fixture-token", human, () => {},
+        (async () => Response.json(reply)) as typeof fetch);
+      await assert.rejects(client.request("task.read", "GET", "/tasks/task-1"), /DOMAIN_ENVELOPE_INVALID/);
+    }
+  }
+});
+
+test("failure keeps explicit retryability but never reflects arbitrary server details", async () => {
+  const { DomainRequestError } = await import("../src/client.ts");
+  for (const retryable of [true, false, "true", undefined]) {
+    const client = new DomainClient("https://knowledge.example", "fixture-token", false, () => {},
+      (async () => Response.json({ error: { code: "WAITING_QUOTA", retryable,
+        detail: "private-content-must-not-leak" } }, { status: 429 })) as typeof fetch);
+    await assert.rejects(client.request("task.read", "GET", "/tasks/task-1"), (error: unknown) => {
+      assert.ok(error instanceof DomainRequestError);
+      assert.equal(error.code, "WAITING_QUOTA");
+      assert.equal(error.status, 429);
+      assert.equal(error.retryable, retryable === true);
+      assert.doesNotMatch(error.message, /private-content/);
+      assert.ok(error.traceId);
+      return true;
+    });
+  }
+});
+
+test("null error and invalid JSON fail with stable codes, not accidental parser exceptions", async () => {
+  for (const [response, expected] of [[Response.json(null, { status: 503 }), /DOMAIN_REQUEST_FAILED/],
+    [new Response("<html>private</html>"), /DOMAIN_RESPONSE_INVALID_JSON/]] as const) {
+    const client = new DomainClient("https://knowledge.example", "fixture-token", false, () => {},
+      (async () => response) as typeof fetch);
+    await assert.rejects(client.request("task.read", "GET", "/tasks/task-1"), expected);
+  }
+});
+
+
+test("domain list responses remain valid envelopes", async () => {
+  for (const data of [[], [{ entry_id: "entry-1", revision: 1 }]]) {
+    const client = new DomainClient("https://knowledge.example", "fixture-token", false, () => {},
+      (async () => Response.json({ data, task_id: null, trace_id: "fixture", data_classification: "public" })) as typeof fetch);
+    assert.deepEqual((await client.request("search", "GET", "/search?q=fixture")).data, data);
+  }
+});

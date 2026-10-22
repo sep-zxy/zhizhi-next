@@ -467,3 +467,26 @@ describe("approved portal details (synthetic DOM, not screenshots)", () => {
     expect(base.writes).toHaveLength(0);
   });
 });
+
+describe("P02 source inspector", () => {
+  it("selects actual intake without automatic retention or fabricated completeness", async () => {
+    const base = fixture();
+    window.history.replaceState({}, "", "/wiki/#/inbox");
+    render(<WikiApp api={base.api} />);
+    const inspect = await screen.findByRole("button", {
+      name: /int_component/,
+    });
+    await userEvent.setup().click(inspect);
+    expect(inspect.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("服务标记正文完整")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "查看完整预览 →" }).getAttribute("href"),
+    ).toBe("#/intake/int_component");
+    expect(base.writes).toHaveLength(0);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("link", { name: "查看完整预览 →" }));
+    await screen.findByRole("heading", { name: "素材预览与来源详情" });
+    expect(base.writes).toHaveLength(0);
+  });
+});

@@ -11,7 +11,7 @@ import {
   PageTitle,
   ResourceView,
 } from "./components";
-import { type Entry, type SearchHit } from "./contracts";
+import { strings, type Entry, type SearchHit } from "./contracts";
 import {
   categories,
   categoryCounts,
@@ -525,6 +525,11 @@ export function CatalogPage({
                           <span key={tag}>{tag}</span>
                         ))}
                       </div>
+                      {strings(active.metadata.aliases).length > 0 && (
+                        <p className="muted small">
+                          别名：{strings(active.metadata.aliases).join("、")}
+                        </p>
+                      )}
                       <h3>正文片段</h3>
                       <p className="excerpt">
                         {active.body.slice(0, 400) || "正文为空。"}
@@ -641,6 +646,11 @@ export function EntryPage({
                   </span>
                   <span>更新：{formatTime(entry.updated_at)}</span>
                 </div>
+                {strings(entry.metadata.aliases).length > 0 && (
+                  <p className="muted">
+                    别名：{strings(entry.metadata.aliases).join("、")}
+                  </p>
+                )}
                 <div className="tabs" role="tablist" aria-label="条目内容">
                   <button
                     role="tab"
