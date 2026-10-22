@@ -92,6 +92,7 @@ def package(tmp_path):
     directory = root / "data/owner-acceptance"
     (directory / "platform").mkdir(parents=True)
     (directory / "desktop").mkdir()
+    write(directory / "identity.json", {"format": "zhizhi-owner-acceptance-dpapi-v1", "protected": "FIXTURE_ONLY"})
     write(directory / "desktop.json", {"model": {"enabled": False}, "providers": []})
     exe = tmp_path / "synthetic-codex-not-executed.exe"
     exe.write_text("SYNTHETIC NOT EXECUTABLE")

@@ -150,13 +150,18 @@ def activate(
     desktop = _json(_safe(root, directory / "desktop.json"), 32768)
     if desktop.get("model") != {"enabled": False} or desktop.get("providers") != []:
         raise AcceptanceScopeError("ACCEPTANCE_BASE_MODEL_MUST_BE_DISABLED")
+    from .owner_anchor import run_annotation
+
     configuration = {
+        **run_annotation(root),
         **binding,
         "codex_exe": _existing_cli_path(codex_exe, directory=False),
         "codex_home": _existing_cli_path(codex_home, directory=True),
         "owner_port": identity.port,
     }
-    receipts = ScopeReceipts(root, directory / "acceptance-receipts", binding, identity.token)
+    from .owner_anchor import scope_receipts
+
+    receipts = scope_receipts(root, "acceptance-receipts", binding, identity.token)
     existing = receipts.read("activation")
     if existing is not None:
         if existing != configuration:
@@ -197,7 +202,9 @@ def create_activated_application(
     binding = verified_binding(root, expected_source, expected_release)
     directory = _safe(root, root / "data/owner-acceptance")
     identity = load_owner_identity(directory / "identity.json")
-    receipts = ScopeReceipts(root, directory / "acceptance-receipts", binding, identity.token)
+    from .owner_anchor import scope_receipts
+
+    receipts = scope_receipts(root, "acceptance-receipts", binding, identity.token)
     activation = receipts.read("activation")
     if activation is None or any(activation.get(key) != value for key, value in binding.items()):
         raise AcceptanceScopeError("ACCEPTANCE_ACTIVATION_REQUIRED")
@@ -267,6 +274,9 @@ def create_activated_application(
             private_web_root=_safe(root, root / "app/wiki-private"),
             learning_viewer_url=learning_viewer_url,
         )
+        from .owner_anchor import runtime_binding
+
+        app.state.owner_runtime_binding = runtime_binding(root)
         app.state.acceptance_port = identity.port
         if pi_scope:
             from .pi_acceptance import install_boundary

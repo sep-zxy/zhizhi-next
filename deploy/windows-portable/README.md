@@ -93,10 +93,41 @@ local-test 不启动 viewer，也不传入导航。无身份壳可以声明地�
 - 未装Edge/Chrome时不自动安装浏览器；使用现有浏览器也只建立包内独立profile。
 - 主应用、统一服务、Pi、动态Wiki、真实账号、ASR各有独立状态，不能互相替代。
 - ASR独立组件和模型有自己的许可证与运行时检查；缺VC++运行时明确报阻塞，不静默系统安装。
-- 所有应用管理的状态在包内，但操作系统自己的日志、Prefetch和安全产品记录不属于应用可控制边界。
+- 普通模式的应用状态在包内；固定 owner 模式另有上述批准根目录下的锚点登记与运行账本。但操作系统自己的日志、Prefetch和安全产品记录不属于应用可控制边界。
 - 启动器对路径及全部既存祖先检查 Windows reparse 属性，未知 tag 也拒绝；属性读取失败关闭。
   这不是 OS 沙箱或并发恶意路径替换的安全保证，不能将合成路径检查当 Windows 实测。
 
 ## 本地动态发布
 
 `publish.cmd` 只消费已审核的 `config/launch.json` 中 `publication_config` 所指向的包内配置，不创建授权。配置需要 repository、revision、domain_database、owner_id、policy、template_assets、staging、output、report、public_base_url。staging/output 必须是 data/publication 下的新目录，report 必须在 data/reports 内。运行预编译渲染器，完成 Git 投影和只读安全门后生成新 HTML；不安装依赖、不转译代码、不部署到公网。
+
+## 固定身份与独立验收运行
+
+已有身份不再按发布版本重建。首次安装仍可显式 initialize；一旦登记固定锚点，
+initialize 对新版本拒绝创建身份，缺失或损坏的锚点也不回退生成。选择锚点不是模型授权。
+
+新版入口 `owner-acceptance-reuse.cmd --approve-owner-identity-reuse --new-acceptance-run --anchor-release <已核验的既有release-id>`
+只接受批准目录中原地存在的 owner DPAPI 身份。首次选择以后省略 `--anchor-release`，
+继续读取同一登记；传入不同锚点会拒绝。不能选择当前 release 作为自己的新运行。
+每次运行以当前不可变 release-id 唯一标识，重复操作幂等，不支持通过同一 release 换名称重置。
+
+精确路径及影响（实际 Windows 启用须先确认选定版本、身份和新预算）：
+
+- 只读 `C:\Code\zhizhi-e2e-20261020\git-delivery\releases\<anchor-release>\data\owner-acceptance\identity.json`，
+  在同一 Windows 用户下用 DPAPI 解密。token、device、scope、端口及原 package_root 均不改变；不复制或重新加密凭据。
+- 写入固定、不可覆盖的非秘密 `C:\Code\zhizhi-e2e-20261020\data\owner-identity-anchor.json`，
+  记录锚点 release 与原密文摘要；配置操作共享同目录 `owner-identity-configuration.lock`，防止与首次初始化竞态。
+- 在固定 `data\owner-runs` 下写有签名的新运行预约；该运行的真正 activation、attempt、result 与 Pi账本位于
+  `data\owner-runs\<current-release>\acceptance-receipts` 和 `pi-receipts`。旧锚点账本不移动、不修改。
+- 当前 release 的 `data\owner-acceptance` 只创建非秘密身份引用、固定配置和新的空 platform/desktop 状态，
+  不复制旧数据库、知识、浏览器会话或来源证明。删去当前运行状态不会删除固定预算账本，也不会允许自动重新初始化。
+- 后续 model/Pi activation 仍分别需要原来的明确批准、完整发布清单验证和固定调用上限。
+  新 activation 写入与锚点关联的 `explicit_new_acceptance_run` 标记，不继承、不补回旧运行额度。
+  创建身份引用本身不创建任何模型/工具 grant，不运行模型；旧运行成功证据不能算新运行通过。
+- 新版服务 health 公开绑定当前 release/source；引用模式的 launcher 必须匹配后才启动 viewer/Pi，
+  避免同端口旧服务被误认。不会终止旧版本进程；旧版本占端口时应失败关闭，再由操作者正常停止旧运行。
+
+这是同一身份在获准新版产品中持续使用的配置变更，不是扩大知识分类、工具、模型或调用上限。
+运行状态仍隔离；唯一跨版本路径是上述固定身份只读锚点、配置锁和新运行账本。
+保留旧版本目录和历史账本，不能为清理磁盘删除锚点。部分初始化或丢失账本应停下诊断，不能删除预约“修复”。
+云端的模拟 DPAPI、文件及封装测试不是 Windows DPAPI、真实模型或最终 E2E 验收。

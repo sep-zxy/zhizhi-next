@@ -29,6 +29,7 @@ from .model.pi_bridge import BridgeLimits, PiBridge, PiBridgeConfig
 from .model.pi_runner import SubscriptionRoute
 from .model.validation import contains_obvious_secret
 from .owner_acceptance import _existing_cli_path, _json, verified_binding
+from .owner_anchor import scope_receipts
 from .owner_identity import (
     OWNER,
     ProtectedOwnerIdentity,
@@ -82,7 +83,7 @@ def _load_context(root: Path) -> _Context:
     binding = verified_binding(root, release["source_commit"], release["release_id"])
     directory = _safe(root, root / "data/owner-acceptance")
     identity = load_owner_identity(directory / "identity.json")
-    receipts = ScopeReceipts(root, directory / "acceptance-receipts", binding, identity.token)
+    receipts = scope_receipts(root, "acceptance-receipts", binding, identity.token)
     activation = receipts.read("activation")
     if (
         activation is None
@@ -157,9 +158,9 @@ class PiScope:
         ledger_secret = hmac.digest(
             context.identity.token.encode(), b"zhizhi/pi-acceptance-ledger/v1", "sha256"
         ).hex()
-        self.receipts = ScopeReceipts(
+        self.receipts = scope_receipts(
             context.root,
-            context.root / "data/owner-acceptance/pi-receipts",
+            "pi-receipts",
             self.binding,
             ledger_secret,
         )

@@ -32,6 +32,9 @@ def real_scope(tmp_path):
 @pytest.fixture
 def slot(tmp_path):
     (tmp_path / "data/owner-acceptance").mkdir(parents=True)
+    (tmp_path / "data/owner-acceptance/identity.json").write_text(
+        json.dumps({"format": "zhizhi-owner-acceptance-dpapi-v1", "protected": "FIXTURE_ONLY"})
+    )
     entry = {
         "entry_id": str(uuid4()),
         "revision": 1,
@@ -335,6 +338,9 @@ def test_real_writer_source_is_required_and_its_exact_proof_is_read(real_scope_f
     domain.close()
     state = tmp_path / "data/owner-acceptance/platform"
     shutil.copytree(tmp_path / "state", state)
+    (state.parent / "identity.json").write_text(
+        json.dumps({"format": "zhizhi-owner-acceptance-dpapi-v1", "protected": "FIXTURE_ONLY"})
+    )
     identity = Mock(token="INERT", device_id="a" * 32, origin="http://127.0.0.1:8766")
     identity.actor.return_value = USER
     context = pi._Context(tmp_path, identity, {"synthetic": True}, domain.scope_receipts, {})

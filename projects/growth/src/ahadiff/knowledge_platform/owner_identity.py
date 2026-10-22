@@ -152,6 +152,19 @@ def load_owner_identity(
     if state_directory is not None and _safe(root, Path(state_directory)) != directory / "platform":
         raise OwnerIdentityError("OWNER_CONFIGURATION_MISMATCH")
     document = _read(path)
+    if document.get("format") == "zhizhi-owner-anchor-reference-v1":
+        from .owner_anchor import load_reference
+
+        identity = load_reference(root, document)
+    else:
+        identity = _decode_legacy_identity(root, document)
+    if port is not None and identity.port != port:
+        raise OwnerIdentityError("OWNER_CONFIGURATION_MISMATCH")
+    _validate_profile(root, identity)
+    return identity
+
+
+def _decode_legacy_identity(root: Path, document: dict[str, Any]) -> ProtectedOwnerIdentity:
     if set(document) != {"format", "protected"} or document["format"] != FORMAT:
         raise OwnerIdentityError("OWNER_IDENTITY_INVALID")
     encoded = document["protected"]
@@ -190,9 +203,11 @@ def load_owner_identity(
         or not 1024 <= payload["port"] <= 65535
     ):
         raise OwnerIdentityError("OWNER_IDENTITY_INVALID")
-    identity = ProtectedOwnerIdentity(payload["token"], payload["device_id"], payload["port"])
-    if port is not None and identity.port != port:
-        raise OwnerIdentityError("OWNER_CONFIGURATION_MISMATCH")
+    return ProtectedOwnerIdentity(payload["token"], payload["device_id"], payload["port"])
+
+
+def _validate_profile(root: Path, identity: ProtectedOwnerIdentity) -> None:
+    directory = _safe(root, root / "data/owner-acceptance")
     if _read(_safe(root, directory / "launch.json")) != _launch(identity.port):
         raise OwnerIdentityError("OWNER_CONFIGURATION_MISMATCH")
     for subdir in ("platform", "desktop"):
@@ -206,10 +221,17 @@ def load_owner_identity(
         or desktop.get("device_id") != identity.device_id
     ):
         raise OwnerIdentityError("OWNER_DESKTOP_BINDING_MISMATCH")
-    return identity
 
 
 def initialize_owner_identity(port: int) -> str:
+    _acceptance_root()
+    from .owner_anchor import configuration_lock
+
+    with configuration_lock():
+        return _initialize_owner_identity_locked(port)
+
+
+def _initialize_owner_identity_locked(port: int) -> str:
     """Explicit operator action only. No caller-selected owner/path/scopes or imported state."""
     root = _acceptance_root()
     if type(port) is not int or not 1024 <= port <= 65535:
@@ -218,6 +240,10 @@ def initialize_owner_identity(port: int) -> str:
     if directory.exists():
         load_owner_identity(directory / "identity.json", port=port)
         return "already_initialized"
+    from .owner_anchor import registry_path
+
+    if registry_path().exists():
+        raise OwnerIdentityError("OWNER_FIXED_ANCHOR_REUSE_REQUIRED")
     payload = {
         "version": 1,
         "acceptance_only": True,

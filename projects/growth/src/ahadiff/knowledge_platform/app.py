@@ -252,6 +252,8 @@ def create_application(
                 "status": "degraded" if failed else "ready",
                 "service": "zhizhi-knowledge",
                 "authentication_status": "configured",
+                **({"owner_runtime_binding": request.app.state.owner_runtime_binding}
+                   if getattr(request.app.state, "owner_runtime_binding", None) else {}),
                 "browser_authentication_status": (
                     "configured" if browser_sessions is not None else "waiting_auth"
                 ),

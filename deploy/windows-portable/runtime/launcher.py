@@ -116,6 +116,15 @@ def await_health(proc,port,service,authentication_status='configured'):
     if r.status==200:
      record=json.loads(r.read(4097))
      expected_status='ready' if authentication_status=='configured' else 'waiting_auth'
+     if service=='platform':
+      reference=within('data/owner-acceptance/identity.json')
+      if reference.is_file() and reference.stat().st_size>32768:
+       raise RuntimeError('Owner identity reference is oversized')
+      if (reference.is_file()
+          and json.loads(reference.read_text(encoding='utf-8')).get('format')=='zhizhi-owner-anchor-reference-v1'):
+       source,release=owner_release_binding()
+       if record.get('owner_runtime_binding')!={'release_id':release,'source_commit':source}:
+        raise RuntimeError('Platform belongs to a different owner acceptance run')
      if (service=='platform' and record.get('service')=='zhizhi-knowledge'
          and record.get('status')==expected_status
          and record.get('authentication_status')==authentication_status):return
@@ -367,10 +376,13 @@ def parse_arguments(argv=None):
  parser=argparse.ArgumentParser()
  parser.add_argument('action',choices=['start','stop','diagnostics','publish',
                                      'local-test-start','local-test-initialize','local-test-pair',
-                                     'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair',
+                                     'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair','owner-acceptance-reuse',
                                      'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start','owner-pi-once'])
  parser.add_argument('--approve-local-test-identity',action='store_true')
  parser.add_argument('--approve-owner-acceptance-identity',action='store_true')
+ parser.add_argument('--approve-owner-identity-reuse',action='store_true')
+ parser.add_argument('--new-acceptance-run',action='store_true')
+ parser.add_argument('--anchor-release')
  parser.add_argument('--approve-owner-acceptance-model',action='store_true')
  parser.add_argument('--approve-owner-pi-search',action='store_true')
  parser.add_argument('--expected-source')
@@ -380,6 +392,13 @@ def parse_arguments(argv=None):
  parser.add_argument('--port',type=int)
  parser.add_argument('--pairing-code')
  args=parser.parse_args(argv)
+ if args.action=='owner-acceptance-reuse':
+  if not args.approve_owner_identity_reuse or not args.new_acceptance_run:
+   parser.error('Explicit --approve-owner-identity-reuse and --new-acceptance-run are required')
+  if args.anchor_release is not None and not re.fullmatch(r'[0-9a-f]{12}-[0-9]+-[0-9]+',args.anchor_release):
+   parser.error('Invalid anchor release binding')
+ elif args.approve_owner_identity_reuse or args.new_acceptance_run or args.anchor_release is not None:
+  parser.error('Reuse options require owner-acceptance-reuse')
  model_fields=[args.expected_source,args.expected_release,args.codex_exe,args.codex_home]
  if args.action=="owner-model-activate":
   if not args.approve_owner_acceptance_model or not all(model_fields) or args.approve_owner_pi_search:
@@ -432,6 +451,10 @@ def run_owner_acceptance_identity(args):
  if args.action=='owner-acceptance-initialize' and args.approve_owner_acceptance_identity:
   name='ahadiff.knowledge_platform.owner_identity'
   arguments=['--approve-owner-acceptance-identity','--port',str(args.port or 8766)]
+ elif args.action=='owner-acceptance-reuse' and args.approve_owner_identity_reuse and args.new_acceptance_run:
+  name='ahadiff.knowledge_platform.owner_anchor'
+  arguments=['--approve-owner-identity-reuse','--new-acceptance-run']
+  if args.anchor_release is not None:arguments.extend(['--anchor-release',args.anchor_release])
  elif args.action=='owner-acceptance-pair':
   name='ahadiff.knowledge_platform.owner_pairing'
   arguments=['--owner-dpapi-identity',str(within('data/owner-acceptance/identity.json'))]
@@ -513,7 +536,7 @@ def main():
   env=isolated_environment();os.environ.clear();os.environ.update(env)
   run_local_test_identity(args)
   return
- if args.action in {'owner-acceptance-initialize','owner-acceptance-pair'}:
+ if args.action in {'owner-acceptance-initialize','owner-acceptance-pair','owner-acceptance-reuse'}:
   env=isolated_environment();os.environ.clear();os.environ.update(env)
   run_owner_acceptance_identity(args)
   return

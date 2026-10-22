@@ -26,6 +26,7 @@ def isolated(tmp_path, monkeypatch):
     root = tmp_path / "portable"
     (root / "data").mkdir(parents=True)
     monkeypatch.setattr(identity, "_acceptance_root", lambda: root)
+    monkeypatch.setattr(identity, "APPROVED_ROOT", str(tmp_path))
     monkeypatch.setattr(identity.secrets, "token_urlsafe", lambda _: TOKEN)
     monkeypatch.setattr(identity.secrets, "token_hex", lambda _: DEVICE)
 

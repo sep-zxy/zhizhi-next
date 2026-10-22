@@ -48,9 +48,16 @@ class OwnerAcceptanceLauncherTests(unittest.TestCase):
             for path in root.glob("*.cmd"):
                 text = path.read_text()
                 self.assertNotIn("--approve-owner-acceptance-identity", text)
+                self.assertNotIn("--approve-owner-identity-reuse", text)
+                self.assertNotIn("--new-acceptance-run", text)
                 if path.name in {"start.cmd", "local-test-start.cmd"}:
                     self.assertNotIn("owner-acceptance", text)
             self.assertIn("owner-acceptance-initialize %*", (root / "owner-acceptance-initialize.cmd").read_text())
+            reuse = (root / "owner-acceptance-reuse.cmd").read_bytes()
+            self.assertIn(b'"%~dp0app\\launcher.py" owner-acceptance-reuse %*\r\n', reuse)
+            self.assertIn(b'exit /b %EXITCODE%', reuse)
+            self.assertNotIn(b'--anchor-release', reuse)
+            self.assertNotIn(b'owner-acceptance-initialize', reuse)
             # Unknown args are passed only to be rejected; the code itself is stdin-only.
             self.assertIn("owner-acceptance-pair %*", (root / "owner-acceptance-pair.cmd").read_text())
             self.assertNotIn("--pairing-code", (root / "owner-acceptance-pair.cmd").read_text())
@@ -85,6 +92,10 @@ class OwnerAcceptanceLauncherTests(unittest.TestCase):
         for action, flags, name, expected in [
             ("owner-acceptance-initialize", ["--approve-owner-acceptance-identity"], "owner_identity",
              ["--approve-owner-acceptance-identity", "--port", "8766"]),
+            ("owner-acceptance-reuse", ["--approve-owner-identity-reuse", "--new-acceptance-run"], "owner_anchor",
+             ["--approve-owner-identity-reuse", "--new-acceptance-run"]),
+            ("owner-acceptance-reuse", ["--approve-owner-identity-reuse", "--new-acceptance-run", "--anchor-release", "abcdef123456-18-42"], "owner_anchor",
+             ["--approve-owner-identity-reuse", "--new-acceptance-run", "--anchor-release", "abcdef123456-18-42"]),
             ("owner-acceptance-pair", [], "owner_pairing",
              ["--owner-dpapi-identity", str(HERE / "data/owner-acceptance/identity.json")]),
         ]:
@@ -101,7 +112,8 @@ class OwnerAcceptanceLauncherTests(unittest.TestCase):
     def test_identity_helpers_run_only_after_integrity_and_environment_checks(self):
         module = launcher(HERE)
         for action, flags in [("owner-acceptance-initialize", ["--approve-owner-acceptance-identity"]),
-                              ("owner-acceptance-pair", [])]:
+                              ("owner-acceptance-pair", []),
+                              ("owner-acceptance-reuse", ["--approve-owner-identity-reuse", "--new-acceptance-run"])]:
             events = []
             with patch.object(module, "parse_arguments", return_value=module.parse_arguments([action, *flags])), \
                     patch.object(module.sys, "platform", "win32"), \
@@ -116,6 +128,48 @@ class OwnerAcceptanceLauncherTests(unittest.TestCase):
             self.assertEqual(events, ["verified", "isolated", "explicit-action"])
             browser.assert_not_called()
             start.assert_not_called()
+
+    def test_reuse_requires_both_approvals_and_strict_optional_anchor(self):
+        module = launcher(HERE)
+        valid = ["owner-acceptance-reuse", "--approve-owner-identity-reuse", "--new-acceptance-run"]
+        self.assertIsNone(module.parse_arguments(valid).anchor_release)
+        self.assertEqual(module.parse_arguments([*valid, "--anchor-release", "abcdef123456-18-42"]).anchor_release,
+                         "abcdef123456-18-42")
+        rejected = [["owner-acceptance-reuse"], valid[:2], [valid[0], valid[2]]]
+        for flag in ["--approve-local-test-identity", "--approve-owner-acceptance-identity",
+                     "--approve-owner-acceptance-model", "--approve-owner-pi-search"]:
+            rejected.append([*valid, flag])
+        for flag, value in [("--port", "8766"), ("--pairing-code", "A" * 20),
+                            ("--expected-source", "a" * 40), ("--expected-release", "abcdef123456-18-42"),
+                            ("--codex-exe", "arbitrary"), ("--codex-home", "arbitrary")]:
+            rejected.append([*valid, flag, value])
+        for anchor in ["", "../abcdef123456-18-42", "ABCDEF123456-18-42", "abcdef123456-18-42\n",
+                       "abcdef123456-18", "abcdef123456-18-42/other", "abcdef123456-١٨-42", "a" * 40 + "-18-42"]:
+            rejected.append([*valid, "--anchor-release", anchor])
+        for action in ["start", "owner-acceptance-start", "owner-acceptance-pair", "owner-pi-once"]:
+            for flags in [["--approve-owner-identity-reuse"], ["--new-acceptance-run"],
+                          ["--anchor-release", "abcdef123456-18-42"]]:
+                rejected.append([action, *flags])
+        for args in rejected:
+            with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                module.parse_arguments(args)
+
+    def test_reuse_cannot_dispatch_before_integrity_or_isolation(self):
+        module = launcher(HERE)
+        args = module.parse_arguments(["owner-acceptance-reuse", "--approve-owner-identity-reuse", "--new-acceptance-run"])
+        for failing in ["verify_distribution", "isolated_environment"]:
+            with self.subTest(failing=failing), patch.object(module, "parse_arguments", return_value=args), \
+                    patch.object(module.sys, "platform", "win32"), \
+                    patch.object(module, "within"), patch.object(module, "validate_root"), \
+                    patch.object(module, "verify_distribution", side_effect=RuntimeError("fixture") if failing == "verify_distribution" else None), \
+                    patch.object(module, "isolated_environment", side_effect=RuntimeError("fixture") if failing == "isolated_environment" else None), \
+                    patch.object(module, "run_owner_acceptance_identity") as helper, \
+                    patch.object(module, "browser_path") as browser, patch.object(module, "start") as start:
+                with self.assertRaisesRegex(RuntimeError, "fixture"):
+                    module.main()
+                helper.assert_not_called()
+                browser.assert_not_called()
+                start.assert_not_called()
 
     def test_start_uses_fixed_owner_paths_and_never_reads_default_or_test_configuration(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -207,6 +261,30 @@ class OwnerAcceptanceLauncherTests(unittest.TestCase):
             self.assertEqual(status["worker"], "disabled")
             self.assertEqual(status["browser_authentication"], "pairing_required")
             self.assertEqual(status["live_e2e"], "not_run")
+
+    def test_reused_identity_health_rejects_old_or_unbound_platform(self):
+        for actual in (None, {"release_id": "old", "source_commit": "b" * 40},
+                       {"release_id": "a" * 12 + "-19-1", "source_commit": "a" * 40}):
+            with self.subTest(actual=actual), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp) / ("a" * 12 + "-19-1")
+                root.mkdir()
+                fixture(root)
+                (root / "release.json").write_text(json.dumps({"release_id": root.name, "source_commit": "a" * 40}))
+                (root / "data/owner-acceptance/identity.json").write_text(json.dumps({"format": "zhizhi-owner-anchor-reference-v1"}))
+                module = launcher(root)
+                response = Mock(status=200)
+                response.read.return_value = json.dumps({"service": "zhizhi-knowledge", "status": "ready",
+                    "authentication_status": "configured", "owner_runtime_binding": actual}).encode()
+                handle = contextlib.nullcontext(response)
+                with patch.object(module.urllib.request, "urlopen", return_value=handle), patch.object(module.time, "sleep"):
+                    proc = Mock()
+                    proc.poll.return_value = None
+                    if actual is None or actual["release_id"] == "old":
+                        with self.assertRaisesRegex(RuntimeError, "different owner acceptance run"):
+                            module.await_health(proc, 8766, "platform")
+                    else:
+                        module.await_health(proc, 8766, "platform")
+
 
 
 if __name__ == "__main__":

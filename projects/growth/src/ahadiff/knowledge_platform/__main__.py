@@ -311,6 +311,11 @@ def main() -> None:
     )
     import uvicorn
 
+    if args.owner_dpapi_identity is not None:
+        from .owner_anchor import runtime_binding
+        from .owner_identity import _acceptance_root
+
+        app.state.owner_runtime_binding = runtime_binding(_acceptance_root())
     uvicorn.run(app, host=args.host, port=args.port, access_log=False)
 
 
