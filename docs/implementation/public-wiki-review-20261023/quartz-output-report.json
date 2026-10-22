@@ -1,0 +1,15 @@
+{
+  "files_checked": 66,
+  "public_manifest_hash": "6a96e87e279fe28f474a293d6f9032fe7caa53dae5a7b70d974e64a029a477df",
+  "input_snapshot_hash": "0f21d48c572c75f255e1b93315848e4d58d10fb045561349b3271d36de51250f",
+  "policy_hash": "ae03ee592ed003f1917096fe0b6d703c845ff46826ef3f57c7f4599a5cedef22",
+  "revision": "0000000000000000000000000000000000000000",
+  "artifact_hash": "2d4ad7e05c6da79d22adc38014b2ba2ebb4da2c10a0ac8842b4d2dfbe33653a0",
+  "injected_private_output_rejected": true,
+  "scope": "real-quartz-render-with-synthetic-markdown-not-live-e2e",
+  "portal_entries": 8,
+  "search_control_present": true,
+  "sources_toc_backlinks_present": true,
+  "template_baseline": "independently rendered synthetic variant B",
+  "browser_visual_validation": "blocked: Chromium socket Operation not permitted"
+}

@@ -13,7 +13,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from uuid import uuid4
 
 import httpx
@@ -333,6 +333,41 @@ class RemoteKnowledgeBackend:
         if not entry_id or any(char in entry_id for char in "/\\?#") or entry_id in {".", ".."}:
             raise BackendError("INVALID_INPUT", "Invalid entry identifier")
         return await self._request("GET", "/api/knowledge/v1/entries/" + entry_id)
+
+    async def read_relations(
+        self, entry_id: str, *, kinds: list[str] | None = None,
+        direction: str = "both", visibility: str = "all", limit: int = 100,
+        traverse: bool = False, max_depth: int = 2, max_nodes: int = 100,
+    ) -> dict[str, Any]:
+        """Read a bounded authoritative projection without persisting or inferring edges."""
+        if (
+            not isinstance(entry_id, str) or not entry_id or len(entry_id) > 128
+            or any(char in entry_id for char in "/\\?#%") or entry_id in {".", ".."}
+        ):
+            raise BackendError("INVALID_INPUT", "Invalid entry identifier", False, 422)
+        if (
+            kinds is not None and (not isinstance(kinds, list) or any(
+                not isinstance(kind, str) or kind not in {"navigation", "confirmed", "candidate"}
+                for kind in kinds
+            ))
+            or direction not in {"in", "out", "both"}
+            or visibility not in {"all", "public"}
+            or type(traverse) is not bool
+        ):
+            raise BackendError("INVALID_INPUT", "Invalid relation filters", False, 422)
+        bounds = {"max_depth": (max_depth, 3), "max_nodes": (max_nodes, 200)} if traverse else {
+            "limit": (limit, 1000)
+        }
+        if any(type(value) is not int or not 1 <= value <= maximum
+               for value, maximum in bounds.values()):
+            raise BackendError("INVALID_INPUT", "Invalid relation bounds", False, 422)
+        query = [("direction", direction), ("visibility", visibility)]
+        query.extend(("kind", kind) for kind in kinds or [])
+        query.extend((name, str(value)) for name, (value, _) in bounds.items())
+        path = "/api/knowledge/v1/relations/" + quote(entry_id, safe="")
+        if traverse:
+            path += "/traverse"
+        return await self._request("GET", path + "?" + urlencode(query))
 
     async def flush(self) -> list[dict[str, Any]]:
         """Replay pending records; continue past independent terminal conflicts."""

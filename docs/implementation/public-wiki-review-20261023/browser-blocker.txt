@@ -1,0 +1,3 @@
+Browser validation blocked. /usr/bin/chromium:
+FATAL:chrome/browser/process_singleton_posix.cc:297 Check failed: . socket() failed: Operation not permitted (1)
+No screenshot captured. No bypass or privilege escalation attempted.

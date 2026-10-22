@@ -1,0 +1,203 @@
+▶ symlinkOrCopySync
+  ✔ creates a symlink on success (5.153881ms)
+  ✔ silently succeeds when link already exists (EEXIST) (0.715361ms)
+  ✔ re-throws non-EPERM errors (0.860806ms)
+  ✔ falls back to junction on Windows EPERM (5.770785ms)
+  ✔ falls back to copy when both symlink and junction fail on Windows (2.5023ms)
+  ✔ does not fall back on EPERM when not on Windows (0.588652ms)
+✔ symlinkOrCopySync (17.358885ms)
+▶ symlinkOrCopy
+  ✔ creates a symlink on success (17.72636ms)
+  ✔ silently succeeds when link already exists (EEXIST) (7.172744ms)
+  ✔ falls back to copy when both symlink and junction fail on Windows (9.880638ms)
+  ✔ does not fall back on EPERM when not on Windows (0.772385ms)
+✔ symlinkOrCopy (36.223141ms)
+✔ only explicit manifest members appear; private titles, tags, originals and links never leak (13.175843ms)
+✔ recent content revision does not invent build time or epoch updates (0.361656ms)
+✔ normal article named with index-like title stays an article and explicit indexes stay excluded (0.321337ms)
+✔ missing manifest fails closed; changed, duplicated or escaping artifacts fail integrity (2.092322ms)
+✔ approved paths with spaces match Quartz-normalized public slugs (0.240397ms)
+Warning: Skipping circular transclusion: pageA -> pageA
+Warning: Skipping circular transclusion: self -> self
+▶ renderTranscludes
+  ✔ resolves a single page transclusion (1.711006ms)
+  ✔ allows the same page to be embedded twice as siblings (1.046672ms)
+  ✔ allows different sections of the same page to be embedded (0.743042ms)
+  ✔ detects actual circular transclusion (A -> B -> A) (1.616296ms)
+  ✔ self-referencing transclusion is blocked (0.403929ms)
+✔ renderTranscludes (7.117291ms)
+▶ pageResources
+  ✔ uses baseDir prefix for resource paths in production mode (0.526711ms)
+  ✔ omits subpath prefix when baseDir is empty (serve mode) (0.489826ms)
+  ✔ contentIndex path reflects baseDir (0.303259ms)
+  ✔ contentIndex path includes build id cache buster (0.353324ms)
+✔ pageResources (2.063699ms)
+▶ showPopover on cache-hit with hash
+  ✔ does not reference any lexical popoverInner from an outer scope (1.86799ms)
+  ✔ skips scroll when hash is empty (0.275278ms)
+  ✔ skips scroll when heading is not found (0.291352ms)
+  ✔ decodes percent-encoded fragments when building the selector (0.194979ms)
+✔ showPopover on cache-hit with hash (7.86546ms)
+▶ buggy showPopover (lexical-capture pattern) regression guard
+  ✔ accessing a capture-before-declaration variable throws ReferenceError (TDZ simulation) (0.583725ms)
+  ✔ same pattern does NOT throw when hash is empty (explains why first link without fragment works) (0.233957ms)
+✔ buggy showPopover (lexical-capture pattern) regression guard (1.029386ms)
+▶ search encoder
+  ▶ English text
+    ✔ should tokenize simple English words (2.195124ms)
+    ✔ should handle multiple spaces (0.142431ms)
+    ✔ should handle tabs and newlines (0.100189ms)
+    ✔ should lowercase all text (0.146267ms)
+  ✔ English text (3.559998ms)
+  ▶ CJK text
+    ✔ should tokenize Japanese Hiragana character by character (0.379673ms)
+    ✔ should tokenize Japanese Katakana character by character (0.196461ms)
+    ✔ should tokenize Japanese Kanji character by character (0.16844ms)
+    ✔ should tokenize Korean Hangul character by character (0.20207ms)
+    ✔ should tokenize Chinese characters character by character (0.215971ms)
+    ✔ should handle mixed Hiragana/Katakana/Kanji (0.454373ms)
+  ✔ CJK text (2.591421ms)
+  ▶ Mixed CJK and English
+    ✔ should handle Japanese with English words (0.205074ms)
+    ✔ should handle English with Japanese words (0.132667ms)
+    ✔ should handle complex mixed content (0.11454ms)
+    ✔ should handle mixed Korean and English (0.082743ms)
+    ✔ should handle mixed Chinese and English (0.281307ms)
+  ✔ Mixed CJK and English (1.247419ms)
+  ▶ Edge cases
+    ✔ should handle empty string (0.197403ms)
+    ✔ should handle only whitespace (0.074931ms)
+    ✔ should handle single character (0.223261ms)
+    ✔ should handle single CJK character (0.097605ms)
+    ✔ should handle CJK with trailing whitespace (0.072828ms)
+    ✔ should handle English with trailing whitespace (0.077615ms)
+  ✔ Edge cases (1.050828ms)
+✔ search encoder (9.942159ms)
+✔ public origin override preserves original config and rejects private or credential origins (7.501271ms)
+✔ verified offline sources need no Git metadata, installation or network (1.998112ms)
+✔ offline missing build output is rejected, never fetched or skipped (3.589642ms)
+✔ offline modified source and injected extra source are rejected (5.452604ms)
+✔ offline lock version and unverified configured source cannot be substituted (3.006498ms)
+✔ pruned deployment validates exact retained closure and provenance (173.355711ms)
+✔ pruned metadata cannot rehash retained sources or inject aggregate exports (12.096353ms)
+✔ offline virtual dates derive from public evidence, not current time (1.762894ms)
+✔ public source dates preserve epoch and updated, never build clock fallback (0.441795ms)
+▶ restoreNestedHighlightMarkdown
+  ✔ 保留高亮中的加粗语义 (6.647514ms)
+  ✔ 保留列表项中高亮与加粗的组合语义 (1.07268ms)
+  ✔ 普通高亮保持普通文本 (0.928627ms)
+  ✔ 普通加粗不受影响 (1.778987ms)
+✔ restoreNestedHighlightMarkdown (11.806803ms)
+▶ FileTrie
+  ▶ constructor
+    ✔ should create an empty trie (1.939615ms)
+    ✔ should set displayName from data title (0.279024ms)
+    ✔ should be able to set displayName (0.202971ms)
+  ✔ constructor (3.19074ms)
+  ▶ add
+    ✔ should add a file at root level (2.009419ms)
+    ✔ should handle index files (0.237712ms)
+    ✔ should add nested files (0.431439ms)
+    ✔ last-insert-wins on folder-note collision (matches emitter semantics) (0.166847ms)
+    ✔ last-insert-wins on root-level index collision (0.147128ms)
+    ✔ collision does not affect sibling files in the same folder (0.285042ms)
+  ✔ add (3.652695ms)
+  ▶ filter
+    ✔ should filter nodes based on condition (0.204283ms)
+  ✔ filter (0.270441ms)
+  ▶ map
+    ✔ should apply function to all nodes (0.145756ms)
+    ✔ map over folders should work (0.204133ms)
+  ✔ map (0.423758ms)
+  ▶ entries
+    ✔ should return all entries (0.331001ms)
+  ✔ entries (0.417529ms)
+  ▶ fromEntries
+    ✔ nested (0.178535ms)
+  ✔ fromEntries (0.231914ms)
+  ▶ findNode
+    ✔ should find root node with empty path (0.147128ms)
+    ✔ should find node at first level (0.208499ms)
+    ✔ should find nested node (0.160769ms)
+    ✔ should return undefined for non-existent path (0.154159ms)
+    ✔ should return undefined for partial path (0.091816ms)
+  ✔ findNode (0.902949ms)
+  ▶ getFolderPaths
+    ✔ should return all folder paths (0.282218ms)
+  ✔ getFolderPaths (0.335377ms)
+  ▶ sort
+    ✔ should sort nodes according to sort function (8.251664ms)
+  ✔ sort (8.350941ms)
+  ▶ pathToNode
+    ✔ should return root node for empty path (0.343759ms)
+    ✔ should return root node for index path (0.269499ms)
+    ✔ should return path to first level node (0.128801ms)
+    ✔ should return path to nested node (0.171654ms)
+    ✔ should return undefined for non-existent path (0.09431ms)
+    ✔ should return file data for intermediate folders (0.27018ms)
+    ✔ should return path for partial path (0.172886ms)
+  ✔ pathToNode (1.745377ms)
+✔ FileTrie (20.871323ms)
+▶ typeguards
+  ✔ isSimpleSlug (1.053752ms)
+  ✔ isRelativeURL (0.223761ms)
+  ✔ isAbsoluteURL (0.258022ms)
+  ✔ isFullSlug (0.129873ms)
+  ✔ isFilePath (0.1415ms)
+✔ typeguards (2.898867ms)
+▶ transforms
+  ✔ simplifySlug (0.327185ms)
+  ✔ slugifyFilePath (0.550576ms)
+  ✔ slugifyFilePath + simplifySlug end-to-end canonicalization (1.168142ms)
+  ✔ transformInternalLink (0.836661ms)
+  ✔ pathToRoot (0.373684ms)
+  ✔ joinSegments (0.162871ms)
+✔ transforms (3.728097ms)
+▶ link strategies
+  ▶ absolute
+    ✔ from a/b/c (0.501514ms)
+    ✔ from a/b/index (0.152265ms)
+    ✔ from index (0.097915ms)
+  ✔ absolute (0.880425ms)
+  ▶ shortest
+    ✔ from a/b/c (0.279594ms)
+    ✔ from a/b/index (0.214859ms)
+    ✔ from index (0.128701ms)
+  ✔ shortest (0.718815ms)
+  ▶ relative
+    ✔ from a/b/c (0.174869ms)
+    ✔ from a/b/index (0.099047ms)
+    ✔ from index (0.110534ms)
+  ✔ relative (0.476607ms)
+✔ link strategies (2.504794ms)
+▶ resolveRelative
+  ✔ from index (0.106568ms)
+  ✔ from nested page (0.184503ms)
+  ✔ with index paths (0.104735ms)
+  ✔ with simple slugs (0.06774ms)
+✔ resolveRelative (0.686288ms)
+✔ public cache identity includes the approved offline font manifest (2.144589ms)
+▶ detectSlugCollisions
+  ✔ returns empty array when there are no collisions (1.661984ms)
+  ✔ returns empty array for empty input (0.185245ms)
+  ✔ detects a two-file collision with winner = last file (0.278092ms)
+  ✔ detects a three-file collision with all files listed, winner = last (0.259114ms)
+  ✔ detects multiple separate collisions (0.343559ms)
+  ✔ ignores entries without a slug (0.237583ms)
+  ✔ winner annotation matches fileTrie last-insert-wins semantics (0.14145ms)
+✔ detectSlugCollisions (4.657705ms)
+▶ formatCollisionWarning
+  ✔ returns empty string for empty input (0.39093ms)
+  ✔ formats single collision with winner and shadowed markers (0.523866ms)
+  ✔ formats multiple collisions with count in header (0.222901ms)
+  ✔ output mentions Folder Notes convention as a common cause (0.156402ms)
+  ✔ falls back to filePath when relativePath is missing (0.160618ms)
+✔ formatCollisionWarning (1.799758ms)
+ℹ tests 129
+ℹ suites 32
+ℹ pass 129
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 795.231973

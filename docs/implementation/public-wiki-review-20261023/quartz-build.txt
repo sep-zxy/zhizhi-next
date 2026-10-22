@@ -1,0 +1,13 @@
+
+ Quartz v5.0.0  
+
+Cleaned output directory `/tmp/public-wiki-review-final-a` in 1ms
+Found 9 input files from `/tmp/public-wiki-review-staging` in 14ms
+Parsing input files using 1 threads
+
+Warning: couldn't find git repository for /tmp/public-wiki-review-staging
+Parsed 9 Markdown files in 220ms
+Filtered out 0 files in 65μs
+Emitting files
+Emitted 66 files to `/tmp/public-wiki-review-final-a` in 2s
+Done processing 9 files in 2s

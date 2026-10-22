@@ -1624,3 +1624,15 @@ button.intake-row.selected {
   padding: 2px 5px;
   border-radius: 4px;
 }
+
+.relation-card {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+  margin-top: 14px;
+}
+.relation-card .text-link {
+  margin-top: 8px;
+}
+.relation-card p {
+  font-size: 12px;
+}

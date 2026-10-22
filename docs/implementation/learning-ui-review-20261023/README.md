@@ -23,3 +23,26 @@
 - 不宣称完全视觉还原；需在可用浏览器环境补跑截图、响应式和实际交互。
 
 截图按仓库规范只在本地存放，不提交开发截图、运行态或依赖目录。构建/打包保持 GitHub Actions，Windows 暂停期间不操作其主机。
+
+## 第二阶段：现有真实契约接线
+
+- P10 消费新只读桌面桥 GET /api/growth/local/knowledge/relations/{entry_id}/traverse。只用明确正式条目 ID，深度 1–3、最多 40 节点、三种 kind 可筛选；不自动生成边。12 节点内展示示意拓扑并提供完整可访问列表，大于 12 节点使用列表以免图形重叠。
+- 返回 nodes/edges 精确 revision 先校验。confirmed 必须有 reviewed_evidence、evidence_refs、review_provenance 与匹配的 declared_target_revision；前端不升级候选。来源详情与正式历史版本入口可核对，错误/查询切换不显示旧图或上游敏感内容。
+- P10 布局恢复为关系图与学习建议两栏。没有条目不绘制示例关系；所有关系/证据仅来自正式服务投影。
+- P12 在既有提交详情旁展示同时匹配 project_id 与完整 commit SHA 的学习卡，避免短 SHA/标题猜测关联。职责演进图仍待真实契约。
+- 新增 7 项关系 API 单测、1 项空图 SSR、1 项精确提交关联单测，以及待可用浏览器执行的关系筛选/学习库恢复用例。
+- 全 viewer 单测一次运行结果：55 文件通过、6 文件失败；612 用例通过、121 跳过。6 失败文件依赖缺失的 Playwright headless shell，不是业务断言已通过。系统 Chromium 另经正常启动证实 socket 权限阻塞。不能把此结果描述为全套通过。
+
+## 第三阶段：可维护性与防御检查
+
+- 使用工作区现有 Prettier 统一展开本轮组件、测试与样式，不增加项目依赖。
+- 为页面补统一留白，保持学习卡片不紧贴导航/顶栏，窄屏收敛到单栏。
+- 关系图拒绝空根、重复节点、缺失端点及不一致版本；SVG 定位额外做缺失坐标防护，不依赖非空断言。
+- 8 个针对性文件共 60 项测试通过；这些是契约/SSR 回归，不包括被环境阻塞的浏览器或真实模型测试。
+
+## 第四阶段：只读审查反馈闭环
+
+- 将 GET 返回的 root_entry_id 与本次规范化请求 entryId 精确绑定，拒绝请求 A 却返回 B 的合法投影。
+- confirmed 证据需恰好一个非空 source_id / learning_outcome_id、非空 content_hash，以及非空 review_id。依据正式 relations/service.py 的 _reference_id、_evidence、_review_provenance，不声称客户端可自行验证账本或内容哈希真伪。
+- 增补错根、空证据对象、缺哈希、空/双身份、空复核标识等反例，保留 source 和 learning_outcome 两类合法引用。
+- 两个直接相关文件 11 用例通过，TypeScript 两套配置及 git diff --check 通过；浏览器验证状态不变。

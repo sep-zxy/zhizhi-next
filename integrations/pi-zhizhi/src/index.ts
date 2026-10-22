@@ -68,6 +68,45 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
       },
     }),
     defineTool({
+      name: "zhizhi_inbox", label: "查看收件箱", description: "List owned temporary intakes, never retain or discard them.",
+      parameters: Type.Object({ state: Type.Optional(Type.String({ minLength: 1, maxLength: 80, pattern: "^[a-z_]+$" })),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+        offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 1000000 })) }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        const q = new URLSearchParams({ limit: String(params.limit ?? 20), offset: String(params.offset ?? 0) });
+        if (params.state) q.set("state", params.state);
+        return toolResult(await agentClient().request("intake.list", "GET", `/intakes?${q}`, undefined, undefined, signal));
+      },
+    }),
+    defineTool({
+      name: "zhizhi_intake_preview", label: "读取临时预览", description: "Read actual preview revision, completeness and expiry. Does not keep the source.",
+      parameters: Type.Object({ intake_id: ResourceId }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        return toolResult(await agentClient().request("intake.read", "GET", `/intakes/${safeId(params.intake_id)}`, undefined, undefined, signal));
+      },
+    }),
+    defineTool({
+      name: "zhizhi_tasks", label: "任务列表", description: "List owned durable tasks with real states; no resume, cancellation or model execution.",
+      parameters: Type.Object({ state: Type.Optional(Type.String({ minLength: 1, maxLength: 80, pattern: "^[a-z_]+$" })),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+        offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 1000000 })) }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        const q = new URLSearchParams({ limit: String(params.limit ?? 20), offset: String(params.offset ?? 0) });
+        if (params.state) q.set("state", params.state);
+        return toolResult(await agentClient().request("task.list", "GET", `/tasks?${q}`, undefined, undefined, signal));
+      },
+    }),
+    defineTool({
+      name: "zhizhi_task_events", label: "任务事件", description: "Read sanitized task events after a cursor; do not infer success from logs alone.",
+      parameters: Type.Object({ task_id: ResourceId,
+        after: Type.Optional(Type.Integer({ minimum: 0, maximum: 1000000 })),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })) }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        const q = new URLSearchParams({ after: String(params.after ?? 0), limit: String(params.limit ?? 100) });
+        return toolResult(await agentClient().request("task.events", "GET", `/tasks/${safeId(params.task_id)}/events?${q}`, undefined, undefined, signal));
+      },
+    }),
+    defineTool({
       name: "zhizhi_job_status", label: "任务状态", description: "Read a durable task by its ID.",
       parameters: Type.Object({ task_id: ResourceId }, { additionalProperties: false }),
       async execute(_id, params, signal) {
@@ -199,6 +238,27 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
         const response = await client.request(`intake.${decision}`, "POST", `/intakes/${id}/decision`,
           { decision, preview_revision: revision }, `tui-${randomUUID()}`);
         ctx.ui.notify(safeDecisionDisplay(JSON.stringify(response)), "info");
+      },
+    });
+  }
+  for (const action of ["resume", "cancel"] as const) {
+    pi.registerCommand(`zhizhi-task-${action}`, {
+      description: `${action === "resume" ? "继续" : "取消"}指定任务，按当前版本由本人确认`,
+      handler: async (args, ctx) => {
+        const client = userClient(ctx);
+        const id = safeId(args.trim());
+        const task = await client.request("task.read", "GET", `/tasks/${id}`);
+        const revision = task.data.revision;
+        if (!Number.isSafeInteger(revision) || Number(revision) < 1) throw new Error("TASK_REVISION_REQUIRED");
+        const prompt = `Task: ${args.trim()}\nRevision: ${revision}\nState: ${String(task.data.state)}\n` +
+          (action === "resume" ? "仅重新排队，仍受现有身份、模型额度、审批和策略门禁约束；可能继续已有任务的模型处理，不新增权限。" :
+            "取消不撤销已经完成的知识提交，不删除来源。") + "\n结果不确定必须先对账。";
+        if (!await ctx.ui.confirm(action === "resume" ? "继续这个任务？" : "取消这个任务？", safeDecisionDisplay(prompt))) {
+          ctx.ui.notify("未提交任务操作。", "info"); return;
+        }
+        const result = await client.request(`task.${action}`, "POST", `/tasks/${id}/${action}`,
+          { expected_revision: revision }, `tui-${randomUUID()}`);
+        ctx.ui.notify(safeDecisionDisplay(JSON.stringify(result)), "info");
       },
     });
   }

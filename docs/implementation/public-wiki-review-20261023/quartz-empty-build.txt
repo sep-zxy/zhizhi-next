@@ -1,0 +1,17 @@
+
+ Quartz v5.0.0  
+
+Cleaned output directory `/tmp/public-wiki-empty-output-v2` in 1ms
+Found 1 input files from `/tmp/public-wiki-empty-staging` in 11ms
+Parsing input files using 1 threads
+
+Warning: couldn't find git repository for /tmp/public-wiki-empty-staging
+
+Warning: found invalid date "1970-01-01T00:00:00Z" in `index.md`. Supported formats: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format
+
+Warning: found invalid date "1970-01-01T00:00:00Z" in `index.md`. Supported formats: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format
+Parsed 1 Markdown files in 88ms
+Filtered out 0 files in 60μs
+Emitting files
+Emitted 42 files to `/tmp/public-wiki-empty-output-v2` in 565ms
+Done processing 1 files in 668ms

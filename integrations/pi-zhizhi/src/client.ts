@@ -84,6 +84,25 @@ export function validateBaseUrl(raw: string): URL {
 }
 
 function routeAllowed(method: string, path: string, user: boolean): boolean {
+  const page = path.match(/^\/(intakes|tasks)(?:\?([^#]*))?$/);
+  const events = path.match(/^\/tasks\/[A-Za-z0-9_.:%-]+\/events(?:\?([^#]*))?$/);
+  if ((page && method === "GET") || events) {
+    if (method !== "GET") return false;
+    const query = new URLSearchParams(events ? events[1] : page![2]);
+    const allowed = new Set(events ? ["after", "limit"] : ["state", "offset", "limit"]);
+    for (const [key, value] of query) {
+      if (!allowed.has(key) || query.getAll(key).length !== 1) return false;
+      if (key === "state") {
+        if (!/^[a-z_]{1,80}$/.test(value)) return false;
+      } else {
+        if (!/^(0|[1-9][0-9]*)$/.test(value)) return false;
+        const n = Number(value);
+        if (!Number.isSafeInteger(n) || n > (key === "limit" ? 100 : 1000000) || (key === "limit" && n < 1)) return false;
+      }
+    }
+    return true;
+  }
+  if (user && /^\/tasks\/[A-Za-z0-9_.:%-]+\/(resume|cancel)$/.test(path)) return method === "POST";
   const relation = path.match(/^\/relations\/[A-Za-z0-9_.:%-]+(\/traverse)?(?:\?[^#]*)?$/);
   if (relation) {
     if (method !== "GET") return false;

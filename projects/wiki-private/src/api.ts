@@ -1,3 +1,4 @@
+import { parseRelationView } from "./relation-contracts";
 import {
   fields,
   parseChallenge,
@@ -504,6 +505,13 @@ export class WikiApi {
         safeCode(result.trace_id),
       );
     }
+  }
+  relations(id: string, signal?: AbortSignal) {
+    return this.read(
+      "/relations/" + encodeURIComponent(id) + "?limit=20",
+      (raw) => parseRelationView(raw, id),
+      signal,
+    );
   }
   entries(offset = 0, signal?: AbortSignal) {
     return this.read(

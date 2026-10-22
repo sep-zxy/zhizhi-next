@@ -19,3 +19,25 @@ export function applyPublicBuildDates(file: VFile, content: ProcessedContent[]):
   }
   file.data.defaultDateType = "modified"
 }
+
+/** Publication dates must never fall back to filesystem mtime or build wall clock.
+ * The locked upstream date plugin treats epoch as invalid, so normalize its result
+ * from the audited projected metadata after Markdown transformation.
+ */
+export function applyPublicContentDates(file: VFile): void {
+  if (process.env.QUARTZ_OFFLINE_PLUGINS !== "1") return
+  const metadata: Record<string, unknown> = file.data.frontmatter ?? {}
+  const date = (value: unknown): Date => {
+    if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number")
+      return new Date(0)
+    const parsed = new Date(value)
+    return Number.isFinite(parsed.getTime()) ? parsed : new Date(0)
+  }
+  const created = date(metadata.created)
+  file.data.dates = {
+    created,
+    modified: date(metadata.updated ?? metadata.modified ?? metadata.created),
+    published: created,
+  }
+  file.data.defaultDateType = "modified"
+}

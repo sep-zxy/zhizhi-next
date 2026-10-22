@@ -215,6 +215,7 @@ from .routes_stats import (
 from .routes_tasks import cancel_task, get_task, list_tasks, task_progress_sse
 from .routes_watch import get_watch_status
 from .routes_wiki_learning import wiki_entry_learning
+from .routes_wiki_relations import wiki_relations
 from .static import mount_viewer_static
 
 if TYPE_CHECKING:
@@ -359,6 +360,10 @@ def create_app(state: ServeState, *, viewer_dist: Path | None = None) -> Starlet
                   growth_knowledge_understanding, methods=["POST", "GET"]),
             Route("/api/growth/local/knowledge/cards/{card_id:uuid}/understanding/submissions/"
                   "{submission_id:str}", growth_knowledge_understanding, methods=["GET"]),
+            Route("/api/growth/local/knowledge/relations/{entry_id:str}",
+                  wiki_relations, methods=["GET"]),
+            Route("/api/growth/local/knowledge/relations/{entry_id:str}/traverse",
+                  wiki_relations, methods=["GET"]),
             Route("/api/growth/local/knowledge/entry-context",
                   growth_knowledge_entry_context, methods=["GET"]),
             Route("/api/growth/local/knowledge/entry-contexts",

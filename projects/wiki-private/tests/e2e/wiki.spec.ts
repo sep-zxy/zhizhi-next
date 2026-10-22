@@ -390,20 +390,22 @@ test("fixture: approved private pages visual audit, not real channel E2E", async
 }) => {
   await fixtures(page);
   const pages = [
-    ["P18", "home"],
-    ["P02", "inbox"],
-    ["P03", "intake/int_fixture"],
-    ["P04", "catalog"],
-    ["P05", "entry/ent_one"],
-    ["P09", "review/chg_fixture"],
-    ["P11", "tasks/tsk_fixture"],
-    ["P13", "tools"],
-    ["P14", "settings"],
+    ["P18", "home", "我的知识入口"],
+    ["P02", "inbox", "统一收件箱"],
+    ["P03", "intake/int_fixture", "素材预览与来源详情"],
+    ["P04", "catalog", "知识目录与全库检索"],
+    ["P05", "entry/ent_one", "隔离测试条目"],
+    ["P09", "review/chg_fixture", "核对本次知识变更"],
+    ["P11", "tasks/tsk_fixture", "后台任务与变更历史"],
+    ["P13", "tools", "工具与 Skill"],
+    ["P14", "settings", "设置与运行状态"],
   ];
-  for (const [id, hash] of pages) {
+  for (const [id, hash, heading] of pages) {
     await page.goto("#/" + hash);
+    await expect(
+      page.getByRole("heading", { level: 1, name: heading, exact: true }),
+    ).toBeVisible();
     await expect(page.locator(".loading")).toHaveCount(0);
-    await expect(page.locator("h1")).toBeVisible();
     await page.evaluate(() => {
       const label = document.createElement("div");
       label.id = "fixture-evidence-label";

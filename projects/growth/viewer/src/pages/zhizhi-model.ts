@@ -37,3 +37,8 @@ export function resumeLearningCard(cards: KnowledgeCard[], lastCardId: string): 
     ?? cards.find(card => card.learning_stage && !['front', 'completed'].includes(card.learning_stage))
     ?? cards[0];
 }
+
+export function projectCommitLearning(cards: KnowledgeCard[], projectId: string, commitSha: string): KnowledgeCard[] {
+  if (!projectId || !commitSha) return [];
+  return cards.filter(card => card.project_ids?.includes(projectId) && card.source_commit_shas?.includes(commitSha));
+}

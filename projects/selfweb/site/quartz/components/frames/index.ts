@@ -1,3 +1,4 @@
+import { PublicWikiFrame } from "./PublicWikiFrame"
 import { PageFrame } from "./types"
 import { DefaultFrame } from "./DefaultFrame"
 import { FullWidthFrame } from "./FullWidthFrame"
@@ -20,6 +21,7 @@ export type { RegisteredFrame } from "./registry"
  */
 const builtinFrames: Record<string, PageFrame> = {
   default: DefaultFrame,
+  "public-wiki": PublicWikiFrame,
   "full-width": FullWidthFrame,
   minimal: MinimalFrame,
 }

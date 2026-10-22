@@ -34,7 +34,7 @@ env.ZHIZHI_ALLOWED_PROVIDERS = 'zhizhi-codex-cli';
 env.ZHIZHI_PI_CLI_JS = cli; env.PI_OFFLINE = '1'; env.PI_SKIP_VERSION_CHECK = '1';
 const child = spawn(process.execPath, ['--no-experimental-strip-types', cli,
   ...(once ? ['--mode', 'json'] : []),
-  '--no-session', '--offline', '--no-approve', '--no-builtin-tools', '--tools', 'zhizhi_intake,zhizhi_job_status,zhizhi_search,zhizhi_read_entry,zhizhi_propose_patch,zhizhi_relations,zhizhi_traverse_relations,zhizhi_review_queue,zhizhi_radar,zhizhi_growth', '--no-mcp', '--no-extensions', '--no-skills',
+  '--no-session', '--offline', '--no-approve', '--no-builtin-tools', '--tools', 'zhizhi_intake,zhizhi_job_status,zhizhi_search,zhizhi_read_entry,zhizhi_propose_patch,zhizhi_relations,zhizhi_traverse_relations,zhizhi_review_queue,zhizhi_radar,zhizhi_growth,zhizhi_inbox,zhizhi_intake_preview,zhizhi_tasks,zhizhi_task_events', '--no-mcp', '--no-extensions', '--no-skills',
   '--no-prompt-templates', '--no-context-files', '--no-themes', '--provider', provider,
   '--model', model, '--extension', extension], {cwd:resolve(agentDir),env,stdio:'inherit',shell:false});
 let deadline;

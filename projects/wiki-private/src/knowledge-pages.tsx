@@ -1,3 +1,4 @@
+import { EntryRelations } from "./entry-relations";
 import { EntryProposal, EvidenceReader } from "./material-actions";
 import { useState, type FormEvent } from "react";
 import { PAGE_SIZE, WikiApiError, type WikiApi } from "./api";
@@ -698,6 +699,7 @@ export function EntryPage({
                 )}
               </article>
               <aside>
+                {!entry.deleted && <EntryRelations api={api} entry={entry} />}
                 <section className="panel">
                   <h2>
                     <Icon name="clock" />

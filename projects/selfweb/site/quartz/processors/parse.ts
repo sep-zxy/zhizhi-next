@@ -1,3 +1,4 @@
+import { applyPublicContentDates } from "../plugins/pageTypes/publicDates"
 import esbuild from "esbuild"
 import remarkParse from "remark-parse"
 import remarkRehype from "remark-rehype"
@@ -106,6 +107,7 @@ export function createFileParser(ctx: BuildCtx, fps: FilePath[]) {
 
         const ast = processor.parse(file)
         const newAst = await processor.run(ast, file)
+        applyPublicContentDates(file)
         res.push([newAst, file])
 
         if (argv.verbose) {
