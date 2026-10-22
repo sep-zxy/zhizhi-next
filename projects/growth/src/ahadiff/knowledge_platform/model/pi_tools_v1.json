@@ -63,17 +63,22 @@
       "name": "zhizhi_read_entry",
       "parameters": {
         "type": "object",
+        "required": [
+          "entry_id"
+        ],
         "properties": {
           "entry_id": {
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
           }
         },
-        "required": [
-          "entry_id"
-        ],
         "additionalProperties": false
       }
     },
@@ -440,6 +445,123 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_source",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "source_id"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_evidence",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "reference"
+        ],
+        "properties": {
+          "reference": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "source_id",
+                  "content_hash"
+                ],
+                "properties": {
+                  "source_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "source_revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "minLength": 64,
+                    "maxLength": 64
+                  },
+                  "locator": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "external_document_id",
+                  "content_hash"
+                ],
+                "properties": {
+                  "external_document_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "minLength": 64,
+                    "maxLength": 64
+                  },
+                  "locator": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "learning_outcome_id",
+                  "content_hash"
+                ],
+                "properties": {
+                  "learning_outcome_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "minLength": 64,
+                    "maxLength": 64
+                  },
+                  "locator": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "additionalProperties": false

@@ -225,7 +225,7 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/core_routes.py",
-      "gap": "TUI支持approve，显式reject/needs_evidence UX尚缺",
+      "gap": "队列与本人三类决定已接；独立模型复核/原生本人完整旅程待验",
       "real_e2e_verified": false
     },
     {
@@ -315,7 +315,7 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "help清单已有；自然语言学习跨域仍缺",
+      "gap": "双域固定能力清单及本人学习命令已有；完整自然语言学习规划未齐",
       "real_e2e_verified": false
     },
     {
@@ -349,9 +349,9 @@
       "id": "C05",
       "title": "来源证据定位",
       "phase": "V1-scope",
-      "implementation": "missing",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "后端有source/evidence，Pi未注册专用工具",
+      "gap": "来源/绑定证据只读已接，逐项校验ID/hash/revision；真实渠道证据旅程未验",
       "real_e2e_verified": false
     },
     {
@@ -369,7 +369,7 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "zhizhi_read_entry已有；revision/diff CLI未接",
+      "gap": "精确revision读取及错版拒绝已接；没有正式版本列表/diff API，不伪造完成",
       "real_e2e_verified": false
     },
     {
@@ -385,9 +385,9 @@
       "id": "C09",
       "title": "重大复核",
       "phase": "V1-scope",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "队列+本人approve已有；reject/退修未接",
+      "gap": "本人approve/reject/needs_evidence及原因、完整差异、nonce确认已接；真实本人旅程未验",
       "real_e2e_verified": false
     },
     {
@@ -486,7 +486,7 @@
       "phase": "V1-scope",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "领域发布器已有；统一Pi publish族未接",
+      "gap": "publish/__main__.py仅staging投影，实际部署单列；无统一Pi公开发布入口",
       "real_e2e_verified": false
     },
     {
@@ -495,8 +495,9 @@
       "phase": "V1-scope",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "领域备份已有；统一Pi恢复命令未接",
+      "gap": "operator service备份存在且拒绝覆盖；无统一Pi恢复API/本人恢复流程，不借模型扩权",
       "real_e2e_verified": false
     }
-  ]
+  ],
+  "real_e2e_scope": "历史证据边界：R20 release8b60220415b9-39812737484-1 已实测固定 R18 身份复用、5 次真实模型调用的材料/学习两条链路及两个正式 Writer 条目通过；同次 Pi 仍为 BRIDGE_TIMEOUT 失败，browser 未测。本矩阵 real_e2e_verified=false 仅表示本轮新源码与完整功能验收尚未真实全旅程通过，不否认这些历史局部通过，也不把历史结果自动覆盖今晚的新改动。"
 }

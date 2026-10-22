@@ -124,7 +124,9 @@ function routeAllowed(method: string, path: string, user: boolean): boolean {
   }
   if (/^\/(?:search|growth|reviews)(?:\?[^#]*)?$/.test(path)) return method === "GET";
   if (/^\/(?:tasks|entries|intakes|changes)\/[A-Za-z0-9_.:%-]+$/.test(path)) return method === "GET";
-  if (user && /^\/entries\/[A-Za-z0-9_.:%-]+\?revision=[1-9][0-9]*$/.test(path)) return method === "GET";
+  if (/^\/entries\/[A-Za-z0-9_.:%-]+\?revision=[1-9][0-9]*$/.test(path)) return method === "GET" && Number.isSafeInteger(Number(path.split("revision=")[1]));
+  if (/^\/sources\/[A-Za-z0-9_.:%-]+$/.test(path)) return method === "GET";
+  if (path === "/evidence/read") return method === "POST";
   if (["/intakes", "/changes", "/radar/runs"].includes(path)) return method === "POST";
   if (!user) return false;
   if (/^\/intakes\/[A-Za-z0-9_.:%-]+\/decision$/.test(path)) return method === "POST";

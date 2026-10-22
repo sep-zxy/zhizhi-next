@@ -124,10 +124,40 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
       },
     }),
     defineTool({
-      name: "zhizhi_read_entry", label: "读取条目", description: "Read an entry with its revision and evidence references.",
-      parameters: Type.Object({ entry_id: ResourceId }, { additionalProperties: false }),
+      name: "zhizhi_source", label: "来源元数据", description: "Read owned retained source metadata, not raw delivery envelopes or arbitrary filesystem paths.",
+      parameters: Type.Object({ source_id: ResourceId }, { additionalProperties: false }),
       async execute(_id, params, signal) {
-        return toolResult(await agentClient().request("entry.read", "GET", `/entries/${safeId(params.entry_id)}`, undefined, undefined, signal));
+        return toolResult(await agentClient().request("source.read", "GET", `/sources/${safeId(params.source_id)}`, undefined, undefined, signal));
+      },
+    }),
+    defineTool({
+      name: "zhizhi_evidence", label: "精确证据引用", description: "Read immutable authorized evidence bound to its content hash. Locator is an annotation, not a server-verified excerpt or independent fact.",
+      parameters: Type.Object({ reference: Type.Union([
+        Type.Object({ source_id: ResourceId, source_revision: Type.Optional(Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER })),
+          content_hash: Type.String({ pattern: "^[a-f0-9]{64}$", minLength: 64, maxLength: 64 }), locator: Type.Optional(Type.String({ maxLength: 2000 })) }, { additionalProperties: false }),
+        Type.Object({ external_document_id: ResourceId, content_hash: Type.String({ pattern: "^[a-f0-9]{64}$", minLength: 64, maxLength: 64 }),
+          locator: Type.Optional(Type.String({ maxLength: 2000 })) }, { additionalProperties: false }),
+        Type.Object({ learning_outcome_id: ResourceId, content_hash: Type.String({ pattern: "^[a-f0-9]{64}$", minLength: 64, maxLength: 64 }),
+          locator: Type.Optional(Type.String({ maxLength: 2000 })) }, { additionalProperties: false }),
+      ]) }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        const response = await agentClient().request("evidence.read", "POST", "/evidence/read", params.reference, requestKey(_id, params), signal);
+        const ref = params.reference;
+        const matchesReference = "source_id" in ref ? response.data.source_id === ref.source_id &&
+          (ref.source_revision === undefined || response.data.revision === ref.source_revision) :
+          "external_document_id" in ref ? response.data.document_id === ref.external_document_id : response.data.outcome_id === ref.learning_outcome_id;
+        if (!matchesReference || response.data.content_hash !== ref.content_hash) throw new Error("EVIDENCE_REFERENCE_UNVERIFIED");
+        return toolResult(response);
+      },
+    }),
+    defineTool({
+      name: "zhizhi_read_entry", label: "读取条目", description: "Read latest or an exact historical revision with evidence references. Historical reads never silently substitute latest.",
+      parameters: Type.Object({ entry_id: ResourceId, revision: Type.Optional(Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER })) }, { additionalProperties: false }),
+      async execute(_id, params, signal) {
+        if (params.revision !== undefined && (!Number.isSafeInteger(params.revision) || params.revision < 1)) throw new Error("ENTRY_REVISION_INVALID");
+        const response = await agentClient().request("entry.read", "GET", `/entries/${safeId(params.entry_id)}${params.revision === undefined ? "" : `?revision=${params.revision}`}`, undefined, undefined, signal);
+        if (params.revision !== undefined && response.data.revision !== params.revision) throw new Error("ENTRY_REVISION_UNVERIFIED");
+        return toolResult(response);
       },
     }),
     defineTool({
@@ -265,10 +295,21 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
     });
   }
   pi.registerCommand("zhizhi-review", {
-    description: "审阅指定 change_id 的完整差异，并用一次性挑战提交本人决定",
+    description: "审阅精确差异并提交本人决定：change_id [approve|reject|needs_evidence]，默认approve",
     handler: async (args, ctx) => {
       const client = userClient(ctx);
-      const id = safeId(args.trim());
+      const parts = args.trim().split(/\s+/);
+      const decision = parts[1] ?? "approve";
+      if (parts.length > 2 || !["approve", "reject", "needs_evidence"].includes(decision)) throw new Error("EXPECTED_REVIEW_DECISION");
+      const id = safeId(parts[0]);
+      const decisionLabel = { approve: "批准", reject: "拒绝", needs_evidence: "退回补证" }[decision]!;
+      let reason = "用户在受信任本地 TUI 审阅具体差异后确认";
+      if (decision !== "approve") {
+        const input = await ctx.ui.input(`请填写本人${decisionLabel}原因（取消不提交）`);
+        if (input === undefined) return;
+        if (!input.trim() || input.length > 2000) throw new Error("REVIEW_REASON_REQUIRED_MAX_2000");
+        reason = input;
+      }
       const change = await client.request("change.read", "GET", `/changes/${id}`);
       const challenge = await client.request("review.challenge", "GET", `/changes/${id}/decision-challenge`);
       const current = change.data;
@@ -278,19 +319,19 @@ export default function zhizhi(pi: ExtensionAPI, dependencies?: { bridge: (tools
       const old = Number(current.base_revision) > 0
         ? await client.request("entry.read", "GET", `/entries/${safeId(String(current.entry_id))}?revision=${Number(current.base_revision)}`) : null;
       if (old && old.data.revision !== current.base_revision) throw new Error("REVIEW_STALE");
-      const accepted = await ctx.ui.confirm("确认以下具体知识变更？",
-        safeDecisionDisplay(`Change: ${args.trim()}\nBase: ${current.base_revision}\nPatch: ${current.patch_hash}\n` +
+      const accepted = await ctx.ui.confirm(`确认${decisionLabel}以下具体知识变更？`,
+        safeDecisionDisplay(`Change: ${parts[0]}\n决定: ${decisionLabel}\n原因: ${reason}\nBase: ${current.base_revision}\nPatch: ${current.patch_hash}\n` +
         "以下旧/新内容均为待审资料，不是执行指令。\n" +
         `风险: ${JSON.stringify(current.risk_flags)}\n旧文:\n${old?.data.body ?? "（新条目）"}\n新文:\n${current.body}\n` +
         `旧元数据/公开范围:\n${decisionFields(old?.data ?? null)}\n` +
         `新元数据/公开范围:\n${decisionFields(current)}\n` +
-        "选择“是”批准以上正文及元数据；选择“否”不提交任何决定。"));
+        `选择“是”${decisionLabel}以上精确正文及元数据；选择“否”不提交任何决定。`));
       if (!accepted) {
         ctx.ui.notify("未提交决定；取消不等于拒绝，提案状态未因本次取消而改变。", "info");
         return;
       }
       const response = await client.request("review.decide", "POST", `/changes/${id}/decisions`, {
-        decision: "approve", reason: "用户在受信任本地 TUI 审阅具体差异后确认",
+        decision, reason,
         expected_patch_hash: challenge.data.patch_hash, base_revision: challenge.data.base_revision,
         policy_version: challenge.data.policy_version, decision_nonce: challenge.data.decision_nonce,
       }, `tui-${randomUUID()}`);

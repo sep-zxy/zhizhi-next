@@ -135,3 +135,8 @@ uv run --project projects/growth --no-sync python `
 - `/zhizhi-learn-submit <context_id>`：重新读取已保存原话、版本与 hash，本人确认后提交理解。请求只携带 context_version/note_sha256，不能让模型替写 user_text。
 
 这些不是模型工具，也不把本人输入追加给模型上下文。使用现有 `/api/growth/local/knowledge/entry-learning-contexts` 及其 note/understanding/submissions 路由、已有学习库/outbox，不另建数据库。创建/保存使用 request_id；同进程重试同语义复用 ID，未确认写入不自动重试，跨进程应先在已有学习页核对。每个上下文同一时刻仅允许一个命令。返回 pending/unknown 不展示为正式知识已提交；真实启用与 Windows E2E 待验。
+
+本人复核支持 `/zhizhi-review <change_id> [approve|reject|needs_evidence]`。拒绝/退回补证要求本人输入原因，读取完整旧新正文及元数据并绑定现有一次性nonce/patch/base/policy确认；取消不提交，不增加模型决定工具。
+
+C05/C07只读补齐：`zhizhi_source` 读取保留来源投影；`zhizhi_evidence` 使用恰一个 source/external_document/learning_outcome 引用和必填 content_hash，可带source_revision与文字locator。回执的引用ID、hash、指定来源版本必须匹配；locator仅注释，不把任意定位描述当作服务端已验证摘录。仍执行已有分类门禁，不暴露原始投递包/文件路径。`zhizhi_read_entry` 可选 revision，精确读回版本不符则报错。没有现成版本列表/diff API，不宣称该部分已完成。
+固定schema现为16项，当前用户身份allowed_tools子集不自动扩权；4/3/16/180调用预算不变。
