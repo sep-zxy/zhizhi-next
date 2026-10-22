@@ -1,6 +1,7 @@
 /** Private JSONL v1: no credentials, executable names, system prompt or authority in requests. */
 export const BRIDGE_PROVIDER = 'zhizhi-codex-cli';
 export const BRIDGE_MODEL = 'gpt-6.1-sol';
+export const MAX_DOMAIN_TOOLS = 18; // Capacity only; frozen-schema handshake tests enforce equality.
 export const MAX_INPUT_BYTES = 256_000;
 export const MAX_OUTPUT_BYTES = 1_048_576;
 export type ObjectValue = Record<string, unknown>;
@@ -63,7 +64,7 @@ export function parseResponse(raw: unknown): BridgeResponse {
 export function capabilities(response: BridgeResponse): BridgeCapabilities {
   if (response.status !== 'ready') fail('BRIDGE_NOT_READY');
   const value = response.capabilities; if (!record(value)) fail(); exact(value, ['provider', 'model', 'tools', 'limits']);
-  if (value.provider !== BRIDGE_PROVIDER || value.model !== BRIDGE_MODEL || !Array.isArray(value.tools) || !value.tools.length || value.tools.length > 16) fail();
+  if (value.provider !== BRIDGE_PROVIDER || value.model !== BRIDGE_MODEL || !Array.isArray(value.tools) || !value.tools.length || value.tools.length > MAX_DOMAIN_TOOLS) fail();
   const names = new Set<string>();
   for (const tool of value.tools) { if (!record(tool)) fail(); exact(tool, ['name', 'parameters']); if (typeof tool.name !== 'string' || names.has(tool.name) || !record(tool.parameters)) fail(); names.add(tool.name); }
   if (!record(value.limits)) fail(); exact(value.limits, ['model_calls_per_run', 'tool_calls_per_run', 'model_calls_per_process', 'timeout_seconds']);

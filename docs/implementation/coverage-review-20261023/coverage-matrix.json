@@ -7,10 +7,13 @@
       "id": "P01",
       "title": "知枝轻首页",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
-      "gap": "实际页面与批准稿视觉差异由学习域本轮复查；全浏览旅程未验",
-      "real_e2e_verified": false
+      "gap": "核心实现：轻首页/继续学习/工程线索及学习导航已合入；不承接通用Wiki工作台；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "轻首页/继续学习/工程线索及学习导航已合入；不承接通用Wiki工作台",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P02",
@@ -18,26 +21,34 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "真实官方渠道未验；页面视觉修订并行进行",
-      "real_e2e_verified": false
+      "gap": "实现缺口：无安全批量打标/保留API；单条主从/完整预览/确认已实现；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "无安全批量打标/保留API；单条主从/完整预览/确认已实现",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P03",
       "title": "来源预览",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "实际平台正文/字幕/ASR覆盖未全验",
-      "real_e2e_verified": false
+      "gap": "核心实现：真实预览投影、版本/到期门禁与本人保留/丢弃已实现，不补假视频/字幕；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "真实预览投影、版本/到期门禁与本人保留/丢弃已实现，不补假视频/字幕",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P04",
       "title": "知识目录",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/wiki-private/src/knowledge-pages.tsx",
-      "gap": "原生浏览搜索及完整目录视觉未全验",
-      "real_e2e_verified": false
+      "gap": "核心实现：分类/结果/预览、筛选/分页、别名与过期索引提示已实现；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "分类/结果/预览、筛选/分页、别名与过期索引提示已实现",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P05",
@@ -45,26 +56,34 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/wiki-private/src/knowledge-pages.tsx",
-      "gap": "精确版本/证据/公开资格浏览旅程未全验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：非完整CommonMark；完整历史时间线与独立个人理解对象未接；已有安全正文/版本/来源/关系；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "非完整CommonMark；完整历史时间线与独立个人理解对象未接；已有安全正文/版本/来源/关系",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P06",
       "title": "学习库",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
-      "gap": "本轮学习UI复查未合入；原生学习旅程未验",
-      "real_e2e_verified": false
+      "gap": "核心实现：学习库三视图、URL恢复、本人筛选、证据说明与自由学习记录已合入；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "学习库三视图、URL恢复、本人筛选、证据说明与自由学习记录已合入",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P07",
       "title": "学习会话",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/viewer/src/pages/GrowthPage.tsx",
-      "gap": "真实本人浏览作答/离线恢复未全验",
-      "real_e2e_verified": false
+      "gap": "核心实现：阅读/自己解释/疑问实践流程及本人原话与AI解释分区已合入；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "阅读/自己解释/疑问实践流程及本人原话与AI解释分区已合入",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P08",
@@ -72,8 +91,10 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/learning/understanding.py",
-      "gap": "有成果接口，不能用终端证据替代完整浏览回写",
-      "real_e2e_verified": false
+      "gap": "实现缺口：附件上传尚无契约；本人原话/候选diff/精确来源/独立理解提交已有；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "附件上传尚无契约；本人原话/候选diff/精确来源/独立理解提交已有",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P09",
@@ -81,26 +102,34 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "本人真实高影响批准/退回/过期浏览闭环未全验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：队列/详情仍分页而非图稿完整三栏；三类本人决定与按需证据已实现；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "队列/详情仍分页而非图稿完整三栏；三类本人决定与按需证据已实现",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P10",
       "title": "学习关系图",
       "phase": "P1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/relations/routes.py",
-      "gap": "领域三类关系接口已有，viewer关系桥缺失；不得用旧调用图冒充知识关系",
-      "real_e2e_verified": false
+      "gap": "核心实现：正式关系桌面只读桥与三类筛选/版本校验/拓扑+列表渲染已合入；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "正式关系桌面只读桥与三类筛选/版本校验/拓扑+列表渲染已合入",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P11",
       "title": "任务历史",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "后端及CLI列表事件/控制已有；原生多端恢复未验",
-      "real_e2e_verified": false
+      "gap": "核心实现：任务主从详情、事件与版本化恢复门禁已实现；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "implemented_scope": "任务主从详情、事件与版本化恢复门禁已实现",
+      "code_gap": "",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P12",
@@ -108,8 +137,10 @@
       "phase": "P1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/serve/routes_growth.py",
-      "gap": "真实Git历史已有；职责演进和Continuity完整联动未实现",
-      "real_e2e_verified": false
+      "gap": "实现缺口：职责演进/Continuity契约未实现；Git历史与精确project+commit关联学习卡已合入；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "职责演进/Continuity契约未实现；Git历史与精确project+commit关联学习卡已合入",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P13",
@@ -117,8 +148,10 @@
       "phase": "Later",
       "implementation": "missing",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "完整动态治理中心未实现；只读规划页不计实现",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整动态治理中心未实现；只读规划页不计实现；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "完整动态治理中心未实现；只读规划页不计实现",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P14",
@@ -126,8 +159,10 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/wiki-private/src/workflow-pages.tsx",
-      "gap": "基础诊断已有；目标环境OpenBao恢复/全运维未验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：provider requested/actual、OpenBao、Git/备份、渠道账号的安全诊断API未齐；health/capabilities已有；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "provider requested/actual、OpenBao、Git/备份、渠道账号的安全诊断API未齐；health/capabilities已有",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "P15",
@@ -135,26 +170,34 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "已看真实15-cli-session.png；学习本人命令有条件注册，实际启用与真实Pi旅程待测",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整CLI族尚有C03/C06/C07/C08/C10/C11/C18-C21细项；核心16工具与本人学习启动接线已合入；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
+      "real_e2e_verified": false,
+      "code_gap": "完整CLI族尚有C03/C06/C07/C08/C10/C11/C18-C21细项；核心16工具与本人学习启动接线已合入",
+      "verification_gap": "生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入"
     },
     {
       "id": "P16",
       "title": "公开首页",
       "phase": "V1-minimal",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/selfweb/site/quartz.config.yaml",
-      "gap": "分类门户视觉复查并行；公开成品浏览导航待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：分类门户、搜索、密集条目/修订结构已合入，并有实际Quartz HTML产物；验证：已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验",
+      "real_e2e_verified": false,
+      "implemented_scope": "分类门户、搜索、密集条目/修订结构已合入，并有实际Quartz HTML产物",
+      "code_gap": "",
+      "verification_gap": "已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验"
     },
     {
       "id": "P17",
       "title": "公开文章",
       "phase": "V1-minimal",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/selfweb/site/quartz.config.yaml",
-      "gap": "公开净化资产阅读/搜索/撤回浏览闭环待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：公开文章正文/TOC/来源/反链已合入，并有实际Quartz HTML产物；验证：已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验",
+      "real_e2e_verified": false,
+      "implemented_scope": "公开文章正文/TOC/来源/反链已合入，并有实际Quartz HTML产物",
+      "code_gap": "",
+      "verification_gap": "已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验"
     },
     {
       "id": "P18",
@@ -162,8 +205,10 @@
       "phase": "V1-minimal",
       "implementation": "partial",
       "source": "projects/wiki-private/src/knowledge-pages.tsx",
-      "gap": "通用与学习分域已有；完整日用首页归P1完善",
-      "real_e2e_verified": false
+      "gap": "实现缺口：缺实质知识增长feed；分类门户子条目链接/真实页内计数/空库已合入；验证：源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现",
+      "real_e2e_verified": false,
+      "code_gap": "缺实质知识增长feed；分类门户子条目链接/真实页内计数/空库已合入",
+      "verification_gap": "源码已按批准稿审查；浏览器截图、响应式/交互与完整真实旅程未验，不代表代码未实现"
     },
     {
       "id": "F01",
@@ -171,35 +216,46 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "跨域本人学习命令有条件注册；自然语言学习计划/真实旅程未闭合",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整自然语言学习规划未齐；双域能力及本人学习启动接线已合入；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "完整自然语言学习规划未齐；双域能力及本人学习启动接线已合入",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F02",
       "title": "收件与渠道",
       "phase": "V1-manual",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/intake/routes.py",
-      "gap": "手动/CLI已有；官方微信/Telegram真实旅程P1待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：V1手动/CLI收件已实现；官方渠道属于后续范围，不阻断V1-manual代码完成；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "V1手动/CLI收件已实现；官方渠道属于后续范围，不阻断V1-manual代码完成",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F03",
       "title": "解析与预览",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/intake/routes.py",
-      "gap": "真实小黑盒/抖音/ASR效果不能用fixture证明",
-      "real_e2e_verified": false
+      "gap": "核心实现：解析/预览/完整度门禁已有实现；实际平台与ASR效果另验；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "解析/预览/完整度门禁已有实现；实际平台与ASR效果另验",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F04",
       "title": "私有来源与证据",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/core_routes.py",
-      "gap": "source/evidence已有，真实素材范围验收未覆盖全部",
-      "real_e2e_verified": false
+      "gap": "核心实现：保留来源、安全证据投影及CLI精确引用已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "保留来源、安全证据投影及CLI精确引用已实现",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F05",
@@ -207,8 +263,10 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/search/routes.py",
-      "gap": "中文/版本已有；Pi历史revision尚无参数",
-      "real_e2e_verified": false
+      "gap": "实现缺口：版本列表/差异展示CLI未齐；中文检索与Pi可选精确revision及错版拒绝已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "版本列表/差异展示CLI未齐；中文检索与Pi可选精确revision及错版拒绝已实现",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F06",
@@ -216,26 +274,34 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/generation/__init__.py",
-      "gap": "常规生成已有；重要原子合并不可伪装为分步update/delete",
-      "real_e2e_verified": false
+      "gap": "实现缺口：重要原子合并能力未齐，不能用分步update/delete替代；常规增量生成已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "重要原子合并能力未齐，不能用分步update/delete替代；常规增量生成已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F07",
       "title": "独立复核与重大决定",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/core_routes.py",
-      "gap": "队列与本人三类决定已接；独立模型复核/原生本人完整旅程待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：独立复核、重大队列与本人批准/拒绝/补证据已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "独立复核、重大队列与本人批准/拒绝/补证据已实现",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F08",
       "title": "唯一Writer",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/writer.py",
-      "gap": "代码/组件覆盖已有；目标安装故障恢复仍单列",
-      "real_e2e_verified": false
+      "gap": "核心实现：唯一Writer及既有故障恢复/一致性机制已有源码与组件覆盖；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "唯一Writer及既有故障恢复/一致性机制已有源码与组件覆盖",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F09",
@@ -243,8 +309,10 @@
       "phase": "V1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/learning/backend.py",
-      "gap": "正式版本学习/outbox及有条件注册的本人Pi学习命令已有；实际运行绑定/原生旅程待验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整学习计划族未齐；正式版本自由学习/outbox/本人CLI与启动注入已合入；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
+      "real_e2e_verified": false,
+      "code_gap": "完整学习计划族未齐；正式版本自由学习/outbox/本人CLI与启动注入已合入",
+      "verification_gap": "生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入"
     },
     {
       "id": "F10",
@@ -252,17 +320,22 @@
       "phase": "P1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/relations/routes.py",
-      "gap": "API/Pi只读已有，viewer三类图及完整建议回填未全验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整学习建议接受/延后统一CLI未齐；三类正式关系桥/渲染和建议查询已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "完整学习建议接受/延后统一CLI未齐；三类正式关系桥/渲染和建议查询已实现",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F11",
       "title": "任务与观测",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/tasks.py",
-      "gap": "本轮补Pi列表/事件/本人控制；原生恢复待测",
-      "real_e2e_verified": false
+      "gap": "核心实现：持久任务、事件、脱敏观测、本人继续/取消已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "持久任务、事件、脱敏观测、本人继续/取消已实现",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F12",
@@ -270,8 +343,10 @@
       "phase": "P1",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/growth/history.py",
-      "gap": "history已有，职责演进/Continuity联合闭环缺",
-      "real_e2e_verified": false
+      "gap": "实现缺口：职责演进/Continuity完整联合契约未齐；Git历史与精确提交关联已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "职责演进/Continuity完整联合契约未齐；Git历史与精确提交关联已实现",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F13",
@@ -279,17 +354,22 @@
       "phase": "Later",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "只有固定受审清单；完整注册启停升级未实现",
-      "real_e2e_verified": false
+      "gap": "实现缺口：只有固定受审清单；完整注册启停升级未实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "只有固定受审清单；完整注册启停升级未实现",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F14",
       "title": "订阅Provider",
       "phase": "V1",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/growth/src/ahadiff/knowledge_platform/model/pi_bridge.py",
-      "gap": "Codex/Pi适配已有，原生Pi超时修复待目标实测，actual model未知不得补造",
-      "real_e2e_verified": false
+      "gap": "核心实现：Codex/Pi订阅适配及本轮超时修复已实现；真实Pi修复效果另验；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "implemented_scope": "Codex/Pi订阅适配及本轮超时修复已实现；真实Pi修复效果另验",
+      "code_gap": "",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F15",
@@ -297,17 +377,22 @@
       "phase": "V1-basic",
       "implementation": "partial",
       "source": "projects/growth/src/ahadiff/knowledge_platform/auth.py",
-      "gap": "遵守既有身份不重置；OpenBao/原生运维全验收缺",
-      "real_e2e_verified": false
+      "gap": "实现缺口：全套安全运维诊断入口未齐；既有固定身份/本人Viewer临时会话接线不重建domain身份；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "全套安全运维诊断入口未齐；既有固定身份/本人Viewer临时会话接线不重建domain身份",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "F16",
       "title": "公开Adapter",
       "phase": "V1-minimal",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "projects/selfweb/site/quartz.config.yaml",
-      "gap": "确定性投影已有，实际完整公开浏览/部署分开验",
-      "real_e2e_verified": false
+      "gap": "核心实现：资格复验、确定性投影与Quartz公开模板已实现且合成产物构建审核通过；验证：已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验",
+      "real_e2e_verified": false,
+      "implemented_scope": "资格复验、确定性投影与Quartz公开模板已实现且合成产物构建审核通过",
+      "code_gap": "",
+      "verification_gap": "已完成真实Quartz构建及合成公开产物审核；浏览器截图/交互与真实资料发布未验"
     },
     {
       "id": "C01",
@@ -315,8 +400,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "双域固定能力清单及本人学习命令已有；完整自然语言学习规划未齐",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整自然语言学习规划未齐；双域固定能力清单及本人学习启动链已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "完整自然语言学习规划未齐；双域固定能力清单及本人学习启动链已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C02",
@@ -324,8 +411,11 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "新增zhizhi_inbox；真实渠道不是本轮fixture结论",
-      "real_e2e_verified": false
+      "gap": "核心实现：新增zhizhi_inbox；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "新增zhizhi_inbox",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C03",
@@ -333,8 +423,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "新增zhizhi_intake_preview；手工补料CLI仍缺",
-      "real_e2e_verified": false
+      "gap": "实现缺口：手工补料统一CLI未接；真实临时预览工具已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "手工补料统一CLI未接；真实临时预览工具已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C04",
@@ -342,8 +434,11 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "本人TUI保留版本确认；真实用户旅程待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：本人TUI保留版本确认；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "本人TUI保留版本确认",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C05",
@@ -351,8 +446,11 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "来源/绑定证据只读已接，逐项校验ID/hash/revision；真实渠道证据旅程未验",
-      "real_e2e_verified": false
+      "gap": "核心实现：来源/绑定证据只读已接，逐项校验ID/hash/revision；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "来源/绑定证据只读已接，逐项校验ID/hash/revision",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C06",
@@ -360,8 +458,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "zhizhi_search已有；高级scope命令族未实现",
-      "real_e2e_verified": false
+      "gap": "实现缺口：高级scope命令族未齐；已有zhizhi_search；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "高级scope命令族未齐；已有zhizhi_search",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C07",
@@ -369,8 +469,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "精确revision读取及错版拒绝已接；没有正式版本列表/diff API，不伪造完成",
-      "real_e2e_verified": false
+      "gap": "实现缺口：正式版本列表/diff API及CLI未齐；精确revision读取/错版拒绝已实现；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "正式版本列表/diff API及CLI未齐；精确revision读取/错版拒绝已实现",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C08",
@@ -378,8 +480,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "zhizhi_propose_patch已有；目标选择/dry-run族未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：目标选择与dry-run命令族未接；已有zhizhi_propose_patch；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "目标选择与dry-run命令族未接；已有zhizhi_propose_patch",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C09",
@@ -387,8 +491,11 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "本人approve/reject/needs_evidence及原因、完整差异、nonce确认已接；真实本人旅程未验",
-      "real_e2e_verified": false
+      "gap": "核心实现：本人approve/reject/needs_evidence及原因、完整差异、nonce确认已接；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "本人approve/reject/needs_evidence及原因、完整差异、nonce确认已接",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C10",
@@ -396,8 +503,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "任务状态已有；专用change/reconcile未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：专用change/reconcile入口未接；任务状态与受控继续/取消已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "专用change/reconcile入口未接；任务状态与受控继续/取消已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C11",
@@ -405,17 +514,22 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "已实现显式viewer绑定的本人创建/打开/编辑命令；默认未启用，完整学习计划与真实旅程待验",
-      "real_e2e_verified": false
+      "gap": "实现缺口：完整学习计划族未齐；本人创建/打开/编辑与owner-pi-start临时Viewer会话注入已实现；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
+      "real_e2e_verified": false,
+      "code_gap": "完整学习计划族未齐；本人创建/打开/编辑与owner-pi-start临时Viewer会话注入已实现",
+      "verification_gap": "生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入"
     },
     {
       "id": "C12",
       "title": "成果回写",
       "phase": "V1-scope",
-      "implementation": "partial",
+      "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "已实现本人保存版本/hash确认提交；复用viewer/outbox，运行注入与真实旅程待验",
-      "real_e2e_verified": false
+      "gap": "核心实现：本人保存版本/hash理解提交及owner-pi-start临时Viewer会话注入已实现；模型不代填原话；验证：生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入",
+      "real_e2e_verified": false,
+      "implemented_scope": "本人保存版本/hash理解提交及owner-pi-start临时Viewer会话注入已实现；模型不代填原话",
+      "code_gap": "",
+      "verification_gap": "生产本人交互启动链已接并有fixture；Windows实际启用和真实Pi旅程未验，非仍缺运行注入"
     },
     {
       "id": "C13",
@@ -423,8 +537,11 @@
       "phase": "P1",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "三类邻接/有限遍历已有；不推出新事实",
-      "real_e2e_verified": false
+      "gap": "核心实现：三类邻接/有限遍历已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "三类邻接/有限遍历已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C14",
@@ -432,8 +549,10 @@
       "phase": "P1",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "建议工具已有，accept/snooze CLI未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：accept/snooze统一CLI未接；建议查询已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "accept/snooze统一CLI未接；建议查询已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C15",
@@ -441,8 +560,11 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "新增列表/事件与本人resume/cancel；服务端门禁仍重新校验",
-      "real_e2e_verified": false
+      "gap": "核心实现：新增列表/事件与本人resume/cancel；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "",
+      "implemented_scope": "新增列表/事件与本人resume/cancel",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C16",
@@ -450,8 +572,10 @@
       "phase": "P1",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "旧Git history已有；统一CLI未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：旧Git history已有；统一CLI未接；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "旧Git history已有；统一CLI未接",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C17",
@@ -459,8 +583,10 @@
       "phase": "Later",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "Later；help固定清单不等于动态治理",
-      "real_e2e_verified": false
+      "gap": "实现缺口：Later；help固定清单不等于动态治理；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "Later；help固定清单不等于动态治理",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C18",
@@ -468,8 +594,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "桥错误/状态已有；独立完整model status未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：独立完整model status入口未接；桥错误/状态已有；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "独立完整model status入口未接；桥错误/状态已有",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C19",
@@ -477,8 +605,10 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "安装诊断脚本已有；统一doctor/config族未接",
-      "real_e2e_verified": false
+      "gap": "实现缺口：统一doctor/config族未接；既有安装诊断脚本可用；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "统一doctor/config族未接；既有安装诊断脚本可用",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C20",
@@ -486,8 +616,10 @@
       "phase": "V1-scope",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "publish/__main__.py仅staging投影，实际部署单列；无统一Pi公开发布入口",
-      "real_e2e_verified": false
+      "gap": "实现缺口：缺统一CLI eligibility(entry)、固定revision preview、固定manifest build入口；既有资格/投影/验证/Quartz可复用。构建不等于公网部署；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "缺统一CLI eligibility(entry)、固定revision preview、固定manifest build入口；既有资格/投影/验证/Quartz可复用。构建不等于公网部署",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     },
     {
       "id": "C21",
@@ -495,9 +627,19 @@
       "phase": "V1-scope",
       "implementation": "missing",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "operator service备份存在且拒绝覆盖；无统一Pi恢复API/本人恢复流程，不借模型扩权",
-      "real_e2e_verified": false
+      "gap": "实现缺口：缺用户侧指定snapshot inspect和restore plan --dry-run；最小范围仅只读校验Git/SQLite/对象清单并输出隔离恢复计划，不要求真实覆盖恢复API；验证：本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码",
+      "real_e2e_verified": false,
+      "code_gap": "缺用户侧指定snapshot inspect和restore plan --dry-run；最小范围仅只读校验Git/SQLite/对象清单并输出隔离恢复计划，不要求真实覆盖恢复API",
+      "verification_gap": "本轮完整真实用户/模型/渠道端到端未验；历史R20局部结果保留但不自动覆盖新源码"
     }
   ],
-  "real_e2e_scope": "历史证据边界：R20 release8b60220415b9-39812737484-1 已实测固定 R18 身份复用、5 次真实模型调用的材料/学习两条链路及两个正式 Writer 条目通过；同次 Pi 仍为 BRIDGE_TIMEOUT 失败，browser 未测。本矩阵 real_e2e_verified=false 仅表示本轮新源码与完整功能验收尚未真实全旅程通过，不否认这些历史局部通过，也不把历史结果自动覆盖今晚的新改动。"
+  "real_e2e_scope": "历史证据边界：R20 release8b60220415b9-39812737484-1 已实测固定 R18 身份复用、5 次真实模型调用的材料/学习两条链路及两个正式 Writer 条目通过；同次 Pi 仍为 BRIDGE_TIMEOUT 失败，browser 未测。本矩阵 real_e2e_verified=false 仅表示本轮新源码与完整功能验收尚未真实全旅程通过，不否认这些历史局部通过，也不把历史结果自动覆盖今晚的新改动。",
+  "reviewed_integration_commit": "b28d5a8",
+  "integration_evidence": [
+    "docs/implementation/learning-ui-review-20261023/README.md",
+    "docs/implementation/learning-bridge-review-20261023/README.md",
+    "docs/implementation/private-wiki-review-20261023/REVIEW.md",
+    "docs/implementation/public-wiki-review-20261023/阶段记录.md",
+    "docs/implementation/cloud-integration-review-20261023/README.md"
+  ]
 }

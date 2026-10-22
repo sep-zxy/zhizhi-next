@@ -261,6 +261,28 @@ def create_core_routes(domain: DomainService) -> list[Route]:
             revision=int(revision) if revision else None,
         )
 
+    async def versions(request: Request, actor: Any, trace: str) -> Any:
+        if set(request.query_params) - {"limit", "offset"} or any(
+            len(request.query_params.getlist(key)) != 1 for key in request.query_params
+        ):
+            raise invalid("Unknown history parameter")
+        return await run_in_threadpool(
+            domain.list_entry_versions, request.path_params["entry_id"], actor=actor,
+            limit=int(request.query_params.get("limit", "20")),
+            offset=int(request.query_params.get("offset", "0")),
+        )
+
+    async def entry_diff(request: Request, actor: Any, trace: str) -> Any:
+        if set(request.query_params) != {"from_revision", "to_revision"} or any(
+            len(request.query_params.getlist(key)) != 1 for key in request.query_params
+        ):
+            raise invalid("Two exact revisions are required")
+        return await run_in_threadpool(
+            domain.diff_entry_versions, request.path_params["entry_id"], actor=actor,
+            from_revision=int(request.query_params["from_revision"]),
+            to_revision=int(request.query_params["to_revision"]),
+        )
+
     async def entries(request: Request, actor: Any, trace: str) -> Any:
         return await run_in_threadpool(
             domain.list_entries,
@@ -288,4 +310,6 @@ def create_core_routes(domain: DomainService) -> list[Route]:
         Route(prefix + "/events", endpoint(events), methods=["GET"]),
         Route(prefix + "/entries", endpoint(entries), methods=["GET"]),
         Route(prefix + "/entries/{entry_id}", endpoint(entry), methods=["GET"]),
+        Route(prefix + "/entries/{entry_id}/versions", endpoint(versions), methods=["GET"]),
+        Route(prefix + "/entries/{entry_id}/diff", endpoint(entry_diff), methods=["GET"]),
     ]

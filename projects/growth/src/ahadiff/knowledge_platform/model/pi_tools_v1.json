@@ -566,6 +566,64 @@
         },
         "additionalProperties": false
       }
+    },
+    {
+      "name": "zhizhi_entry_versions",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "zhizhi_entry_diff",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "from_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "to_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "entry_id",
+          "from_revision",
+          "to_revision"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

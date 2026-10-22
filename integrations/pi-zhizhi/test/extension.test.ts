@@ -104,7 +104,7 @@ test("read-only bridge slot does not advertise human approval commands without a
   try {
     extension({registerTool() {}, registerProvider() {}, on() {}, registerCommand: (name: string) => commands.push(name)} as unknown as ExtensionAPI,
       {bridge: tools => new CodexBridgeProvider(tools, () => {throw new Error('NO_PROCESS_EXPECTED');})});
-    assert.deepEqual(commands, ["zhizhi-help"]);
+    assert.deepEqual(commands, ["zhizhi-help", "zhizhi-versions", "zhizhi-diff"]);
   } finally {if (prior === undefined) delete process.env.ZHIZHI_USER_TOKEN; else process.env.ZHIZHI_USER_TOKEN = prior;}
 });
 

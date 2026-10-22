@@ -84,6 +84,18 @@ export function validateBaseUrl(raw: string): URL {
 }
 
 function routeAllowed(method: string, path: string, user: boolean): boolean {
+  const history = path.match(/^\/entries\/[A-Za-z0-9_.:%-]+\/(versions|diff)(?:\?([^#]*))?$/);
+  if (history) {
+    if (method !== "GET") return false;
+    const query = new URLSearchParams(history[2]);
+    const keys = history[1] === "versions" ? ["limit", "offset"] : ["from_revision", "to_revision"];
+    for (const [key, value] of query) {
+      if (!keys.includes(key) || query.getAll(key).length !== 1 || !/^(0|[1-9][0-9]*)$/.test(value)) return false;
+      const n = Number(value), min = key === "offset" ? 0 : 1, max = key === "limit" ? 100 : key === "offset" ? 1000 : 2147483647;
+      if (!Number.isSafeInteger(n) || n < min || n > max) return false;
+    }
+    return history[1] === "versions" || keys.every(key => query.has(key));
+  }
   const page = path.match(/^\/(intakes|tasks)(?:\?([^#]*))?$/);
   const events = path.match(/^\/tasks\/[A-Za-z0-9_.:%-]+\/events(?:\?([^#]*))?$/);
   if ((page && method === "GET") || events) {

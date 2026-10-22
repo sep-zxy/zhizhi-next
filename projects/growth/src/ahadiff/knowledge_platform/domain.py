@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import shutil
@@ -314,6 +315,129 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
                 "CONTENT_CORRUPT", "Formal Git revision does not match the catalog", status_code=409
             )
         return {**entry, "owner_id": owner_id}
+
+    @staticmethod
+    def _history_missing() -> DomainError:
+        return DomainError("NOT_FOUND", "Entry revision was not found", status_code=404)
+
+    def _history_entry(
+        self, connection: sqlite3.Connection, entry_id: str, actor: Actor,
+        revision: int | None = None,
+    ) -> dict[str, Any]:
+        """Check catalog identity before Git, then preserve subclass read authorization."""
+        if revision is None:
+            catalog = self.store.get(connection, "entry", entry_id, actor.owner_id)
+        else:
+            row = connection.execute(
+                "SELECT metadata FROM kp_entry_revisions "
+                "WHERE entry_id=? AND revision=? AND owner_id=?",
+                (entry_id, revision, actor.owner_id),
+            ).fetchone()
+            if row is None:
+                raise self._history_missing()
+            catalog = json.loads(row["metadata"])
+        try:
+            self._protect_read(connection, dict(catalog), actor)
+            if catalog.get("visibility") != "public":
+                enforce_read_classification(actor, {"data_classification": "personal"})
+        except DomainError as exc:
+            if exc.code == "CLASSIFICATION_FORBIDDEN":
+                raise self._history_missing() from None
+            raise
+        if catalog.get("deleted"):
+            raise self._history_missing()
+        if (
+            catalog.get("entry_id") != entry_id
+            or catalog.get("owner_id") != actor.owner_id
+            or catalog.get("path") != GitWriter.path_for(actor.owner_id, entry_id)
+            or not isinstance(catalog.get("commit_sha"), str)
+            or len(catalog["commit_sha"]) != 40
+            or any(char not in "0123456789abcdef" for char in catalog["commit_sha"])
+            or (revision is not None and catalog.get("revision") != revision)
+        ):
+            raise DomainError("CONTENT_CORRUPT", "Entry catalog identity mismatch", status_code=409)
+        try:
+            entry = self.get_entry(entry_id, actor=actor, revision=revision)
+        except DomainError as exc:
+            if exc.code == "CLASSIFICATION_FORBIDDEN":
+                raise self._history_missing() from None
+            raise
+        if entry.get("visibility") != "public":
+            try:
+                enforce_read_classification(actor, {"data_classification": "personal"})
+            except DomainError as exc:
+                if exc.code == "CLASSIFICATION_FORBIDDEN":
+                    raise self._history_missing() from None
+                raise
+        # Metadata such as a title must not be supplied by an unverified catalog.
+        for key in ("entry_id", "revision", "title", "content_hash", "updated_at", "deleted"):
+            if entry.get(key) != catalog.get(key):
+                raise DomainError("CONTENT_CORRUPT", "Entry metadata mismatch", status_code=409)
+        return entry
+
+    def list_entry_versions(
+        self, entry_id: str, *, actor: Actor, limit: int = 20, offset: int = 0,
+    ) -> dict[str, Any]:
+        """List authorized formal revisions only; bounded scans never disclose total counts."""
+        authenticated(actor, "knowledge:read")
+        self._validate_page(limit, offset)
+        if limit > 100 or offset > 1000:
+            raise invalid("History pagination exceeds limit")
+        with self.store.reading() as connection:
+            current = self._history_entry(connection, entry_id, actor)
+            rows = connection.execute(
+                "SELECT revision FROM kp_entry_revisions WHERE entry_id=? AND owner_id=? "
+                "ORDER BY revision DESC LIMIT 1001", (entry_id, actor.owner_id),
+            )
+            items: list[dict[str, Any]] = []
+            skipped = 0
+            for scanned, row in enumerate(rows):
+                if scanned == 1000:
+                    raise DomainError("HISTORY_LIMIT_EXCEEDED", "History scan limit exceeded", status_code=422)
+                try:
+                    entry = self._history_entry(connection, entry_id, actor, row["revision"])
+                except DomainError as exc:
+                    if exc.code == "NOT_FOUND":
+                        continue
+                    raise
+                if skipped < offset:
+                    skipped += 1
+                    continue
+                items.append({key: entry[key] for key in (
+                    "revision", "title", "updated_at", "content_hash", "classification_labels",
+                )})
+                if len(items) > limit:
+                    break
+            return {"entry_id": entry_id, "items": items[:limit], "has_more": len(items) > limit,
+                    "classification_labels": current["classification_labels"]}
+
+    def diff_entry_versions(
+        self, entry_id: str, *, actor: Actor, from_revision: int, to_revision: int,
+    ) -> dict[str, Any]:
+        """Compare two exact authorized bodies without Git log, paths, or publication grants."""
+        authenticated(actor, "knowledge:read")
+        for revision in (from_revision, to_revision):
+            if type(revision) is not int or not 1 <= revision <= 2_147_483_647:
+                raise invalid("A positive exact revision is required")
+        with self.store.reading() as connection:
+            current = self._history_entry(connection, entry_id, actor)
+            before = self._history_entry(connection, entry_id, actor, from_revision)
+            after = self._history_entry(connection, entry_id, actor, to_revision)
+            for entry in (before, after):
+                if len(entry["body"].encode("utf-8")) > 131072 or len(entry["body"].splitlines()) > 4000:
+                    raise DomainError("DIFF_LIMIT_EXCEEDED", "Entry exceeds diff size limit", status_code=422)
+            delta_lines = difflib.unified_diff(
+                before["body"].splitlines(keepends=True), after["body"].splitlines(keepends=True),
+                fromfile=f"revision-{from_revision}", tofile=f"revision-{to_revision}",
+            )
+            delta = "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in delta_lines)
+            if len(delta.encode("utf-8")) > 307200:
+                raise DomainError("DIFF_LIMIT_EXCEEDED", "Diff exceeds output size limit", status_code=422)
+            return {"entry_id": entry_id, "from_revision": from_revision, "to_revision": to_revision,
+                    "from_content_hash": before["content_hash"], "to_content_hash": after["content_hash"],
+                    "unified_diff": delta, "classification_labels": sorted(set(
+                        current["classification_labels"] + before["classification_labels"] + after["classification_labels"]
+                    ))}
 
     def _kill_point(self, stage: str, journal: dict[str, Any]) -> None:
         if self.fault_injector is not None:
