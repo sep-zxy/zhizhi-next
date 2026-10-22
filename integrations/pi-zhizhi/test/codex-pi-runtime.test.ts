@@ -1,7 +1,7 @@
 /** Actual locked Pi 1.3.0 orchestration; all model/domain results are explicitly synthetic. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join,dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,4 +58,33 @@ for (const mode of ['rpc', 'json']) test(`real pinned Pi ${mode} completes two s
     if(child.exitCode===null && child.signalCode===null){const ended=new Promise<void>(resolve=>child.once('exit',()=>resolve()));child.kill('SIGTERM');await ended;}
     await rm(directory,{recursive:true,force:true});
   }
+});
+
+
+test('real pinned Pi JSON error uses exactly one synthetic bridge turn with production retry policy', {timeout:25000}, async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'zhizhi-no-retry-fixture-'));
+ const pkg=dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent')));
+ const { SettingsManager }=await import(join(pkg,'core/settings-manager.js'));
+ const { disableAutomaticRetries }=await import(new URL('../portable/retry-policy.mjs',import.meta.url).href);
+ const agent=join(directory,'agent');await mkdir(agent);
+ await disableAutomaticRetries(SettingsManager,agent);
+ const audit=join(directory,'audit.jsonl');
+ const child=spawn(process.execPath,[join(pkg,'cli.js'),'--mode','json','--no-session','--offline','--no-approve','--no-builtin-tools','--no-mcp','--no-extensions','--no-skills','--no-prompt-templates','--no-context-files','--no-themes','--extension',fileURLToPath(new URL('./fixtures/pi-codex-extension.ts',import.meta.url)),'--provider','zhizhi-codex-cli','--model','gpt-6.1-sol'],{cwd:agent,env:{PATH:process.env.PATH,HOME:directory,PI_CODING_AGENT_DIR:agent,PI_OFFLINE:'1',PI_SKIP_VERSION_CHECK:'1',ZHIZHI_MODEL_PROVIDER:'zhizhi-codex-cli',ZHIZHI_MODEL_ID:'gpt-6.1-sol',ZHIZHI_AGENT_TOKEN:'synthetic-agent-not-a-credential',ZHIZHI_API_URL:'http://127.0.0.1:8766',ZHIZHI_ALLOWED_CLASSIFICATIONS:'public',ZHIZHI_FIXTURE_AUDIT:audit,ZHIZHI_FIXTURE_BRIDGE_FAILURE:'timeout'},stdio:['pipe','pipe','pipe']});
+ let stdout='';let stderr='';child.stdout.on('data',v=>stdout+=v);child.stderr.on('data',v=>stderr+=v);
+ const deadline=setTimeout(()=>child.kill('SIGKILL'),20000);
+ try {
+  const exited=new Promise<number|null>((resolve,reject)=>{child.once('close',resolve);child.once('error',reject);});
+  child.stdin.end('Explicit synthetic timeout fixture only.');
+  assert.equal(await exited,0); // Official JSON mode can return zero on assistant error.
+  const events=stdout.trim().split('\n').map(v=>JSON.parse(v));
+  assert.equal(events.filter(e=>e.type==='auto_retry_start').length,0);
+  const assistants=events.filter(e=>e.type==='message_end' && e.message?.role==='assistant');
+  assert.equal(assistants.length,1);assert.equal(assistants[0].message.stopReason,'error');
+  assert.equal(assistants[0].message.errorMessage,'BRIDGE_TIMEOUT');
+  assert.equal(assistants[0].message.diagnostics.find((d:any)=>d.type==='zhizhi.codex_cli.failure').details.stage,'turn');
+  const requests=(await readFile(audit,'utf8')).trim().split('\n').map(v=>JSON.parse(v));
+  assert.equal(requests.filter(e=>e.event==='bridge' && e.request.type==='hello').length,1);
+  assert.equal(requests.filter(e=>e.event==='bridge' && e.request.type==='turn').length,1);
+  assert.equal(requests.filter(e=>e.event==='domain').length,0);assert.equal(stderr,'');
+ } finally {clearTimeout(deadline);if(child.exitCode===null)child.kill('SIGKILL');await rm(directory,{recursive:true,force:true});}
 });

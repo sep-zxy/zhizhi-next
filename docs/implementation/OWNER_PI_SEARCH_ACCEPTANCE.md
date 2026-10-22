@@ -79,3 +79,13 @@ The observations are a pre-cleanup snapshot: cancellation can leave child_exit_c
 readers may not yet have drained every byte, and elapsed_ms excludes final cleanup time.
 The pi_process phase alone does not distinguish deadline, stop request, output limit or
 platform exit; it must not be reported as a specific root cause without further evidence.
+
+### Pi JSON 失败事件与重试边界
+
+上游 Pi 1.3.0 的 print/json 模式会把 assistant `stopReason=error/aborted` 作为 JSON 事件输出，但仍可能退出 0，且 stderr 为空。因此进程退出码不是模型成功证明，成功仍必须经过严格事件顺序、toolCallId、参数与签封回执校验。
+
+产品 Codex 启动器通过上游官方 `SettingsManager` API，在已隔离的 Pi 配置中仅设置 `retry.enabled=false`，保留其他用户配置；写入后按 CLI 的全局/项目合并规则重新读取。损坏配置、路径重定向或项目重新启用重试均失败关闭，不进入 Pi。此规则同时覆盖 TUI 与一次性 JSON 路径，不扩大授权或更改持久 2 模型 / 1 搜索额度。原有 90 秒握手、120 秒单轮和 360 秒子流程上限不变。
+
+一次性报告额外投影有限的事件类型计数、assistant stopReason、已知固定 bridge 错误码、provider 固定失败阶段（initialize / tool_scope / turn）和自动重试计数。未知值仅记 OTHER，畸形 JSON 只记数量；不保存消息、参数、toolCallId、原始错误、stdout/stderr 或凭据。该摘要是排错线索，不是旧故障根因的追溯证明。
+
+显式 fixture 使用锁定的真实 Pi，模拟握手延迟和 bridge 拒绝：旧默认设置下 BRIDGE_TIMEOUT 可产生自动重试及 BRIDGE_RETRY_REQUIRES_NEW_USER_MESSAGE；新策略只产生一次 bridge turn。它不代替 Windows 真实模型验收，不消耗或重置真实额度。

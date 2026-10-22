@@ -47,7 +47,7 @@ def test_once_wrapper_is_fixed_and_tui_remains(tmp_path):
     assert "os.read(sys.stdin.fileno(),3-len(gate))" in source
 
 
-@pytest.mark.parametrize('failure', [None, 'assign', 'spent', 'invalid-events', 'proof', 'service-exit', 'output-limit', 'cancel', 'deadline', 'process-exit'])
+@pytest.mark.parametrize('failure', [None, 'assign', 'spent', 'invalid-events', 'proof', 'service-exit', 'output-limit', 'cancel', 'deadline', 'process-exit', 'pi-errors', 'stop'])
 def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, capsys, failure):
     from ahadiff.knowledge_platform import pi_acceptance as pi
     scope = Mock()
@@ -66,10 +66,16 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
     host.spawn = Mock(return_value=platform)
     child = Mock()
     child.poll.return_value = 0
-    if failure in {'service-exit', 'output-limit', 'deadline'}:
+    if failure in {'service-exit', 'output-limit', 'deadline', 'stop'}:
         child.poll.return_value = None
     child.returncode = 7 if failure == 'process-exit' else 0
     child.stdout = io.BytesIO(b'{}' if failure == 'invalid-events' else events())
+    if failure == 'pi-errors':
+        child.stdout = io.BytesIO(json.dumps({'type': 'message_end', 'message': {
+            'role': 'assistant', 'stopReason': 'error', 'errorMessage': 'BRIDGE_NOT_READY',
+            'content': [{'text': 'PRIVATE-SYNTHETIC'}]}}).encode() + b'\n{partial')
+    if failure == 'process-exit':
+        child.stdout = io.BytesIO(events() + b'\n{partial')
     child.stderr = io.BytesIO(b'PRIVATE-SYNTHETIC')
     if failure == 'output-limit':
         child.stderr = io.BytesIO(b'x' * 70_000)
@@ -81,6 +87,8 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
     def assigned_then_write(data):
         host.JOB.assign.assert_called_once_with(child)
         assert data == b'GO\n' + pi.PI_PROMPT.encode()
+        if failure == 'stop':
+            (tmp_path / 'data/stop.request').touch()
     child.stdin.write.side_effect = assigned_then_write
     with patch.object(once.time, 'monotonic', side_effect=[0, 1, 400, 401] if failure == 'deadline' else None, return_value=0), \
          patch.dict('sys.modules', {'msvcrt': Mock()}), \
@@ -111,6 +119,17 @@ def test_managed_once_fixture_gate_scope_cleanup_and_no_raw_logging(tmp_path, ca
     if failure:
         assert report['code'] == 'PI_ONCE_STAGE_FAILED'
         assert report['phase'] in {'scope_verification', 'job_assignment', 'pi_process', 'event_validation', 'receipt_verification'}
+    assert 'event_summary' in report
+    if failure in {'spent', 'assign', 'cancel'}:
+        assert report['event_summary'] == once.event_summary(b'')
+    reason = {'service-exit': 'platform_exited', 'output-limit': 'output_limit',
+              'deadline': 'timeout', 'process-exit': 'child_exit_nonzero', 'stop': 'stop_requested'}
+    assert report['process_failure'] == reason.get(failure)
+    if failure == 'pi-errors':
+        assert report['event_summary']['error_codes'] == {'BRIDGE_NOT_READY': 1}
+        assert report['event_summary']['assistant_stop_reasons'] == {'error': 1}
+    if failure in {'pi-errors', 'process-exit'}:
+        assert report['event_summary']['malformed_json_count'] == 1
     assert 'PRIVATE-SYNTHETIC' not in capsys.readouterr().out
     assert 'PRIVATE-SYNTHETIC' not in repr(host.write_json.call_args)
 
@@ -145,3 +164,110 @@ def test_once_outer_cancellation_before_runtime_is_nonzero():
             exec(code, {'main': Mock(side_effect=KeyboardInterrupt()), 'sys': sys,
                         'JOB': None, 'CHILDREN': [], 'LOGS': []})
     assert stopped.value.code == 130
+
+
+def test_safe_projection_pi13_errors_retries_and_hostile_fields():
+    secret = 'SECRET_CANARY_DO_NOT_SERIALIZE'
+    assistant = {'role': 'assistant', 'stopReason': 'error',
+                 'errorMessage': 'BRIDGE_NOT_READY', 'content': [{'text': secret}],
+                 'id': secret, 'provider': secret}
+    rows = [
+        {'type': 'message_update', 'message': assistant,
+         'assistantMessageEvent': {'type': 'error', 'reason': 'error', 'error': assistant}},
+        {'type': 'message_end', 'message': assistant},
+        {'type': 'auto_retry_start', 'attempt': secret, 'maxAttempts': 9999999999,
+         'delayMs': secret, 'errorMessage': 'BRIDGE_TIMEOUT'},
+        {'type': 'auto_retry_end', 'success': False, 'attempt': -42, 'finalError': secret},
+        {'type': 'message_end', 'message': {'role': 'assistant', 'stopReason': secret,
+                                           'errorMessage': 'BRIDGE_TIMEOUT ' + secret}},
+        {'type': secret, 'errorMessage': secret, 'env': {secret: secret}},
+        {'type': 'tool_execution_end', 'toolName': secret, 'args': {secret: secret}, 'result': secret},
+        {'type': ['hostile', secret]},
+        {'type': 'message_update', 'assistantMessageEvent': {'type': 'error', 'error': [secret]}},
+        {'type': 'message_end', 'message': [secret]},
+        {'type': 'message_end', 'message': {'role': 'user', 'errorMessage': secret}},
+        {'type': 'error', 'error_code': {'secret': secret}},
+    ]
+    raw = b'\n'.join(json.dumps(row).encode() for row in rows)
+    summary = once.event_summary(raw + b'\n{"partial":\n\xff\nnull\n[]')
+    assert summary['error_codes'] == {'BRIDGE_NOT_READY': 2, 'BRIDGE_TIMEOUT': 1, 'OTHER': 4}
+    assert summary['assistant_stop_reasons'] == {'error': 1, 'OTHER': 1}
+    assert summary['retry_counts'] == {'start': 1, 'end': 1}
+    assert summary['malformed_json_count'] == 2
+    assert summary['non_object_count'] == 2
+    assert summary['event_counts']['OTHER'] == 2
+    encoded = json.dumps(summary)
+    assert secret not in encoded and 'attempt' not in encoded and 'toolName' not in encoded
+    assert len(encoded) < 2000
+    # Prefix/suffix/newline variants must not be extracted from arbitrary text.
+    for value in ['xBRIDGE_TIMEOUT', 'BRIDGE_TIMEOUT\n', 'BRIDGE_TIMEOUT: private', {}, [], None]:
+        projected = once.event_summary(json.dumps({'type': 'message_end', 'message': {
+            'role': 'assistant', 'stopReason': 'error', 'errorMessage': value}}).encode())
+        assert projected['error_codes'] == {'OTHER': 1}
+
+
+def test_safe_projection_bounds_and_does_not_relax_acceptance(monkeypatch):
+    monkeypatch.setattr(once, 'SUMMARY_MAX_COUNT', 2)
+    raw = b'\n'.join([b'{"type":"auto_retry_start","errorMessage":"BRIDGE_TIMEOUT"}'] * 5)
+    summary = once.event_summary(raw)
+    assert summary['event_counts'] == {'auto_retry_start': 2}
+    assert summary['retry_counts'] == {'start': 2, 'end': 0}
+    assert summary['error_codes'] == {'BRIDGE_TIMEOUT': 2}
+    monkeypatch.setattr(once, 'SUMMARY_MAX_BYTES', 10)
+    assert once.event_summary(raw)['truncated'] is True
+    monkeypatch.undo()
+    summary = once.event_summary(events())
+    assert summary['assistant_stop_reasons'] == {'toolUse': 1, 'stop': 1}
+    assert summary['error_codes'] == {}
+    with pytest.raises(ValueError):
+        once.checked_events(raw)
+
+
+@pytest.mark.parametrize('code', ['PI_RETRY_POLICY_UNAVAILABLE', 'APPROVED_EXACT_CODEX_BRIDGE_REQUIRED',
+                                  'PACKAGED_CODEX_BRIDGE_REQUIRED', 'DEDICATED_UNMODIFIED_PI_HOST_REQUIRED'])
+def test_safe_wrapper_waiting_projection(code):
+    raw = json.dumps({'status': 'waiting_auth', 'code': code, 'detail': 'SECRET_CANARY'}).encode()
+    summary = once.event_summary(raw)
+    assert summary['wrapper_statuses'] == {'waiting_auth': 1}
+    assert summary['error_codes'] == {code: 1}
+    assert 'SECRET_CANARY' not in json.dumps(summary)
+    with pytest.raises(ValueError):
+        once.checked_events(raw)
+
+
+def test_wrapper_projection_unknown_values_are_not_copied():
+    for status, code in [('SECRET_CANARY', 'SECRET_CANARY'), (['SECRET_CANARY'], {'secret': 'SECRET_CANARY'})]:
+        summary = once.event_summary(json.dumps({'status': status, 'code': code}).encode())
+        assert summary['wrapper_statuses'] == {'OTHER': 1}
+        assert summary['error_codes'] == {'OTHER': 1}
+        assert 'SECRET_CANARY' not in json.dumps(summary)
+
+
+@pytest.mark.parametrize('stage', ['initialize', 'tool_scope', 'turn', 'SECRET_CANARY', ['SECRET_CANARY'], None])
+def test_provider_failure_stage_projection_is_fixed_and_duplicate_observations(stage):
+    message = {'role': 'assistant', 'stopReason': 'error', 'errorMessage': 'BRIDGE_NOT_READY',
+               'diagnostics': [{'type': 'zhizhi.codex_cli.failure', 'timestamp': 'SECRET_CANARY',
+                                'details': {'stage': stage, 'text': 'SECRET_CANARY', 'id': 'SECRET_CANARY'}},
+                               {'type': 'SECRET_CANARY', 'details': {'stage': 'turn'}},
+                               {'type': 'zhizhi.codex_cli', 'details': {'stage': 'turn'}},
+                               ['SECRET_CANARY']]}
+    rows = [{'type': 'message_end', 'message': message},
+            {'type': 'message_update', 'assistantMessageEvent': {'type': 'error', 'error': message}}]
+    summary = once.event_summary(b'\n'.join(json.dumps(row).encode() for row in rows))
+    expected = stage if isinstance(stage, str) and stage in {'initialize', 'tool_scope', 'turn'} else 'OTHER'
+    assert summary['provider_failure_stages'] == {expected: 2}
+    assert 'SECRET_CANARY' not in json.dumps(summary)
+
+
+def test_provider_failure_projection_rejects_wrong_shapes_and_bounds(monkeypatch):
+    diagnostic = {'type': 'zhizhi.codex_cli.failure', 'details': {'stage': 'turn'}}
+    for message in [None, [], {'role': 'user', 'diagnostics': [diagnostic]},
+                    {'role': 'assistant', 'diagnostics': {'SECRET_CANARY': diagnostic}}]:
+        raw = json.dumps({'type': 'message_update', 'assistantMessageEvent': {'type': 'error', 'error': message}}).encode()
+        assert once.event_summary(raw)['provider_failure_stages'] == {}
+    monkeypatch.setattr(once, 'SUMMARY_MAX_COUNT', 2)
+    raw = json.dumps({'type': 'message_end', 'message': {'role': 'assistant',
+                     'diagnostics': [{'type': 'zhizhi.codex_cli.failure', 'details': ['SECRET_CANARY']}] * 5}}).encode()
+    summary = once.event_summary(raw)
+    assert summary['provider_failure_stages'] == {'OTHER': 2}
+    assert 'SECRET_CANARY' not in json.dumps(summary)

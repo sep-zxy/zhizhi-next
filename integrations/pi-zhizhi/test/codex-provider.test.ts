@@ -214,3 +214,22 @@ test('fixture: slow verified hello has its own bounded startup allowance, not a 
   assert.deepEqual(timeouts, [90000, 120000]);
   await bridge.close(); assert.equal(closed, 1);
 });
+
+
+test('fixed provider failure stages distinguish startup, tool scope and turn without leaking exception text', async()=>{
+ const tools=registeredTools().filter(t=>t.name==='zhizhi_search');
+ for(const stage of ['initialize','tool_scope','turn']) {
+  const bridge=new CodexBridgeProvider(tools,()=>({
+   async request(request) {
+    if(stage==='initialize' || request.type==='turn')throw new Error('PRIVATE_EXCEPTION_SENTINEL access_token=private');
+    return {version:1,id:request.id,type:'response',status:'ready',capabilities:makeCaps(tools)};
+   },async close(){},
+  }));
+  const message=await bridge.provider.streamSimple(CODEX_MODEL,context([user()],stage==='tool_scope'?[]:tools)).result();
+  assert.equal(message.stopReason,'error');
+  assert.equal(message.diagnostics?.find(d=>d.type==='zhizhi.codex_cli.failure')?.details?.stage,stage);
+  assert.ok(!JSON.stringify(message).includes('PRIVATE_EXCEPTION_SENTINEL'));
+  assert.ok(!JSON.stringify(message).includes('access_token'));
+  await bridge.close();
+ }
+});

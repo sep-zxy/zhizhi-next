@@ -114,12 +114,13 @@ export class CodexBridgeProvider {
       usage: zeroUsage(), stopReason: 'pending', timestamp: Date.now(), diagnostics: [{ type: 'zhizhi.codex_cli', timestamp: Date.now(), details: { usage_available: false, cost_available: false, actual_model_available: false } }] };
     void (async () => {
       let owns = false;
+      let failureStage: 'initialize' | 'tool_scope' | 'turn' = 'initialize';
       try {
         if (this.terminated) fail('BRIDGE_CLOSED');
         if (this.busy) fail('BRIDGE_BUSY'); this.busy = true; owns = true;
         if (signal?.aborted) fail('BRIDGE_CANCELLED');
         if (model.id !== BRIDGE_MODEL || model.provider !== BRIDGE_PROVIDER || model.api !== CODEX_MODEL.api || model.baseUrl !== '' || apiKey) fail('BRIDGE_MODEL_SELECTION_CHANGED');
-        const caps = await this.initialize(); const current = getCurrentTools(context.messages); assertToolSchemas(current, this.trustedTools, caps);
+        const caps = await this.initialize(); failureStage = 'tool_scope'; const current = getCurrentTools(context.messages); assertToolSchemas(current, this.trustedTools, caps);
         const messages = this.messages(context);
         if (messages.length === 1 && messages[0].role === 'user') {
           const user = context.messages.filter(message => message.role === 'user').at(-1)!;
@@ -139,6 +140,7 @@ export class CodexBridgeProvider {
         if (run.calls >= caps.limits.model_calls_per_run || this.processCalls >= caps.limits.model_calls_per_process) fail('BRIDGE_MODEL_BUDGET_EXHAUSTED');
         run.calls++; this.processCalls++; const id = randomUUID();
         stream.push({ type: 'start', partial });
+        failureStage = 'turn';
         const response = parseResponse(await this.transport!.request({ version: 1, id, type: 'turn', run_id: run.id, turn: run.turn++, messages }, signal, caps.limits.timeout_seconds * 1000));
         if (signal?.aborted || this.terminated || run.closed) fail('BRIDGE_CANCELLED');
         this.validateTurn(response, id); const output = response.output!;
@@ -166,6 +168,7 @@ export class CodexBridgeProvider {
         if (owns && this.run) this.run.closed = true;
         const code = error instanceof BridgeError ? error.code : 'BRIDGE_REQUEST_FAILED';
         partial.content = []; partial.stopReason = code === 'BRIDGE_CANCELLED' ? 'aborted' : 'error'; partial.errorMessage = code;
+        partial.diagnostics!.push({ type: 'zhizhi.codex_cli.failure', timestamp: Date.now(), details: { stage: failureStage } });
         stream.push({ type: 'error', reason: partial.stopReason, error: partial });
       } finally { if (owns) this.busy = false; stream.end(partial); }
     })();

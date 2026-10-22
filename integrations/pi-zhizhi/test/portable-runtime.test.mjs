@@ -95,3 +95,15 @@ test('compiled extension preserves tool denial and human-only approval boundary'
   }
   await assert.rejects(commands.get('zhizhi-review').handler('change-1',{mode:'rpc',hasUI:true}),/REQUIRES_LOCAL_TUI/);
 });
+
+test('packaged native retry policy uses official Pi settings and preserves unrelated profile settings', async () => {
+  const directory = await mkdtemp(join(tmpdir(),'pi-native-retry-fixture-'));
+  try {
+    const { SettingsManager } = await import(pathToFileURL(join(root,'node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js')).href);
+    const { disableAutomaticRetries } = await import(pathToFileURL(join(root,'retry-policy.mjs')).href);
+    await writeFile(join(directory,'settings.json'),JSON.stringify({theme:'fixture-theme',retry:{enabled:true,maxRetries:3}}));
+    await disableAutomaticRetries(SettingsManager,directory);
+    assert.equal(SettingsManager.create(directory,directory).getRetryEnabled(),false);
+    assert.deepEqual(JSON.parse(await readFile(join(directory,'settings.json'),'utf8')),{theme:'fixture-theme',retry:{enabled:false,maxRetries:3}});
+  } finally { await rm(directory,{recursive:true,force:true}); }
+});

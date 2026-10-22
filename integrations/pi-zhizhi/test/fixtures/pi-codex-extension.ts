@@ -21,6 +21,7 @@ export default function fixtureExtension(pi: ExtensionAPI) {
       audit({event:'bridge',request});
       if(request.type==='hello')return {version:1,id:request.id,type:'response',status:'ready',capabilities:makeCaps(tools.filter(t=>t.name==='zhizhi_search'),{model_calls_per_run:2,tool_calls_per_run:1})};
       assert.equal(request.type,'turn'); modelCalls++;
+      if(process.env.ZHIZHI_FIXTURE_BRIDGE_FAILURE==='timeout') return {version:1,id:request.id,type:'response',status:'blocked',output:null,error_code:'BRIDGE_TIMEOUT'};
       if(modelCalls===1) {assert.equal(domainCalls,0); return success(request,call);}
       assert.equal(modelCalls,2); assert.equal(domainCalls,1);
       assert.equal(request.turn,2); assert.deepEqual(request.messages.at(-1),{role:'tool',tool_call_id:call.id,name:call.name,result:domainEnvelope});

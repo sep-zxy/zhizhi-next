@@ -21,6 +21,11 @@ try {
   const tail = relative(canonicalRoot,realpathSync(agentDir));
   if (tail === '..' || tail.startsWith('..'+sep) || isAbsolute(tail) || existsSync(join(agentDir,'models.json'))) waiting('DEDICATED_UNMODIFIED_PI_HOST_REQUIRED');
 } catch { waiting('PACKAGED_CODEX_BRIDGE_REQUIRED'); }
+try {
+  const { SettingsManager } = await import('./node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js');
+  const { disableAutomaticRetries } = await import('./retry-policy.mjs');
+  await disableAutomaticRetries(SettingsManager, agentDir);
+} catch { waiting('PI_RETRY_POLICY_UNAVAILABLE'); }
 const cli = fileURLToPath(new URL('./cli-native.mjs', import.meta.url));
 const extension = fileURLToPath(new URL('./extensions/index.js', import.meta.url));
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
