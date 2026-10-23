@@ -20,7 +20,7 @@ import zipfile
 
 from build_bundle import RUNTIMES, download, json_write, sha256
 
-LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1}
+LEARNING_JOURNEYS = {"zhizhi-domain.spec.ts": 35, "growth-topics.spec.ts": 1}
 PRIVATE_WIKI_JOURNEYS = {"wiki.spec.ts": 7, "local-test-pairing.spec.ts": 2,
                          "v1-actions.spec.ts": 13, "owner-access.spec.ts": 6,
                          "text-intake.spec.ts": 4}
@@ -160,6 +160,7 @@ def build(repo: Path, work: Path) -> dict:
     env.pop("ZHIZHI_ALLOW_ISOLATED_CLOUD_BUILD", None)
     env.pop("ZHIZHI_BUILD_AUTHORIZATION", None)
     env.pop("WIKI_BROWSER_EXECUTABLE", None)
+    env.pop("ZHIZHI_REVIEW_SCREENSHOTS", None)
 
     def run(name, command, cwd=repo, extra=None, check=None):
         try:
@@ -201,12 +202,17 @@ def build(repo: Path, work: Path) -> dict:
     # pnpm test is Vitest, not these full-page learning/domain journeys. Keep
     # this bounded to the approved P0 files, not the historical 15-project matrix.
     learning_report = evidence / "viewer-learning-browser.json"
+    # Explicit design review uses synthetic fixture content only. Keep images
+    # inside this run's evidence artifact, never the source tree or product.
+    learning_screenshots = evidence / "viewer-design-fixture-screenshots"
+    learning_screenshots.mkdir()
     run("viewer-learning-browser-fixtures", [
         "pnpm", "--dir", str(growth / "viewer"), "exec", "playwright", "test",
         *("tests/e2e/" + name for name in LEARNING_JOURNEYS),
         "--project=chromium-desktop", "--forbid-only", "--retries=0",
         "--reporter=list,json", "--output", str(evidence / "viewer-learning-browser"),
-    ], extra={"PLAYWRIGHT_JSON_OUTPUT_FILE": str(learning_report)},
+    ], extra={"PLAYWRIGHT_JSON_OUTPUT_FILE": str(learning_report),
+              "ZHIZHI_REVIEW_SCREENSHOTS": str(learning_screenshots)},
         check=lambda: verify_learning_report(learning_report))
     run("viewer-production-build", ["pnpm", "--dir", str(growth / "viewer"), "build"])
 

@@ -244,7 +244,7 @@ class GitHubProductTests(unittest.TestCase):
 
     def test_formal_entry_reference_journeys_cannot_reuse_the_previous_seventeen_report(self):
         self.assertEqual(product.LEARNING_JOURNEYS,
-                         {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1})
+                         {"zhizhi-domain.spec.ts": 35, "growth-topics.spec.ts": 1})
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "report.json"
             report = learning_report_fixture()
@@ -377,6 +377,41 @@ class GitHubProductTests(unittest.TestCase):
             report = learning_report_fixture()
             report["suites"][0]["specs"] = report["suites"][0]["specs"][:30]
             report["stats"]["expected"] = 31
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not all collected"):
+                product.verify_learning_report(path)
+
+    def test_design_review_opt_in_is_scoped_to_learning_browser_evidence(self):
+        repo = HERE.resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "product"
+            observed = []
+
+            def run(command, **kwargs):
+                observed.append((command, kwargs["env"]))
+                if "--project=chromium-desktop" in command:
+                    folder = Path(kwargs["env"]["ZHIZHI_REVIEW_SCREENSHOTS"])
+                    self.assertEqual(folder, output / "evidence/viewer-design-fixture-screenshots")
+                    self.assertTrue(folder.is_dir())
+                    self.assertEqual(kwargs["env"]["PLAYWRIGHT_JSON_OUTPUT_FILE"],
+                                     str(output / "evidence/viewer-learning-browser.json"))
+                    raise subprocess.CalledProcessError(1, "stop before actual browser/build")
+
+            with patch.object(product, "github_identity", return_value={}), \
+                    patch.object(product.subprocess, "run", side_effect=run), \
+                    patch.dict(os.environ, {"ZHIZHI_REVIEW_SCREENSHOTS": "/untrusted"}), \
+                    self.assertRaises(subprocess.CalledProcessError):
+                product.build(repo, output)
+            self.assertTrue(observed)
+            for _, env in observed[:-1]:
+                self.assertNotIn("ZHIZHI_REVIEW_SCREENSHOTS", env)
+            self.assertFalse((output / "bundle").exists())
+
+    def test_learning_design_review_cannot_reuse_pre_review_journey_floor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "report.json"
+            report = browser_report_fixture(
+                {"zhizhi-domain.spec.ts": 32, "growth-topics.spec.ts": 1}, "chromium-desktop")
             path.write_text(json.dumps(report), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "not all collected"):
                 product.verify_learning_report(path)
