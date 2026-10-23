@@ -620,12 +620,12 @@
       "phase": "V1-scope",
       "implementation": "partial",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "实现缺口：尚缺per-entry资格查询、preview/build统一命令编排；既有独立发布模块可复用，不造空命令；已实现：本地publish-verify针对现有清单按可信DB/Git/策略复验资格；不运行site build/deploy；验证：root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "gap": "实现缺口：实际Quartz build与发布的统一执行编排仍未完成；build-plan不是站点构建成功，不把公网部署作为默认获准动作；已实现：本地eligibility现时资格摘要、完整Git SHA的publish-preview全新隔离净化staging、publish-build-plan只读构建计划及publish-verify已实现；严格canonical/owner/现时领域资格；验证：root5ac2ec3已审查上述源码与最终报告：54项operator合成集成、683项扩大回归通过；未做本轮Windows/真实资料/实际build-deploy端到端",
       "real_e2e_verified": false,
-      "code_gap": "尚缺per-entry资格查询、preview/build统一命令编排；既有独立发布模块可复用，不造空命令",
-      "verification_gap": "root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "code_gap": "实际Quartz build与发布的统一执行编排仍未完成；build-plan不是站点构建成功，不把公网部署作为默认获准动作",
+      "verification_gap": "root5ac2ec3已审查上述源码与最终报告：54项operator合成集成、683项扩大回归通过；未做本轮Windows/真实资料/实际build-deploy端到端",
       "integrated_source": "projects/growth/src/ahadiff/knowledge_platform/operations_preview/",
-      "implemented_scope": "本地publish-verify针对现有清单按可信DB/Git/策略复验资格；不运行site build/deploy"
+      "implemented_scope": "本地eligibility现时资格摘要、完整Git SHA的publish-preview全新隔离净化staging、publish-build-plan只读构建计划及publish-verify已实现；严格canonical/owner/现时领域资格"
     },
     {
       "id": "C21",
@@ -633,10 +633,10 @@
       "phase": "V1-scope",
       "implementation": "implemented",
       "source": "integrations/pi-zhizhi/src/index.ts",
-      "gap": "核心实现：本地backup-inspect快照一致性检查及restore-plan --dry-run已实现；仅输出隔离恢复计划，recovery_proven=false；验证：root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "gap": "核心实现：本地backup-inspect快照一致性检查及restore-plan --dry-run已实现；仅输出隔离恢复计划，recovery_proven=false；验证：root5ac2ec3已有独立操作员模块；最新模块报告54项合成集成、683项扩大回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
       "real_e2e_verified": false,
       "code_gap": "",
-      "verification_gap": "root d78a91d已有独立操作员模块；模块报告38项合成集成、667项相邻回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
+      "verification_gap": "root5ac2ec3已有独立操作员模块；最新模块报告54项合成集成、683项扩大回归通过。未做Windows或真实资料验收，不证明实际恢复/部署",
       "integrated_source": "projects/growth/src/ahadiff/knowledge_platform/operations_preview/",
       "implemented_scope": "本地backup-inspect快照一致性检查及restore-plan --dry-run已实现；仅输出隔离恢复计划，recovery_proven=false"
     }
@@ -651,5 +651,5 @@
     "docs/implementation/cloud-integration-review-20261023/README.md",
     "docs/implementation/operator-preview-review-20261023/README.md"
   ],
-  "follow_up_implementation": "C07正式后端a92ee58、CLI 5f26092、握手修复445f3c6；C03/C10本人接线以本阶段源码及测试为准。未提前标记其他并行任务完成。"
+  "follow_up_implementation": "C07正式后端a92ee58、CLI 5f26092、握手修复445f3c6；C03/C10本人接线以本阶段源码及测试为准。未提前标记其他并行任务完成。；C20按root5ac2ec3补充现时资格/隔离预览/只读build-plan；仍非实际构建部署完成。"
 }
