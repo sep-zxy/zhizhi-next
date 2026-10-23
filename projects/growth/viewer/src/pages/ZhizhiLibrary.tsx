@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
@@ -24,6 +25,20 @@ export default function ZhizhiLibrary({
   projects: Array<{ project_id: string; name: string }>;
 }) {
   const [params, setParams] = useSearchParams();
+  // Router search-param callbacks are not queued like React state updates.
+  // A search event can arrive before the preceding tab navigation renders.
+  // Compose those events against the latest requested query, while a later
+  // router render (including back/forward navigation) remains authoritative.
+  const query = useRef({ rendered: params, pending: params });
+  if (query.current.rendered !== params) {
+    query.current = { rendered: params, pending: params };
+  }
+  function updateQuery(key: string, value: string) {
+    const next = new URLSearchParams(query.current.pending);
+    value ? next.set(key, value) : next.delete(key);
+    query.current.pending = next;
+    setParams(next);
+  }
   const tab =
     params.get('library_tab') === 'topics'
       ? 'topics'
@@ -34,18 +49,10 @@ export default function ZhizhiLibrary({
     ['confused', 'revisit'].includes(card.followup_mark),
   );
   function select(value: string) {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      next.set('library_tab', value);
-      return next;
-    });
+    updateQuery('library_tab', value);
   }
   function search(value: string) {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      value ? next.set('q', value) : next.delete('q');
-      return next;
-    });
+    updateQuery('q', value);
   }
   const rows = tab === 'revisit' ? revisit : cards;
   return (

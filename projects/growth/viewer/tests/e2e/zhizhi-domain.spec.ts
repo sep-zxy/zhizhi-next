@@ -1897,6 +1897,19 @@ test('学习库视图恢复、会话独立导航和搜索空态', async ({ page 
   await page
     .getByRole('textbox', { name: '搜索学习材料' })
     .fill('没有匹配的关键词');
+  // Do not wait between the tab click and fill: consecutive events must merge.
+  await expect(page).toHaveURL(/library_tab=plan/);
+  await expect(
+    page.getByRole('button', { name: '我的计划', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('还没有符合条件的材料')).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole('textbox', { name: '搜索学习材料' }),
+  ).toHaveValue('没有匹配的关键词');
+  await expect(
+    page.getByRole('button', { name: '我的计划', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('还没有符合条件的材料')).toBeVisible();
   await page
     .locator('#growth-navigation')
