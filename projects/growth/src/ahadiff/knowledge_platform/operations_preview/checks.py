@@ -19,7 +19,7 @@ from typing import Any
 from ..portable import require_portable_path
 from ..git_process import run_git
 from ..publish.projection import _path
-from ..publish.revalidate import bind_domain_publication, revalidate_public_projection
+from ..publish.revalidate import bind_domain_publication
 from ..writer import GitWriter, ReadOnlyGitWriter, _git_command
 
 
@@ -258,13 +258,14 @@ def verify_publication_manifest(manifest_path: str | Path, *, repository: str | 
     Temporary files used by the existing revalidator are removed before return.
     """
     manifest = _json(Path(manifest_path))
+    from .projection import revalidate_domain_projection
     policy = _json(Path(policy_path))
     repo = _repository(Path(repository))
     db = _safe(database)
     domain, resolver = bind_domain_publication(db, owner_id, repo,
                                               domain_policy_version=domain_policy_version)
     try:
-        revalidate_public_projection(manifest, repository=repo, policy=policy,
+        revalidate_domain_projection(manifest, repository=repo, owner_id=owner_id, policy=policy,
                                      publication_resolver=resolver)
     finally:
         domain.close()
