@@ -251,15 +251,19 @@ def test_no_provider_or_model_fallback():
         CodexRunnerConfig(expected_version="unknown")
 
 
-@pytest.mark.parametrize("version", ["0.163.0-alpha.12", "0.163.0", "0.163.*", "*", ""])
+@pytest.mark.parametrize("version", [
+    "0.163.0-alpha.11.1", "0.163.0-alpha.11.3", "0.163.0-alpha.11.20",
+    "0.163.0-alpha.11.2+unreviewed", "0.163.0-alpha.11.2 ",
+    "0.163.0-alpha.12", "0.163.0", "0.163.*", "*", "",
+])
 def test_unreviewed_or_wildcard_versions_are_rejected(version):
     with pytest.raises(ValueError, match="exact reviewed"):
         CodexRunnerConfig(expected_version=version)
 
 
 def test_reviewed_previous_version_requires_its_exact_explicit_pin(tmp_path):
-    assert CODEX_VERSION == "0.163.0-alpha.11"
-    assert SUPPORTED_CODEX_VERSIONS == ("0.163.0-alpha.10.2", "0.163.0-alpha.11")
+    assert CODEX_VERSION == "0.163.0-alpha.11.2"
+    assert SUPPORTED_CODEX_VERSIONS == ("0.163.0-alpha.10.2", "0.163.0-alpha.11", CODEX_VERSION)
     result = asyncio.run(runner(tmp_path, "reviewed_previous_version",
                                 expected_version="0.163.0-alpha.10.2").run(task()))
     assert result.status == "succeeded" and result.fixture
@@ -272,11 +276,11 @@ def test_exact_version_allowlist_matches_official_source_review_and_packaging_ex
     assert review["repository"] == "openai/codex"
     assert set(review["versions"]) == set(SUPPORTED_CODEX_VERSIONS)
     assert review["versions"][CODEX_VERSION]["commit"] == (
-        "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3"
+        "51f97c6bca5500edbb986f6d9fe64fa2e63cbdd4"
     )
     for path in ("codex-rs/exec/src/cli.rs", "codex-rs/exec/src/exec_events.rs",
                  "codex-rs/exec/src/event_processor_with_jsonl_output.rs",
-                 "codex-rs/exec/src/lib.rs", "codex-rs/cli/src/login.rs",
+                 "codex-rs/cli/src/login.rs",
                  "codex-rs/core/src/tools/spec_plan.rs"):
         evidence = review["files"][path]
         assert evidence["identical"] is True
@@ -290,7 +294,10 @@ def test_exact_version_allowlist_matches_official_source_review_and_packaging_ex
 @pytest.mark.parametrize("scenario, expected", [
     ("reviewed_previous_version", "0.163.0-alpha.11"),
     ("success", "0.163.0-alpha.10.2"),
-    ("unreviewed_next_version", "0.163.0-alpha.11"),
+    ("unreviewed_next_version", CODEX_VERSION),
+    ("unreviewed_patch_version", CODEX_VERSION),
+    ("reviewed_base_version", CODEX_VERSION),
+    ("success", "0.163.0-alpha.11"),
 ])
 def test_version_mismatch_stops_before_authentication_and_model(tmp_path, scenario, expected):
     result = asyncio.run(runner(tmp_path, scenario, expected_version=expected).run(task()))
@@ -520,3 +527,21 @@ def test_real_task_ledger_retains_only_allowlisted_failure_diagnostic(tmp_path):
         assert domain.list_entries(actor=owner) == []
     finally:
         domain.close()
+
+
+def test_reviewed_base_version_remains_explicit_only(tmp_path):
+    result = asyncio.run(runner(tmp_path, "reviewed_base_version",
+                                expected_version="0.163.0-alpha.11").run(task()))
+    assert result.status == "succeeded" and result.fixture
+    assert result.runtime_version == "codex-cli 0.163.0-alpha.11"
+
+
+def test_patch_review_records_changed_utf16_decoder_without_claiming_blob_identity():
+    root = Path(__file__).resolve().parents[5]
+    review = json.loads((root / "deploy/windows-portable/codex-version-review.json").read_text())
+    changed = review["files"]["codex-rs/exec/src/lib.rs"]
+    assert changed["identical"] is False
+    assert changed[CODEX_VERSION] == "78f6eb33e03bb36c0c4eeae025da9c380a76c270"
+    assert "decode_utf16" in review["patch_review"]["differences"]["codex-rs/exec/src/lib.rs"]
+    for evidence in review["patch_review"]["notice_producers"]:
+        assert evidence["identical"] or evidence["path"] == "codex-rs/exec/src/lib.rs"

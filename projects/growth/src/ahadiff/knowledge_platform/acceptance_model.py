@@ -39,7 +39,7 @@ USER_TEXT = (
     "未见真实 Writer 提交前不能称为已写入，私有写入也不等于公开。"
 )
 MODEL = "gpt-6.1-sol"
-VERSION = "0.163.0-alpha.11"
+VERSION = "0.163.0-alpha.11.2"
 WORKER = "portable-acceptance-worker"
 
 

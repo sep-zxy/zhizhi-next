@@ -284,7 +284,7 @@ def test_closed_output_vocabulary_and_reviewed_source_manifest():
     )
     assert record["commit"] == "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3"
     assert record["scope"]["task_fingerprint"] == fixed_public_smoke_task().fingerprint
-    assert record["cli_version"] == "0.163.0-alpha.11"
+    assert record["cli_version"] == "0.163.0-alpha.11.2"
     assert set(record["output"]["families"]) == FAMILIES
     assert set(record["output"]["evidence"]) == EVIDENCE_IDS
     assert {c["id"] for c in record["full_grammar_candidates"]} == (

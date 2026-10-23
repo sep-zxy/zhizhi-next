@@ -64,7 +64,7 @@ def test_nonfatal_notices_do_not_require_a_template_or_raw_text_disclosure(detai
     assert UNKNOWN not in json.dumps(events.notification)
 
 
-@pytest.mark.parametrize("version", [None, "0.163.0-alpha.10.2", "0.163.0-alpha.11"])
+@pytest.mark.parametrize("version", [None, "0.163.0-alpha.10.2", "0.163.0-alpha.11", "0.163.0-alpha.11.2"])
 def test_protocol_semantics_do_not_depend_on_a_two_template_version_allowlist(version):
     # Actual runner version verification is separately mandatory before exec.
     events = _ExecEvents(20, cli_version=version)

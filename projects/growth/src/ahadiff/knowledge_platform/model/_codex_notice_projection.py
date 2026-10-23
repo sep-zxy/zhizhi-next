@@ -13,7 +13,7 @@ from typing import Any
 
 from ._codex_notice_templates import EXACT_NOTIFICATION_TEMPLATES, OFFICIAL_NOTICE_COMMIT
 
-PROJECTION_CLI_VERSION = "0.163.0-alpha.11"
+PROJECTION_CLI_VERSION = "0.163.0-alpha.11.2"
 # Bound to diagnostic_probe.fixed_public_smoke_task(); regression checks drift.
 PROJECTION_TASK_FINGERPRINT = "84876861b54346f1487a90314acfedc2ceb0180745186eca4f3ab370ac16749a"
 MAX_NOTICE_BYTES = 8192

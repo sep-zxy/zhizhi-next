@@ -2,7 +2,7 @@
   "reviewed_at_utc": "2026-10-21T15:08:00Z",
   "repository": "openai/codex",
   "commit": "5425d3e625daa58eea3ad1de27c087eb3b2ffbd3",
-  "cli_version": "0.163.0-alpha.11",
+  "cli_version": "0.163.0-alpha.11.2",
   "projection_version": 1,
   "scope": {
     "explicit_flag": "--notice-projection",
@@ -151,5 +151,7 @@
     "effect": "Every item.error stays blocked with output null. No retry, model/provider fallback, new credentials, feature/config changes or permission expansion. Projection failure cannot replace primary notification rejection.",
     "ordinary_tasks": "Collector defaults off. Runner independently verifies all fixed public task semantic fields via fingerprint, execution IDs, empty trace/deadline, exact model/version and both diagnostic collectors BEFORE subprocess or cache access.",
     "limitations": "Non-exhaustive reviewed producer inventory. Nothing here proves the observed 144-byte unknown notification belongs to any listed producer. If the next authorized probe remains unknown or only an insufficient family hint, stop template-guess/build loops; user-local review of that one message needs a separately approved nonlogging mechanism. No human window in this patch."
-  }
+  },
+  "patch_compatibility_review": "codex-version-review.json#patch_review",
+  "provenance_note": "Original producer citations remain at alpha.11; patch_review records alpha.11.2 blob comparison. Only exec/lib UTF-16 iteration changed, not notice production."
 }

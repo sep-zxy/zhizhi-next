@@ -125,7 +125,7 @@ def test_manifest_is_two_fixed_synthetic_utf8_strings_without_newlines():
     manifest = material_manifest()
     assert manifest["synthetic"] is True and manifest["real_user_expression"] is False
     assert manifest["model"] == "gpt-6.1-sol"
-    assert manifest["cli_version"] == "0.163.0-alpha.11"
+    assert manifest["cli_version"] == "0.163.0-alpha.11.2"
     for name, text in (("source", SOURCE_TEXT), ("explanation", USER_TEXT)):
         assert not text.endswith("\n")
         assert manifest["materials"][name]["sha256"] == hashlib.sha256(text.encode()).hexdigest()

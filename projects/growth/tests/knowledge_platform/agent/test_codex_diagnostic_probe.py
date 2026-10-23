@@ -44,7 +44,7 @@ def test_default_probe_never_executes_model_or_persists_raw_data(tmp_path):
     assert report["mode"] == "host_only" and report["model_attempted"] is False
     assert report["model"] is None and report["fixture"] is True
     assert report["platform_e2e"] == "not_run"
-    assert report["expected_cli_version"] == "0.163.0-alpha.11"
+    assert report["expected_cli_version"] == "0.163.0-alpha.11.2"
     assert report["preflight"] == {"version": "verified", "login": "chatgpt"}
     for process in report["processes"]:
         assert process["exit_code"] == 0

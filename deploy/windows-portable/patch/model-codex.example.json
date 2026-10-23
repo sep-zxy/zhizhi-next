@@ -3,7 +3,7 @@
   "adapter": "codex_cli",
   "reuse_existing_login": true,
   "executable": ["C:\\REPLACE_WITH_EXISTING_OFFICIAL_CODEX\\codex.exe"],
-  "expected_version": "0.163.0-alpha.11",
+  "expected_version": "0.163.0-alpha.11.2",
   "codex_home": "C:\\REPLACE_WITH_EXISTING_USER_HOME\\.codex",
   "routes": [{"provider_id": "openai", "model_id": "gpt-6.1-sol", "account_qualified": true, "allowed_classifications": ["public", "personal"]}],
   "timeout_seconds": 120,

@@ -44,10 +44,10 @@ from .diagnostics import (
 from .pi_runner import SYSTEM_PROMPT, RpcFailure, SubscriptionRoute, classify_provider_error
 from .validation import OUTPUT_ERRORS, contains_obvious_secret, parse_output, validate_schema
 
-CODEX_VERSION = "0.163.0-alpha.11"
+CODEX_VERSION = "0.163.0-alpha.11.2"
 # Exact official-source review is recorded in deploy/windows-portable/
 # codex-version-review.json. Never infer compatibility from a version prefix.
-SUPPORTED_CODEX_VERSIONS = ("0.163.0-alpha.10.2", CODEX_VERSION)
+SUPPORTED_CODEX_VERSIONS = ("0.163.0-alpha.10.2", "0.163.0-alpha.11", CODEX_VERSION)
 # A string envelope supports our existing schemas (optional keys/local refs),
 # without weakening them to fit the provider's strict structured-output subset.
 ENVELOPE_SCHEMA = {
