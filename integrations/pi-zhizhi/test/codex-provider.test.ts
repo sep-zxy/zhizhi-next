@@ -254,3 +254,16 @@ test('unknown model diagnostic fields and values cannot cross strict response bo
     assert.equal(result.message.diagnostics!.at(-1)!.details!.model_failure, undefined);
   }
 });
+
+for (const code of ['NO_APPROVED_SUBSCRIPTION_ROUTE', 'SECRET_INPUT_FORBIDDEN', 'REQUEST_SCHEMA_INVALID']) {
+  test(`pre-execution ${code} preserves closed diagnostics without a retry`, async () => {
+    const failure = { stage: 'validation', kind: 'policy', summary: 'policy_rejected' };
+    const f = fixture([r => ({ ...success(r, finalText), status: 'blocked', output: null, error_code: code, failure })]);
+    const result = await f.run([user()]);
+    failed(result.message, new RegExp(`^${code}$`));
+    assert.equal(result.message.diagnostics!.at(-1)!.details!.stage, 'turn');
+    assert.deepEqual(result.message.diagnostics!.at(-1)!.details!.model_failure, failure);
+    assert.deepEqual(result.events, ['start', 'error']);
+    assert.equal(f.requests.filter(r => r.type === 'turn').length, 1);
+  });
+}

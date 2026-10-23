@@ -360,6 +360,29 @@ def test_model_failure_projection_preserves_only_fixed_vocabulary(code):
     assert 'PRIVATE_SENTINEL' not in json.dumps(projected)
 
 
+@pytest.mark.parametrize('code', [
+    'NO_APPROVED_SUBSCRIPTION_ROUTE', 'SECRET_INPUT_FORBIDDEN', 'REQUEST_SCHEMA_INVALID',
+])
+def test_pre_execution_failure_projection_is_closed_and_does_not_accept_journey(code):
+    message = {'role': 'assistant', 'stopReason': 'error', 'errorMessage': code,
+               'diagnostics': [{'type': 'zhizhi.codex_cli.failure', 'details': {
+                   'stage': 'turn', 'model_failure': {
+                       'stage': 'validation', 'kind': 'policy', 'summary': 'policy_rejected'}}}]}
+    raw = json.dumps({'type': 'message_end', 'message': message}).encode()
+    projected = once.event_summary(raw)
+    assert projected['error_codes'] == {code: 1}
+    assert projected['provider_failure_stages'] == {'turn': 1}
+    assert projected['model_failure_stages'] == {'validation': 1}
+    assert projected['model_failure_kinds'] == {'policy': 1}
+    assert projected['model_failure_summaries'] == {'policy_rejected': 1}
+    with pytest.raises(ValueError):
+        once.checked_events(raw)
+    message['errorMessage'] = 'UNREVIEWED_ERROR_CANARY'
+    projected = once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())
+    assert projected['error_codes'] == {'OTHER': 1}
+    assert 'UNREVIEWED_ERROR_CANARY' not in json.dumps(projected)
+
+
 def test_failure_vocabulary_matches_python_runner_and_typescript_protocol():
     from ahadiff.knowledge_platform.model import diagnostics
     protocol = (Path(__file__).parents[2] / 'integrations/pi-zhizhi/src/codex-bridge-protocol.ts').read_text()

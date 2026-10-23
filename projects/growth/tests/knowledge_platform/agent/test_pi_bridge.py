@@ -654,3 +654,127 @@ def test_failure_diagnostic_projects_only_closed_vocabulary():
     assert response['output'] is None
     assert response['failure'] == {'stage': 'output', 'kind': 'output', 'summary': 'output_validation_failed'}
     assert response['error_code'] == 'OUTPUT_SCHEMA_INVALID'
+
+
+def _production_codex_bridge(monkeypatch):
+    """Production adapter boundary with an unreachable executable, not live E2E."""
+    from unittest.mock import AsyncMock
+
+    from ahadiff.knowledge_platform.model.codex_runner import CodexModelRunner, CodexRunnerConfig
+    from ahadiff.knowledge_platform.model.pi_bridge import BridgeLimits
+    from ahadiff.knowledge_platform.model.pi_runner import SubscriptionRoute
+
+    runner = CodexModelRunner(CodexRunnerConfig(
+        enabled=True, reuse_existing_login=True, executable=("MUST_NOT_EXECUTE",),
+        routes=(SubscriptionRoute(provider_id="openai", model_id=MODEL,
+                                  account_qualified=True, allowed_classifications=("personal",)),),
+    ))
+    bridge, _ = setup()
+    bridge.runner = runner
+    bridge.config = replace(
+        bridge.config, allowed_tools=("zhizhi_search",),
+        limits=BridgeLimits(model_calls_per_run=2, tool_calls_per_run=1,
+                            model_calls_per_process=2, timeout_seconds=120),
+    )
+    reserved = []
+    bridge._reserve = lambda task: reserved.append(task) or True
+    process = AsyncMock(side_effect=AssertionError("Actual process execution forbidden"))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", process)
+    return bridge, runner, reserved, process
+
+
+def test_production_pi_codex_schema_boundary_no_model_two_turns(monkeypatch):
+    """Exercise both real adapters; only the model execution is synthetic."""
+    from unittest.mock import AsyncMock
+
+    from ahadiff.knowledge_platform.model.validation import parse_output, validate_schema
+
+    bridge, runner, reserved, process = _production_codex_bridge(monkeypatch)
+    outputs = [
+        {"type": "tool_call", "name": "zhizhi_search", "arguments": {"query": "synthetic"}},
+        {"type": "text", "text": "Synthetic answer, not real model evidence."},
+    ]
+
+    async def synthetic_execute(task, prompt, execution):
+        validate_schema(task.output_schema)
+        assert json.loads(prompt)["output_schema"] == task.output_schema
+        output = parse_output(json.dumps(outputs.pop(0)), task.output_schema)
+        return output, {}, ()
+
+    execute = AsyncMock(side_effect=synthetic_execute)
+    monkeypatch.setattr(runner, "_execute", execute)
+    first_request = request()
+    first = perform(bridge, first_request)
+    assert first["status"] == "succeeded"
+    assert first["output"]["type"] == "tool_call"
+    second = perform(bridge, follow(first_request, first))
+    assert second["status"] == "succeeded"
+    assert second["output"]["type"] == "text"
+    assert execute.await_count == len(reserved) == 2
+    assert len(reserved[0].output_schema["oneOf"]) == 2
+    assert len(reserved[1].output_schema["oneOf"]) == 1
+    assert all(task.output_schema["type"] == "object" for task in reserved)
+    assert all("failure" not in result for result in (first, second))
+    process.assert_not_awaited()
+
+
+@pytest.mark.parametrize("code", [
+    "NO_APPROVED_SUBSCRIPTION_ROUTE", "SECRET_INPUT_FORBIDDEN", "REQUEST_SCHEMA_INVALID",
+])
+def test_production_pi_codex_pre_execution_failures_are_bounded(monkeypatch, code):
+    """The old missing root type deterministically fails before any CLI call."""
+    from unittest.mock import AsyncMock
+
+    from ahadiff.knowledge_platform.model import pi_bridge
+
+    bridge, runner, reserved, process = _production_codex_bridge(monkeypatch)
+    execute = AsyncMock(side_effect=AssertionError("Model execution forbidden"))
+    monkeypatch.setattr(runner, "_execute", execute)
+    if code == "NO_APPROVED_SUBSCRIPTION_ROUTE":
+        runner.config = replace(runner.config, routes=())
+    elif code == "SECRET_INPUT_FORBIDDEN":
+        # Synthetic canary, never a real credential. The normal secret gate stays active.
+        monkeypatch.setattr(pi_bridge, "_INSTRUCTIONS", "sk-proj-" + "a" * 36)
+    else:
+        schema = bridge._schema
+        monkeypatch.setattr(bridge, "_schema", lambda names: {"oneOf": schema(names)["oneOf"]})
+    response = perform(bridge, request())
+    assert response["status"] == "blocked" and response["output"] is None
+    assert response["error_code"] == code
+    assert response["failure"] == {
+        "stage": "validation", "kind": "policy", "summary": "policy_rejected",
+    }
+    assert len(reserved) == 1
+    assert not bridge._issued
+    assert "sk-proj-" not in json.dumps(response)
+    execute.assert_not_awaited()
+    process.assert_not_awaited()
+
+
+@pytest.mark.parametrize("tools", [("zhizhi_search",), ()])
+def test_explicit_object_root_preserves_closed_union_acceptance(tools):
+    from jsonschema import Draft202012Validator
+
+    from ahadiff.knowledge_platform.model.validation import validate_schema
+
+    bridge, _ = setup()
+    schema = bridge._schema(tools)
+    validate_schema(schema)
+    old = {"oneOf": schema["oneOf"]}
+    valid = [{"type": "text", "text": "Synthetic"}]
+    if tools:
+        valid.append({"type": "tool_call", "name": "zhizhi_search",
+                      "arguments": {"query": "synthetic"}})
+    invalid = [None, [], 1, "text", {},
+               {"type": "text", "text": "Synthetic", "extra": True},
+               {"type": "tool_call", "name": "untrusted", "arguments": {}},
+               {"type": "tool_call", "name": "zhizhi_search",
+                "arguments": {"query": "synthetic", "owner": "extra"}},
+               {"type": "text", "text": "ok", "name": "zhizhi_search", "arguments": {}}]
+    if not tools:
+        invalid.append({"type": "tool_call", "name": "zhizhi_search",
+                        "arguments": {"query": "synthetic"}})
+    for value in valid + invalid:
+        accepted = Draft202012Validator(schema).is_valid(value)
+        assert accepted == (value in valid)
+        assert accepted == Draft202012Validator(old).is_valid(value)

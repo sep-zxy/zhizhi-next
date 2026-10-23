@@ -380,7 +380,10 @@ class PiBridge:
                         },
                     }
                 )
-        return {"oneOf": variants}
+        # The runner requires an explicit object root before any CLI execution.
+        # Every closed variant already requires an object; this adds no accepted
+        # output shapes and leaves the discriminator/tool argument guards intact.
+        return {"type": "object", "oneOf": variants}
 
     async def _permission(self, callback: Any, value: Any) -> bool:
         check_turn_deadline()

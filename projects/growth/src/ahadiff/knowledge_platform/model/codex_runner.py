@@ -724,7 +724,12 @@ class CodexModelRunner:
             or "openai" not in task.allowed_provider_ids
             or task.input_classification not in route.allowed_classifications
         ):
-            return outcome("blocked", "NO_APPROVED_SUBSCRIPTION_ROUTE")
+            return outcome(
+                "blocked", "NO_APPROVED_SUBSCRIPTION_ROUTE",
+                failure=coded_failure_diagnostic(
+                    "NO_APPROVED_SUBSCRIPTION_ROUTE", stage="validation"
+                ),
+            )
         contents = {
             "instructions": task.instructions,
             "schema": task.output_schema,
@@ -732,11 +737,17 @@ class CodexModelRunner:
             "input_refs": task.input_refs,
         }
         if task.input_classification == "secret" or contains_obvious_secret(contents):
-            return outcome("blocked", "SECRET_INPUT_FORBIDDEN")
+            return outcome(
+                "blocked", "SECRET_INPUT_FORBIDDEN",
+                failure=coded_failure_diagnostic("SECRET_INPUT_FORBIDDEN", stage="validation"),
+            )
         try:
             validate_schema(task.output_schema)
         except OUTPUT_ERRORS:
-            return outcome("blocked", "REQUEST_SCHEMA_INVALID")
+            return outcome(
+                "blocked", "REQUEST_SCHEMA_INVALID",
+                failure=coded_failure_diagnostic("REQUEST_SCHEMA_INVALID", stage="validation"),
+            )
         prompt = json.dumps(
             {
                 "system_instructions": SYSTEM_PROMPT,
