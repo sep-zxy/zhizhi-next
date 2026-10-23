@@ -639,3 +639,18 @@ def test_real_jsonl_pipe_cancels_readonly_preflight_before_reservation():
             await asyncio.wait_for(server, 2)
             source.close()
     asyncio.run(scenario())
+
+
+def test_failure_diagnostic_projects_only_closed_vocabulary():
+    from ahadiff.knowledge_platform.model.diagnostics import ModelFailure
+    bridge, runner = setup()
+    async def failed(task):
+        return ModelResult(task_id=task.task_id, status='invalid_output', output=None,
+                           input_fingerprint=task.fingerprint, error_code='OUTPUT_SCHEMA_INVALID',
+                           failure=ModelFailure(stage='output', kind='output', summary='output_validation_failed'))
+    runner.run = failed
+    response = perform(bridge, request())
+    assert response['status'] == 'invalid_output'
+    assert response['output'] is None
+    assert response['failure'] == {'stage': 'output', 'kind': 'output', 'summary': 'output_validation_failed'}
+    assert response['error_code'] == 'OUTPUT_SCHEMA_INVALID'

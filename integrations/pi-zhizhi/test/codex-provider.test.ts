@@ -233,3 +233,24 @@ test('fixed provider failure stages distinguish startup, tool scope and turn wit
   await bridge.close();
  }
 });
+
+test('failed turn preserves bounded model diagnostic without changing failure or retry semantics', async () => {
+  const modelFailure = { stage: 'output', kind: 'output', summary: 'output_validation_failed' };
+  const f = fixture([r => ({ ...success(r, finalText), status: 'invalid_output', output: null, error_code: 'OUTPUT_SCHEMA_INVALID', failure: modelFailure })]);
+  const result = await f.run([user()]);
+  failed(result.message, /^OUTPUT_SCHEMA_INVALID$/);
+  assert.deepEqual(result.message.diagnostics!.at(-1)!.details!.model_failure, modelFailure);
+  assert.equal(f.requests.filter(r => r.type === 'turn').length, 1);
+});
+
+test('unknown model diagnostic fields and values cannot cross strict response boundary', async () => {
+  for (const failure of [
+    { stage: 'output', kind: 'output', summary: 'PRIVATE_EXCEPTION_SENTINEL' },
+    { stage: 'output', kind: 'output', summary: 'output_validation_failed', raw: 'PRIVATE_EXCEPTION_SENTINEL' },
+  ]) {
+    const f = fixture([r => ({ ...success(r, finalText), status: 'invalid_output', output: null, error_code: 'OUTPUT_SCHEMA_INVALID', failure })]);
+    const result = await f.run([user()]);
+    failed(result.message, /^BRIDGE_PROTOCOL_INVALID$/);
+    assert.equal(result.message.diagnostics!.at(-1)!.details!.model_failure, undefined);
+  }
+});

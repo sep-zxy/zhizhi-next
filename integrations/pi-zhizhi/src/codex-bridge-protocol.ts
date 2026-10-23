@@ -17,7 +17,7 @@ export type BridgeCapabilities = { provider: typeof BRIDGE_PROVIDER; model: type
   tools: { name: string; parameters: ObjectValue }[];
   limits: { model_calls_per_run: number; tool_calls_per_run: number; model_calls_per_process: number; timeout_seconds: number } };
 export type BridgeResponse = { version: 1; id: string | null; type: 'response'; status: string;
-  capabilities?: BridgeCapabilities; error_code?: string | null; task_id?: string;
+  failure?: BridgeFailure; capabilities?: BridgeCapabilities; error_code?: string | null; task_id?: string;
   requested_model_id?: string; actual_model_id?: string | null; fixture?: boolean;
   usage?: Record<string, number>; output?: ({ type: 'text'; text: string } | ({ type: 'tool_call' } & BridgeCall)) | null };
 export class BridgeError extends Error { constructor(readonly code: string) { super(code); } }
@@ -56,9 +56,10 @@ export function parseStrictJson(line: string): unknown {
   return parsed;
 }
 export function parseResponse(raw: unknown): BridgeResponse {
-  if (!record(raw)) fail(); exact(raw, ['version', 'id', 'type', 'status'], ['capabilities', 'error_code', 'task_id', 'requested_model_id', 'actual_model_id', 'fixture', 'usage', 'output']);
+  if (!record(raw)) fail(); exact(raw, ['version', 'id', 'type', 'status'], ['failure', 'capabilities', 'error_code', 'task_id', 'requested_model_id', 'actual_model_id', 'fixture', 'usage', 'output']);
   if (raw.version !== 1 || raw.type !== 'response' || (raw.id !== null && !uuid(raw.id)) || typeof raw.status !== 'string') fail();
   if (raw.error_code !== undefined && raw.error_code !== null && (typeof raw.error_code !== 'string' || /^[A-Z][A-Z0-9_]{0,99}$/u.exec(raw.error_code)?.[0] !== raw.error_code)) fail();
+  if (raw.failure !== undefined) { if (raw.status === 'succeeded' || raw.status === 'ready') fail(); checkedFailure(raw.failure); }
   return raw as BridgeResponse;
 }
 export function capabilities(response: BridgeResponse): BridgeCapabilities {
@@ -72,3 +73,12 @@ export function capabilities(response: BridgeResponse): BridgeCapabilities {
   return value;
 }
 export interface BridgeTransport { request(request: BridgeRequest, signal?: AbortSignal, timeoutMs?: number): Promise<BridgeResponse>; close(): Promise<void> }
+
+export type BridgeFailure = { stage: string; kind: string; summary: string };
+export function checkedFailure(value: unknown): BridgeFailure {
+  if (!record(value)) fail(); exact(value, ["stage", "kind", "summary"]);
+  if (typeof value.stage !== "string" || !["authentication", "cleanup", "execution", "output", "queue", "validation", "version"].includes(value.stage)) fail();
+  if (typeof value.kind !== "string" || !["authentication", "host", "output", "policy", "process", "protocol", "provider", "quota", "timeout", "transport"].includes(value.kind)) fail();
+  if (typeof value.summary !== "string" || !["authentication_required", "cli_notification_requires_review", "cli_stream_error_requires_review", "deadline_exceeded", "host_cleanup_incomplete", "host_process_unavailable", "invalid_protocol_response", "output_validation_failed", "policy_rejected", "process_exited_unsuccessfully", "provider_reported_failure", "requested_model_unavailable", "runtime_boundary_violation", "runtime_version_mismatch", "sandbox_initialization_failed", "structured_output_schema_rejected", "subscription_quota_exhausted", "transport_connection_failed", "unexpected_tool_or_event", "unsupported_cli_configuration"].includes(value.summary)) fail();
+  return value as BridgeFailure;
+}

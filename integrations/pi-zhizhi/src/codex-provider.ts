@@ -114,6 +114,7 @@ export class CodexBridgeProvider {
       usage: zeroUsage(), stopReason: 'pending', timestamp: Date.now(), diagnostics: [{ type: 'zhizhi.codex_cli', timestamp: Date.now(), details: { usage_available: false, cost_available: false, actual_model_available: false } }] };
     void (async () => {
       let owns = false;
+      let modelFailure: { stage: string; kind: string; summary: string } | undefined;
       let failureStage: 'initialize' | 'tool_scope' | 'turn' = 'initialize';
       try {
         if (this.terminated) fail('BRIDGE_CLOSED');
@@ -143,6 +144,7 @@ export class CodexBridgeProvider {
         failureStage = 'turn';
         const response = parseResponse(await this.transport!.request({ version: 1, id, type: 'turn', run_id: run.id, turn: run.turn++, messages }, signal, caps.limits.timeout_seconds * 1000));
         if (signal?.aborted || this.terminated || run.closed) fail('BRIDGE_CANCELLED');
+        if (response.failure) modelFailure = { ...response.failure };
         this.validateTurn(response, id); const output = response.output!;
         partial.diagnostics = [{ type: 'zhizhi.codex_cli', timestamp: Date.now(), details: { task_id: response.task_id!, task_id_kind: 'model_call_correlation_not_domain_task', requested_model_id: BRIDGE_MODEL, actual_model_id: response.actual_model_id ?? null, actual_model_available: response.actual_model_id === BRIDGE_MODEL, fixture: response.fixture!, usage_available: Object.keys(response.usage!).length > 0, cost_available: false } }];
         const usage = response.usage!;
@@ -168,7 +170,7 @@ export class CodexBridgeProvider {
         if (owns && this.run) this.run.closed = true;
         const code = error instanceof BridgeError ? error.code : 'BRIDGE_REQUEST_FAILED';
         partial.content = []; partial.stopReason = code === 'BRIDGE_CANCELLED' ? 'aborted' : 'error'; partial.errorMessage = code;
-        partial.diagnostics!.push({ type: 'zhizhi.codex_cli.failure', timestamp: Date.now(), details: { stage: failureStage } });
+        partial.diagnostics!.push({ type: 'zhizhi.codex_cli.failure', timestamp: Date.now(), details: { stage: failureStage, ...(modelFailure ? { model_failure: modelFailure } : {}) } });
         stream.push({ type: 'error', reason: partial.stopReason, error: partial });
       } finally { if (owns) this.busy = false; stream.end(partial); }
     })();

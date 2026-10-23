@@ -47,6 +47,7 @@ ERROR_CODES = frozenset({
     'APPROVED_EXACT_CODEX_BRIDGE_REQUIRED', 'PACKAGED_CODEX_BRIDGE_REQUIRED',
     'DEDICATED_UNMODIFIED_PI_HOST_REQUIRED',
 })
+ERROR_CODES = ERROR_CODES | frozenset(['CODEX_AMBIGUOUS_OUTPUT', 'CODEX_CLEANUP_FAILED', 'CODEX_CLEANUP_PENDING', 'CODEX_EVENT_AFTER_COMPLETION', 'CODEX_EXECUTABLE_NOT_FOUND', 'CODEX_EXISTING_LOGIN_NOT_APPROVED', 'CODEX_HOST_INVALID', 'CODEX_INCOMPLETE_TURN', 'CODEX_INVALID_EVENT', 'CODEX_INVALID_JSONL', 'CODEX_NOTICE_PROJECTION_SCOPE_INVALID', 'CODEX_NOTIFICATION_LIMIT', 'CODEX_OUTPUT_TOO_LARGE', 'CODEX_PROCESS_FAILED', 'CODEX_RUNTIME_BOUNDARY_VIOLATION', 'CODEX_UNEXPECTED_EVENT', 'CODEX_USAGE_INVALID', 'CODEX_USAGE_MISSING', 'CODEX_VERSION_MISMATCH', 'FIXTURE_RESULT_FORBIDDEN', 'MODEL_DEADLINE_EXCEEDED', 'MODEL_IDEMPOTENCY_CONFLICT', 'MODEL_INPUT_TOO_LARGE', 'MODEL_OUTPUT_TOKEN_LIMIT', 'MODEL_PROCESSING_DISABLED', 'UNEXPECTED_MODEL_TOOL', 'CODEX_NOTIFICATION_REQUIRES_REVIEW', 'OUTPUT_SCHEMA_INVALID', 'PI_ACCEPTANCE_SCOPE_BLOCKED', 'SUBSCRIPTION_AUTH', 'SUBSCRIPTION_QUOTA'])
 SUMMARY_MAX_BYTES = 2_000_000
 SUMMARY_MAX_COUNT = 100_000
 
@@ -59,7 +60,7 @@ def event_summary(raw):
     Only terminal message_end contributes assistant stop reasons.
     """
     summary = {'wrapper_statuses': {}, 'event_counts': {}, 'assistant_stop_reasons': {}, 'error_codes': {},
-               'provider_failure_stages': {}, 'retry_counts': {'start': 0, 'end': 0}, 'malformed_json_count': 0,
+               'model_failure_stages': {}, 'model_failure_kinds': {}, 'model_failure_summaries': {}, 'provider_failure_stages': {}, 'retry_counts': {'start': 0, 'end': 0}, 'malformed_json_count': 0,
                'non_object_count': 0, 'truncated': len(raw) > SUMMARY_MAX_BYTES}
 
     def increment(counts, value, allowed):
@@ -81,6 +82,11 @@ def event_summary(raw):
             details = diagnostic.get('details')
             stage = details.get('stage') if isinstance(details, dict) else None
             increment(summary['provider_failure_stages'], stage, {'initialize', 'tool_scope', 'turn'})
+            model = details.get('model_failure') if isinstance(details, dict) else None
+            if isinstance(model, dict):
+                increment(summary['model_failure_stages'], model.get('stage'), {'validation', 'version', 'output', 'cleanup', 'queue', 'authentication', 'execution'})
+                increment(summary['model_failure_kinds'], model.get('kind'), {'quota', 'policy', 'host', 'process', 'timeout', 'output', 'provider', 'transport', 'authentication', 'protocol'})
+                increment(summary['model_failure_summaries'], model.get('summary'), {'authentication_required', 'provider_reported_failure', 'sandbox_initialization_failed', 'subscription_quota_exhausted', 'host_cleanup_incomplete', 'cli_notification_requires_review', 'runtime_boundary_violation', 'invalid_protocol_response', 'structured_output_schema_rejected', 'requested_model_unavailable', 'unexpected_tool_or_event', 'runtime_version_mismatch', 'deadline_exceeded', 'transport_connection_failed', 'cli_stream_error_requires_review', 'host_process_unavailable', 'unsupported_cli_configuration', 'output_validation_failed', 'process_exited_unsuccessfully', 'policy_rejected'})
 
     for line in raw[:SUMMARY_MAX_BYTES].split(b'\n'):
         if not line.strip():

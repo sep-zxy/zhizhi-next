@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from jsonschema import Draft202012Validator
 
 from .contracts import Classification, ModelResult, ModelRunner, ModelTask, canonical_hash
+from .diagnostics import sanitized_failure
 from .validation import contains_obvious_secret
 
 if TYPE_CHECKING:
@@ -620,6 +621,10 @@ class PiBridge:
             "output": output,
             "error_code": code,
         }
+        if status != "succeeded":
+            failure = sanitized_failure(result.failure)
+            if failure is not None:
+                response["failure"] = {key: failure[key] for key in ("stage", "kind", "summary")}
         if _json_size(response) > MAX_OUTPUT_BYTES:
             run.closed = True
             return self.error(request_id, "BRIDGE_OUTPUT_TOO_LARGE", status="invalid_output")

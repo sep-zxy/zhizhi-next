@@ -339,3 +339,38 @@ def test_preflight_prompt_child_verification_and_cleanup_have_distinct_clocks(tm
     assert report['process_failure'] == ('timeout' if timeout else None)
     if not timeout:
         assert report['status'] == 'pi_source_search_verified'
+
+@pytest.mark.parametrize('code', ['OUTPUT_SCHEMA_INVALID', 'CODEX_INCOMPLETE_TURN', 'MODEL_DEADLINE_EXCEEDED', 'PI_ACCEPTANCE_SCOPE_BLOCKED'])
+def test_model_failure_projection_preserves_only_fixed_vocabulary(code):
+    message = {'role': 'assistant', 'stopReason': 'error', 'errorMessage': code,
+               'diagnostics': [{'type': 'zhizhi.codex_cli.failure', 'details': {
+                   'stage': 'turn', 'model_failure': {'stage': 'output', 'kind': 'output',
+                   'summary': 'output_validation_failed', 'raw': 'PRIVATE_SENTINEL'}}}]}
+    projected = once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())
+    assert projected['error_codes'] == {code: 1}
+    assert projected['model_failure_stages'] == {'output': 1}
+    assert projected['model_failure_kinds'] == {'output': 1}
+    assert projected['model_failure_summaries'] == {'output_validation_failed': 1}
+    assert 'PRIVATE_SENTINEL' not in json.dumps(projected)
+    message['errorMessage'] = 'PRIVATE_SENTINEL'
+    message['diagnostics'][0]['details']['model_failure'] = dict.fromkeys(['stage', 'kind', 'summary'], 'PRIVATE_SENTINEL')
+    projected = once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())
+    assert projected['error_codes'] == {'OTHER': 1}
+    assert all(projected[key] == {'OTHER': 1} for key in ['model_failure_stages', 'model_failure_kinds', 'model_failure_summaries'])
+    assert 'PRIVATE_SENTINEL' not in json.dumps(projected)
+
+
+def test_failure_vocabulary_matches_python_runner_and_typescript_protocol():
+    from ahadiff.knowledge_platform.model import diagnostics
+    protocol = (Path(__file__).parents[2] / 'integrations/pi-zhizhi/src/codex-bridge-protocol.ts').read_text()
+    import re
+    for key, values in [('stage', diagnostics.FAILURE_STAGES), ('kind', diagnostics.FAILURE_KINDS), ('summary', diagnostics.FAILURE_SUMMARIES)]:
+        matched = re.search(r'!\[(.*?)\]\.includes\(value\.' + key + r'\)', protocol)
+        assert matched is not None
+        assert set(json.loads('[' + matched.group(1) + ']')) == values
+        for value in values:
+            message = {'role': 'assistant', 'stopReason': 'error', 'diagnostics': [
+                {'type': 'zhizhi.codex_cli.failure', 'details': {'stage': 'turn', 'model_failure': {key: value}}}]}
+            projected = once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())
+            plural = {'stage': 'stages', 'kind': 'kinds', 'summary': 'summaries'}[key]
+            assert projected['model_failure_' + plural] == {value: 1}
