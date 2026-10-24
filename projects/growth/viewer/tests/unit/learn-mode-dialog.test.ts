@@ -102,6 +102,8 @@ interface RenderOptions {
 
 declare global {
   interface Window {
+    __pendingFocusFrames: FrameRequestCallback[];
+    __flushFocusFrames: () => void;
     __cleanupLearnModeDialog: () => void;
     __currentPhase: string;
     __learnState: () => { phase: string; taskId: string | null; errorCode: string | null; retryable: boolean };
@@ -285,6 +287,33 @@ describe('LearnModeDialog source selection and preview', () => {
       { name: 'same.md', content: 'replacement content' },
       { name: 'same.md', content: 'after content' },
     ]);
+  });
+
+  it.each(['en', 'zh-CN'] as const)('does not steal keyboard focus from a file chooser when the opening frame arrives late in %s', async locale => {
+    // Hold the opening autofocus frame until after the user focuses a control.
+    // This reproduces the race without sleeps, slower CI, or a timeout increase.
+    await page.addInitScript(() => {
+      window.__pendingFocusFrames = [];
+      window.requestAnimationFrame = callback => window.__pendingFocusFrames.push(callback);
+      window.cancelAnimationFrame = id => { window.__pendingFocusFrames[id - 1] = () => {}; };
+      window.__flushFocusFrames = () => {
+        const callbacks = window.__pendingFocusFrames.splice(0);
+        for (const callback of callbacks) callback(performance.now());
+      };
+    });
+    await renderDialog(page, { initialSource: 'files', locale });
+    const chooser = page.getByRole('button', {
+      name: locale === 'en' ? 'Choose file: Before' : '修改前：选择文件', exact: true,
+    });
+    await expect.poll(() => chooser.isVisible()).toBe(true);
+    await expect.poll(() => page.evaluate(() => window.__pendingFocusFrames.length)).toBe(1);
+    await chooser.focus();
+    await page.evaluate(() => window.__flushFocusFrames());
+    expect(await chooser.evaluate(element => element === document.activeElement)).toBe(true);
+    const fileChooser = page.waitForEvent('filechooser');
+    await page.keyboard.press('Enter');
+    await (await fileChooser).setFiles({ name: 'focus.md', mimeType: 'text/plain', buffer: Buffer.from('content') });
+    await expect.poll(() => page.locator('#learn-file-before-status strong').textContent()).toBe('focus.md');
   });
 
   it('shows real response text before enabling Start, without submitting a lesson', async () => {

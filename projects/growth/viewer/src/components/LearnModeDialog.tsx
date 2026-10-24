@@ -515,6 +515,12 @@ export default function LearnModeDialog({ open, onClose, initialSource = 'git' }
       setPrivacyMode('');
       setAdvancedOpen(false);
       const raf = requestAnimationFrame(() => {
+        // A user may already have focused a control before this frame runs.
+        // Do not steal that focus (and swallow its next keyboard activation).
+        const activeElement = document.activeElement;
+        if (!dialogRef.current || dialogRef.current.contains(activeElement)) return;
+        // Also respect focus moved to another surface while opening.
+        if (activeElement !== document.body && activeElement !== restoreFocusRef.current) return;
         const sourceButton = dialogRef.current?.querySelector<HTMLButtonElement>(
           '[data-learn-source][aria-pressed="true"]',
         );

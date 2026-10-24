@@ -31,7 +31,7 @@
     "classification": "deterministic nonsecret fixture; existing import safety review or upstream offline loader fixture"
   },
   "projects/growth/viewer/tests/unit/learn-mode-dialog.test.ts": {
-    "sha256": "b13a84195a34b7a61cb1f343ecda4dae04b8a3a110197e12d3cec6c10d6c0c86",
+    "sha256": "67f542c1caa78f8f32c60dab30547704b9e193c368a46b7f5fc8800797f378fb",
     "rules": [
       "url-userinfo"
     ],
