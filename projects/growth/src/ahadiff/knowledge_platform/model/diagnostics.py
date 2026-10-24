@@ -37,6 +37,13 @@ FAILURE_SUMMARIES = frozenset(
         "host_cleanup_incomplete",
         "deadline_exceeded",
         "policy_rejected",
+        "pi_scope_attempt_binding",
+        "pi_scope_source_before",
+        "pi_scope_source_after",
+        "pi_scope_result_validation",
+        "pi_scope_first_output",
+        "pi_scope_second_output",
+
     }
 )
 FAILURE_EVENTS = frozenset({"error", "turn.failed", "item.error"})

@@ -236,6 +236,13 @@ class PiBridge:
     from a CLI flag. Their false/missing/error outcomes fail closed.
     """
 
+    @property
+    def _instructions(self) -> str:
+        return _INSTRUCTIONS
+
+    def _tool_parameters(self, name: str) -> dict[str, Any]:
+        return copy.deepcopy(_TOOLS[name])
+
     def __init__(
         self,
         runner: ModelRunner,
@@ -376,7 +383,7 @@ class PiBridge:
                         "properties": {
                             "type": {"const": "tool_call"},
                             "name": {"const": name},
-                            "arguments": copy.deepcopy(_TOOLS[name]),
+                            "arguments": self._tool_parameters(name),
                         },
                     }
                 )
@@ -499,7 +506,7 @@ class PiBridge:
                 payload={
                     "transcript": messages,
                     "tools": [
-                        {"name": name, "parameters": copy.deepcopy(_TOOLS[name])}
+                        {"name": name, "parameters": self._tool_parameters(name)}
                         for name in available_tools
                     ],
                 },
@@ -513,7 +520,7 @@ class PiBridge:
                     }
                 ),
                 max_output_tokens=4096,
-                instructions=_INSTRUCTIONS,
+                instructions=self._instructions,
             )
             if not await self._permission(self._reserve, task):
                 raise BridgeRejected("BRIDGE_ATTEMPT_NOT_AUTHORIZED")

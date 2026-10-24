@@ -26,6 +26,7 @@ from .auth import Actor, classification_labels, enforce_read_classification
 from .errors import DomainError
 from .model.codex_runner import CodexModelRunner, CodexRunnerConfig
 from .model.contracts import ModelResult, ModelTask, canonical_hash
+from .model.diagnostics import ModelFailure
 from .model.pi_bridge import BridgeLimits, PiBridge, PiBridgeConfig, check_turn_deadline
 from .model.pi_runner import SubscriptionRoute
 from .model.validation import contains_obvious_secret
@@ -306,34 +307,72 @@ class PiScope:
         self.receipts.put("search-result", {"envelope": envelope, "matched": bool(rows)})
 
 
+class _AcceptancePiBridge(PiBridge):
+    """Expose only this slot's already-approved contract, before reservation.
+
+    Generic Pi tool capabilities and schemas remain unchanged. This is not a
+    tool-call generator: the runner must still produce and validate the output.
+    """
+
+    @property
+    def _instructions(self) -> str:
+        return super()._instructions + (
+            " This fixed acceptance slot requires the first response to propose exactly "
+            "zhizhi_search with query 正式正文与原始来源证据 and limit 5. "
+            "After receiving its result, return only user-facing text."
+        )
+
+    def _tool_parameters(self, name: str) -> dict[str, Any]:
+        if name != "zhizhi_search":
+            raise AcceptanceScopeError("PI_TOOL_FORBIDDEN")
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["query", "limit"],
+            "properties": {
+                "query": {"type": "string", "const": QUERY},
+                "limit": {"type": "integer", "const": 5},
+            },
+        }
+
+    def _schema(self, available_tools: tuple[str, ...]) -> dict[str, Any]:
+        schema = super()._schema(available_tools)
+        if available_tools:
+            if available_tools != ("zhizhi_search",):
+                raise AcceptanceScopeError("PI_TOOL_FORBIDDEN")
+            schema["oneOf"] = schema["oneOf"][1:]
+        return schema
+
+
 class _PiTransport:
     def __init__(self, scope: PiScope, transport: CodexModelRunner):
         self.scope, self.transport = scope, transport
 
     async def run(self, task: ModelTask) -> ModelResult:
-        def blocked() -> ModelResult:
+        def blocked(reason: str) -> ModelResult:
             return ModelResult(
                 task_id=task.task_id,
                 status="blocked",
                 error_code="PI_ACCEPTANCE_SCOPE_BLOCKED",
                 input_fingerprint=task.fingerprint,
+                failure=ModelFailure(stage="validation", kind="policy", summary=reason),
             )
 
         stage = 1 if len(task.payload.get("transcript", [])) == 1 else 2
         attempt = self.scope.receipts.read(f"model-attempt:{stage}")
         if not attempt or attempt["fingerprint"] != task.fingerprint:
-            return blocked()
+            return blocked("pi_scope_attempt_binding")
         try:
             await self.scope.read_source_async()
         except (AcceptanceScopeError, DomainError):
-            return blocked()
+            return blocked("pi_scope_source_before")
         result = await self.transport.run(task)
         if result.status != "succeeded":
             return result
         try:
             await self.scope.read_source_async()
         except (AcceptanceScopeError, DomainError):
-            return blocked()
+            return blocked("pi_scope_source_after")
         if (
             result.fixture
             or result.runtime_version != "codex-cli " + VERSION
@@ -346,20 +385,20 @@ class _PiTransport:
             or not Draft202012Validator(task.output_schema).is_valid(result.output)
             or contains_obvious_secret(result.output)
         ):
-            return blocked()
+            return blocked("pi_scope_result_validation")
         if stage == 1:
             if result.output != {
                 "type": "tool_call",
                 "name": "zhizhi_search",
                 "arguments": ARGUMENTS,
             }:
-                return blocked()  # Never synthesize a missing tool call.
+                return blocked("pi_scope_first_output")  # Never synthesize a missing tool call.
         elif (
             not isinstance(result.output, dict)
             or set(result.output) != {"type", "text"}
             or result.output["type"] != "text"
         ):
-            return blocked()
+            return blocked("pi_scope_second_output")
         self.scope.receipts.put(f"model-result:{stage}", {"result": asdict(result)})
         return result
 
@@ -405,7 +444,7 @@ def create_bridge(root: Path) -> PiBridge:
             ),
         )
     )
-    return PiBridge(
+    return _AcceptancePiBridge(
         _PiTransport(scope, runner),
         PiBridgeConfig(
             owner_id=OWNER,

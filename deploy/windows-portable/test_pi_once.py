@@ -397,3 +397,21 @@ def test_failure_vocabulary_matches_python_runner_and_typescript_protocol():
             projected = once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())
             plural = {'stage': 'stages', 'kind': 'kinds', 'summary': 'summaries'}[key]
             assert projected['model_failure_' + plural] == {value: 1}
+
+@pytest.mark.parametrize('summary', [
+    'pi_scope_attempt_binding', 'pi_scope_source_before', 'pi_scope_source_after',
+    'pi_scope_result_validation', 'pi_scope_first_output', 'pi_scope_second_output',
+])
+def test_acceptance_scope_branch_summary_is_closed(summary):
+    message = {'role': 'assistant', 'stopReason': 'error', 'errorMessage': 'PI_ACCEPTANCE_SCOPE_BLOCKED',
+               'diagnostics': [{'type': 'zhizhi.codex_cli.failure', 'details': {
+                   'stage': 'turn', 'model_failure': {'stage': 'validation', 'kind': 'policy',
+                   'summary': summary, 'raw': 'PRIVATE_SENTINEL'}}}]}
+    raw = json.dumps({'type': 'message_end', 'message': message}).encode()
+    projected = once.event_summary(raw)
+    assert projected['model_failure_summaries'] == {summary: 1}
+    assert 'PRIVATE_SENTINEL' not in json.dumps(projected)
+    with pytest.raises(ValueError):
+        once.checked_events(raw)
+    message['diagnostics'][0]['details']['model_failure']['summary'] = 'PRIVATE_SENTINEL'
+    assert once.event_summary(json.dumps({'type': 'message_end', 'message': message}).encode())['model_failure_summaries'] == {'OTHER': 1}

@@ -93,7 +93,7 @@ def bridge(scope, output=None):
         )
 
     transport.run = AsyncMock(side_effect=run)
-    result = PiBridge(
+    result = pi._AcceptancePiBridge(
         pi._PiTransport(scope, transport),
         PiBridgeConfig(
             owner_id=OWNER,
@@ -608,3 +608,138 @@ def test_transport_source_rechecks_cancel_without_late_model_or_result(slot, blo
         assert scope.receipts.read('model-attempt:1') is not None
         assert scope.receipts.read('model-result:1') is None
     asyncio.run(journey())
+
+
+def production_acceptance(slot, monkeypatch, outputs):
+    """Production bridge/runner; synthetic execution only, zero CLI or model calls."""
+    from ahadiff.knowledge_platform.model.pi_runner import RpcFailure, SubscriptionRoute
+    from ahadiff.knowledge_platform.model.validation import OUTPUT_ERRORS, parse_output, validate_schema
+
+    scope = enabled(slot)
+    instance, _ = bridge(scope)
+    runner = CodexModelRunner(CodexRunnerConfig(
+        enabled=True, reuse_existing_login=True, executable=('MUST_NOT_EXECUTE',),
+        expected_version=pi.VERSION,
+        routes=(SubscriptionRoute(provider_id='openai', model_id=pi.MODEL,
+                                 account_qualified=True, allowed_classifications=('personal',)),),
+    ))
+    seen = []
+
+    async def execute(task, prompt, execution):
+        validate_schema(task.output_schema)
+        visible = json.loads(prompt)
+        assert visible['output_schema'] == task.output_schema
+        assert scope.receipts.read(f'model-attempt:{len(seen) + 1}')['fingerprint'] == task.fingerprint
+        seen.append(task)
+        try:
+            parsed = parse_output(json.dumps(outputs.pop(0)), task.output_schema)
+        except OUTPUT_ERRORS:
+            # Match the production _execute boundary, without starting a CLI.
+            raise RpcFailure('OUTPUT_SCHEMA_INVALID', 'invalid_output') from None
+        return parsed, {}, ()
+
+    runner._execute = AsyncMock(side_effect=execute)
+    instance.runner = pi._PiTransport(scope, runner)
+    process = AsyncMock(side_effect=AssertionError('CLI execution forbidden'))
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', process)
+    return scope, instance, runner, seen, process
+
+
+def test_acceptance_production_contract_exact_two_turns(slot, monkeypatch):
+    from jsonschema import Draft202012Validator
+
+    scope, instance, runner, seen, process = production_acceptance(slot, monkeypatch, [
+        {'type': 'tool_call', 'name': 'zhizhi_search', 'arguments': pi.ARGUMENTS},
+        {'type': 'text', 'text': 'Synthetic result, not live acceptance.'},
+    ])
+    initial = request()
+    first = asyncio.run(instance.turn(initial))
+    assert first['status'] == 'succeeded'
+    second = asyncio.run(instance.turn(after_tool(scope, initial, first)))
+    assert second['status'] == 'succeeded'
+    assert runner._execute.await_count == len(seen) == 2
+    assert len(seen[0].output_schema['oneOf']) == len(seen[1].output_schema['oneOf']) == 1
+    assert seen[0].payload['tools'][0]['parameters'] == seen[0].output_schema['oneOf'][0]['properties']['arguments']
+    assert seen[1].payload['tools'] == []
+    assert not Draft202012Validator(seen[1].output_schema).is_valid(first['output'])
+    assert 'limit 5' in seen[0].instructions
+    assert scope.receipts.read('model-result:2')
+    process.assert_not_awaited()
+
+
+@pytest.mark.parametrize('output', [
+    {'type': 'text', 'text': 'Synthetic clarification'},
+    {'type': 'tool_call', 'name': 'zhizhi_search', 'arguments': {'query': pi.QUERY}},
+    {'type': 'tool_call', 'name': 'zhizhi_search', 'arguments': {'query': pi.QUERY, 'limit': 10}},
+    {'type': 'tool_call', 'name': 'zhizhi_search', 'arguments': {'query': 'other', 'limit': 5}},
+])
+def test_acceptance_production_parser_rejects_generic_valid_outputs(slot, monkeypatch, output):
+    from jsonschema import Draft202012Validator
+
+    scope, instance, runner, seen, process = production_acceptance(slot, monkeypatch, [output])
+    generic = PiBridge._schema(PiBridge.__new__(PiBridge), ('zhizhi_search',))
+    assert Draft202012Validator(generic).is_valid(output)
+    result = asyncio.run(instance.turn(request()))
+    assert result['status'] != 'succeeded'
+    assert result['error_code'] == 'OUTPUT_SCHEMA_INVALID'
+    assert runner._execute.await_count == len(seen) == 1
+    assert scope.receipts.read('model-result:1') is None
+    assert scope.receipts.read('search-attempt') is None
+    process.assert_not_awaited()
+
+
+@pytest.mark.parametrize('reason', [
+    'pi_scope_attempt_binding', 'pi_scope_source_before', 'pi_scope_source_after',
+    'pi_scope_result_validation', 'pi_scope_first_output', 'pi_scope_second_output',
+])
+def test_scope_guard_closed_diagnostic_branches(slot, reason):
+    from dataclasses import replace
+    from ahadiff.knowledge_platform.model.diagnostics import sanitized_failure
+
+    scope = enabled(slot)
+    instance, transport = bridge(scope)
+    # Generic schema deliberately bypasses the acceptance-specific model contract.
+    # The independent first/second-turn guards must still refuse bad transport output.
+    instance._schema = lambda names: PiBridge._schema(PiBridge.__new__(PiBridge), ('zhizhi_search',))
+    captured = []
+    original_reserve = instance._reserve
+
+    async def reserve(task):
+        captured.append(task)
+        return await original_reserve(task)
+
+    instance._reserve = reserve
+    first = asyncio.run(instance.turn(request()))
+    assert first['status'] == 'succeeded'
+    task = captured[0]
+    good = {'type': 'tool_call', 'name': 'zhizhi_search', 'arguments': pi.ARGUMENTS}
+    if reason == 'pi_scope_second_output':
+        task = replace(task, payload={'transcript': [{}, {}, {}]})
+        scope.receipts.read = Mock(return_value={'fingerprint': task.fingerprint})
+    elif reason == 'pi_scope_attempt_binding':
+        scope.receipts.read = Mock(return_value=None)
+    output = {'type': 'text', 'text': 'Synthetic only'} if reason == 'pi_scope_first_output' else good
+    result = ModelResult(task_id=task.task_id, status='succeeded', output=output,
+                         provider_id='openai', requested_model_id=pi.MODEL,
+                         runtime_version='codex-cli ' + pi.VERSION,
+                         input_fingerprint=task.fingerprint, result_hash=canonical_hash(output))
+    if reason == 'pi_scope_result_validation':
+        result = replace(result, result_hash='wrong')
+    transport.run = AsyncMock(return_value=result)
+    scope.read_source_async = AsyncMock(side_effect=(
+        AcceptanceScopeError('PRIVATE_SENTINEL') if reason == 'pi_scope_source_before'
+        else [None, AcceptanceScopeError('PRIVATE_SENTINEL')] if reason == 'pi_scope_source_after'
+        else None
+    ))
+    actual = asyncio.run(pi._PiTransport(scope, transport).run(task))
+    assert actual.error_code == 'PI_ACCEPTANCE_SCOPE_BLOCKED'
+    failure = sanitized_failure(actual.failure)
+    assert failure['summary'] == reason
+    projected = instance._result(
+        str(uuid4()), task, actual, next(iter(instance._runs.values())), task.payload['transcript']
+    )
+    assert projected['failure'] == {'stage': 'validation', 'kind': 'policy', 'summary': reason}
+    assert 'PRIVATE_SENTINEL' not in json.dumps(failure)
+    assert actual.output is None
+    assert transport.run.await_count == (0 if reason in {'pi_scope_attempt_binding', 'pi_scope_source_before'} else 1)
+    assert sanitized_failure({'stage': 'validation', 'kind': 'policy', 'summary': 'PRIVATE_SENTINEL'}) is None

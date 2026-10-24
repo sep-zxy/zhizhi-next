@@ -267,3 +267,14 @@ for (const code of ['NO_APPROVED_SUBSCRIPTION_ROUTE', 'SECRET_INPUT_FORBIDDEN', 
     assert.equal(f.requests.filter(r => r.type === 'turn').length, 1);
   });
 }
+
+for (const summary of ['pi_scope_attempt_binding', 'pi_scope_source_before', 'pi_scope_source_after', 'pi_scope_result_validation', 'pi_scope_first_output', 'pi_scope_second_output']) {
+  test(`acceptance guard ${summary} preserves only closed diagnostics`, async () => {
+    const failure = { stage: 'validation', kind: 'policy', summary };
+    const f = fixture([r => ({ ...success(r, finalText), status: 'blocked', output: null, error_code: 'PI_ACCEPTANCE_SCOPE_BLOCKED', failure })]);
+    const result = await f.run([user()]);
+    failed(result.message, /^PI_ACCEPTANCE_SCOPE_BLOCKED$/);
+    assert.deepEqual(result.message.diagnostics!.at(-1)!.details!.model_failure, failure);
+    assert.equal(f.requests.filter(r => r.type === 'turn').length, 1);
+  });
+}

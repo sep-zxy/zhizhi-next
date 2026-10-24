@@ -38,3 +38,24 @@ executor and an explicit process-spawn prohibition. It checks the old schema's
 zero-executor failure, both tool/text turns after the fix, unchanged closed-union
 acceptance, all three early guards, provider propagation, and final report
 projection. This is fixture integration, not a real subscription or Windows E2E.
+
+## Fixed Pi acceptance output contract
+
+The acceptance-only bridge now exposes the existing grant to the model before
+fingerprinting and reservation: first turn is exactly `zhizhi_search` with the
+approved query and required `limit: 5`; the second turn is text only. Generic Pi
+schemas, user prompt, read scope, signed source checks, and attempt budgets are
+unchanged. No output is repaired and no tool call is synthesized.
+
+Six closed diagnostic summaries distinguish the existing acceptance guards:
+`pi_scope_attempt_binding`, `pi_scope_source_before`, `pi_scope_source_after`,
+`pi_scope_result_validation`, `pi_scope_first_output`, `pi_scope_second_output`.
+They traverse the existing strict failure envelope and bounded event summary;
+unknown values are rejected or projected as `OTHER`. No model text, source data,
+paths, identifiers, or exception strings are included. A rejected output may
+fail the schema/result guard before reaching the turn-specific guard.
+
+This fixes a demonstrated mismatch between the model-visible generic schema
+and the fixed acceptance contract. It does not establish which historical R26
+guard fired. Synthetic tests are not live E2E acceptance, do not replenish a
+consumed allowance, and do not authorize another model attempt.
