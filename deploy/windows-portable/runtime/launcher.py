@@ -243,7 +243,7 @@ def platform_command(config,local_test=False,owner_acceptance=False,learning_vie
  for provider in config.get('providers',[]):args.extend(['--provider',provider])
  return args,port,'configured'
 
-def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False):
+def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False,no_browser=False):
  import msvcrt
  # Never inherit a caller's Viewer capability into unrelated children. Only this
  # launcher allocates the existing one-session token for its human Pi process.
@@ -317,14 +317,16 @@ def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi
     status['pi']='started_auth_checked_not_live_e2e'
    else:status['pi']='waiting_auth'
   else:status['pi']='waiting_auth'
+ status['browser']='disabled_by_request' if no_browser else 'automatic'
  write_json('reports/status.json',status)
  print(json.dumps(status,ensure_ascii=False,indent=2),flush=True)
  print('Runtime/UI startup is NOT unified-platform or live-account E2E acceptance.',flush=True)
- browser=BROWSER
+ browser=None if no_browser else BROWSER
  if browser:
   profile='data/owner-acceptance/browser-profile' if owner_acceptance else 'data/local-test/browser-profile' if local_test else 'browser-profile'
   cache='data/owner-acceptance/browser-cache' if owner_acceptance else 'data/local-test/browser-cache' if local_test else 'cache/browser'
   spawn([str(browser),'--user-data-dir='+str(within(profile)),'--disk-cache-dir='+str(within(cache)),'--no-first-run','--no-default-browser-check','--disable-background-mode',url],'browser',env)
+ elif no_browser:print('Browser launch disabled. Open the URL in an already approved browser session: '+url,flush=True)
  else:print('No existing Edge/Chrome found. No browser will be installed. URL: '+url,flush=True)
  print('Use stop.cmd or Ctrl+C to stop this package. Authorization status is in reports/status.json.',flush=True)
  try:
@@ -404,7 +406,10 @@ def parse_arguments(argv=None):
  parser.add_argument('--codex-home')
  parser.add_argument('--port',type=int)
  parser.add_argument('--pairing-code')
+ parser.add_argument('--no-browser',action='store_true',help='Do not discover or launch a browser; preserve existing browser profiles.')
  args=parser.parse_args(argv)
+ if args.no_browser and args.action not in {'start','local-test-start','owner-acceptance-start','owner-model-start','owner-pi-start'}:
+  parser.error('--no-browser requires a start action')
  if args.action=='owner-acceptance-reuse':
   if not args.approve_owner_identity_reuse or not args.new_acceptance_run:
    parser.error('Explicit --approve-owner-identity-reuse and --new-acceptance-run are required')
@@ -554,7 +559,7 @@ def main():
   run_owner_acceptance_identity(args)
   return
  global BROWSER, JOB
- BROWSER=browser_path()
+ BROWSER=None if args.no_browser else browser_path()
  from windows_job import OwnedJob
  JOB=OwnedJob()
  env=isolated_environment();os.environ.clear();os.environ.update(env)
@@ -568,7 +573,7 @@ def main():
  start(env,local_test=args.action=='local-test-start',
        owner_acceptance=args.action in {'owner-acceptance-start','owner-model-start','owner-pi-start'},
        owner_model=args.action in {'owner-model-start','owner-pi-start'},
-       owner_pi=args.action=='owner-pi-start')
+       owner_pi=args.action=='owner-pi-start',no_browser=args.no_browser)
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':

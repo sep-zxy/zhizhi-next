@@ -28,6 +28,29 @@ Python 经已有 uv 环境执行。`build_bundle.py plan` 从项目锁文件生�
 `app/wiki` 是公开 Wiki 渲染运行时。三者不互相代替。私有 UI 的同源鉴权仍需实机验收，
 默认 401、页面能打开或 CI 绿色都不算贯通。
 
+### Windows 测试时不自动打开浏览器
+
+新版 `app/launcher.py` 支持显式 `--no-browser`：跳过 Edge/Chrome 查找及启动，
+不会由启动器创建浏览器 profile/cache；服务、身份检查、进程归属和停止机制不变。
+在已校验的新版 release 目录使用 PowerShell 7 执行（不是在源码目录运行）：
+
+```powershell
+& .\runtime\python\python.exe -B -s -X utf8 .\app\launcher.py start --no-browser
+```
+
+已获准的独立身份验收可将 `start` 换成 `local-test-start` 或
+`owner-acceptance-start`。开关同样适用于 `owner-model-start`、`owner-pi-start`，
+但只禁止浏览器，不关闭或授权模型/Pi；不能用它把模型入口当无模型测试。
+从输出或 `reports/status.json` 读取 loopback URL，在已批准的现有浏览器会话打开。
+配对、权限及模型授权仍遵循原流程，不复制个人登录态，不关闭同步或安全功能，
+也不删除已有 profile/cache。`stop.cmd` 仍用于正常停止。
+
+不要使用 `start.cmd --no-browser` 或 `owner-acceptance-start.cmd --no-browser`：
+现有 `.cmd` 启动封装不转发参数，会忽略该开关。必须使用上述包内 Python 入口。
+旧包没有此开关，不能就地改写已封印的 `app/launcher.py` 或跳过完整性检查；
+须等待包含该修改的新包。内部 `ahadiff serve --no-browser` 只约束学习 viewer，
+不能阻止旧包外层 launcher 自动打开 Edge。普通双击启动行为保持不变。
+
 `codex-diagnostic.cmd --codex-exe <已有官方CLI> --codex-home <已授权登录目录>`
 默认只做脱敏诊断，不调用模型。仅显式追加 `--model-smoke` 才执行固定公开 2+2 请求；
 不自动运行，不创建凭据，不将登录目录或原始错误内容写入报告。
