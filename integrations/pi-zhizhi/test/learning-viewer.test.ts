@@ -34,7 +34,7 @@ test('viewer keeps exact entry hash, note CAS and saved-note-only submission con
   const inputs=calls.map(c=>JSON.parse(c.init.body));
   assert.deepEqual(inputs[1],{request_id:req,expected_context_version:1,note_text:'我自己的原话\n'});
   assert.deepEqual(inputs[2],{context_version:2,note_sha256:noteHash('我自己的原话\n')});
-  for(const call of calls){assert.equal(call.init.headers['X-AhaDiff-Token'],'fixture-viewer');assert.equal(call.init.headers.Authorization,undefined);assert.equal(call.init.redirect,'error');}
+  for(const call of calls){assert.equal(call.init.headers['X-AhaDiff-Token'],'fixture-viewer');assert.equal(call.init.headers.Authorization,undefined);assert.equal(call.init.headers.Origin,'http://127.0.0.1:3210');assert.equal(call.init.redirect,'error');}
 });
 
 test('viewer rejects forged hashes, wrong contexts, changed entry and false successful submissions',async()=>{
@@ -65,7 +65,7 @@ test('learning commands disabled without explicit identity and reject RPC before
     process.env.ZHIZHI_LEARNING_VIEWER_URL='http://127.0.0.1:3210';process.env.ZHIZHI_LEARNING_VIEWER_TOKEN='fixture';
     globalThis.fetch=(async()=>{throw Error('NETWORK_MUST_NOT_RUN');}) as typeof fetch;
     assert.equal(installLearningCommands(pi,s=>s),true);
-    assert.equal(commands.size,4);
+    assert.equal(commands.size,6);
     for(const command of commands.values()) await assert.rejects(command.handler(id,{mode:'rpc',hasUI:true}),/REQUIRES_LOCAL_TUI/);
   }finally{globalThis.fetch=prior.fetch;for(const [name,value] of [['ZHIZHI_LEARNING_VIEWER_URL',prior.url],['ZHIZHI_LEARNING_VIEWER_TOKEN',prior.token]]){if(value===undefined)delete process.env[name!];else process.env[name!]=value;}}
 });
@@ -130,4 +130,41 @@ test('note receipt revision must exactly stay unchanged or advance by one, never
   const overflow=new LearningViewerClient('http://localhost:3210','fixture',(async()=>{calls++;return Response.json(fixture());}) as typeof fetch);
   await assert.rejects(overflow.save(fixture('old',Number.MAX_SAFE_INTEGER),'new',req),/VIEWER_NOTE_INVALID/);
   assert.equal(calls,0);
+});
+
+const planFixture=()=>({source_reference:reference,focus:'architecture',plan_hash:'c'.repeat(64),title:'固定版本',question:'架构边界与取舍？',policy_version:'architecture-stack-v1',authorship:'deterministic_template_not_user_answer',state:'preview',published:false});
+const acceptedFixture=()=>({source_reference:reference,plan_hash:'c'.repeat(64),suggestion_id:'tsk_'+'1'.repeat(32),learning_id:'tsk_'+'2'.repeat(32),suggestion_state:'accepted',published:false});
+test('architecture plan is shown before explicit acceptance; cancel and invalid focus never enroll',async()=>{
+  const prior={url:process.env.ZHIZHI_LEARNING_VIEWER_URL,token:process.env.ZHIZHI_LEARNING_VIEWER_TOKEN,fetch:globalThis.fetch};
+  const commands=new Map<string,any>();const calls:any[]=[];const notices:string[]=[];let approve=false;
+  try{
+    process.env.ZHIZHI_LEARNING_VIEWER_URL='http://localhost:3210';process.env.ZHIZHI_LEARNING_VIEWER_TOKEN='fixture';
+    globalThis.fetch=(async(url,init)=>{assert.equal((init?.headers as any).Origin,'http://localhost:3210');calls.push({url:String(url),payload:JSON.parse(String(init?.body))});return Response.json(String(url).endsWith('/accept')?acceptedFixture():planFixture());}) as typeof fetch;
+    installLearningCommands({registerCommand:(name:string,command:any)=>commands.set(name,command)} as unknown as ExtensionAPI,s=>s);
+    const ctx={mode:'tui',hasUI:true,ui:{confirm:async(_title:string,body:string)=>{assert.match(body,/不是本人回答/);assert.match(body,/plan-status/);assert.match(body,/架构边界与取舍/);return approve;},notify:(message:string)=>notices.push(message)}};
+    const args=`--entry entry-1 --revision 2 --hash ${reference.expected_content_hash} --focus architecture`;
+    await commands.get('zhizhi-learn-plan').handler(args,ctx);
+    assert.equal(calls.length,1);assert.match(calls[0].url,/preview$/);
+    await assert.rejects(commands.get('zhizhi-learn-plan').handler(args.replace('architecture','syntax'),ctx),/EXPECTED_EXACT/);
+    assert.equal(calls.length,1);
+    approve=true;await commands.get('zhizhi-learn-plan').handler(args,ctx);
+    assert.deepEqual(calls.at(-1).payload,{...reference,focus:'architecture',plan_hash:'c'.repeat(64)});
+    assert.equal(calls.filter(x=>x.url.endsWith('/accept')).length,1);
+    assert.equal(calls.some(x=>'user_text' in x.payload),false);
+    assert.match(notices.at(-1)!,/#\/growth\?view=radar&radar=tsk_/);
+  }finally{globalThis.fetch=prior.fetch;for(const [name,value] of [['ZHIZHI_LEARNING_VIEWER_URL',prior.url],['ZHIZHI_LEARNING_VIEWER_TOKEN',prior.token]]){if(value===undefined)delete process.env[name!];else process.env[name!]=value;}}
+});
+
+test('plans reject source swaps and forged acceptance; timeout is not retried and status is read only',async()=>{
+  for(const raw of [{...planFixture(),source_reference:{...reference,revision:3}}, {...planFixture(),authorship:'user'}]){
+    const client=new LearningViewerClient('http://localhost:3210','fixture',(async()=>Response.json(raw)) as typeof fetch);
+    await assert.rejects(client.previewPlan(reference),/PLAN_UNVERIFIED/);
+  }
+  const client=new LearningViewerClient('http://localhost:3210','fixture',(async()=>Response.json({...acceptedFixture(),source_reference:{...reference,revision:3}})) as typeof fetch);
+  await assert.rejects(client.acceptPlan(planFixture() as any),/ACCEPTANCE_UNVERIFIED/);
+  let calls=0;
+  const failed=new LearningViewerClient('http://localhost:3210','fixture',(async()=>{calls++;throw Error('offline');}) as typeof fetch);
+  await assert.rejects(failed.acceptPlan(planFixture() as any),/WRITE_UNCONFIRMED/);assert.equal(calls,1);
+  const status=new LearningViewerClient('http://localhost:3210','fixture',(async(_url,init)=>{assert.equal(init?.method,'GET');return Response.json({plan_hash:'c'.repeat(64),delivery_state:'pending',receipt:null});}) as typeof fetch);
+  assert.equal((await status.planStatus('c'.repeat(64))).delivery_state,'pending');
 });

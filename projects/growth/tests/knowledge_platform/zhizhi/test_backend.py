@@ -148,3 +148,33 @@ def test_auth_failure_remains_retryable_even_when_domain_error_is_not(tmp_path):
             assert backend.outbox.records()[0]["state"] == "pending"
 
     asyncio.run(scenario())
+
+
+def test_plan_accept_timeout_restarts_with_one_durable_identity(tmp_path):
+    payload = {"entry_id": "fixture-entry", "revision": 1, "expected_content_hash": "b" * 64,
+               "focus": "architecture", "plan_hash": "a" * 64}
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("synthetic lost acceptance receipt")
+        return httpx.Response(200, json={"data": {"suggestion_state": "accepted", "learning_id": "one"}})
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            def restored():
+                return RemoteKnowledgeBackend("https://knowledge.example", token_provider=lambda: "fixture",
+                                              outbox=DurableOutbox(tmp_path), client=client)
+            with pytest.raises(BackendError):
+                await restored().accept_learning_plan(payload)
+            assert DurableOutbox(tmp_path).get("learning-plan:" + "a" * 64)["state"] == "pending"
+            response = await restored().accept_learning_plan(payload)
+            assert await restored().accept_learning_plan(payload) == response
+            assert DurableOutbox(tmp_path).get("learning-plan:" + "a" * 64)["state"] == "acknowledged"
+            with pytest.raises(BackendError):
+                await restored().accept_learning_plan({**payload, "revision": 2})
+    asyncio.run(scenario())
+    assert len(requests) == 2
+    assert requests[0].content == requests[1].content
+    assert requests[0].headers["Idempotency-Key"] == requests[1].headers["Idempotency-Key"]

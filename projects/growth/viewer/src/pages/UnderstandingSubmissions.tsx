@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { diffLines } from 'diff';
+import type { WritebackSnapshot } from './WritebackProgress';
 import type { KnowledgeDetail } from '../api/knowledge';
 import {
   listUnderstandingSubmissions, readUnderstandingSubmission, submitUnderstanding,
   understandingChangeLabel, understandingFailureSummary, type UnderstandingSubmission,
 } from '../api/understanding';
 
-export default function UnderstandingSubmissions({ detail, unified }: { detail: KnowledgeDetail; unified: boolean }) {
+export default function UnderstandingSubmissions({ detail, unified, onProgress }: { detail: KnowledgeDetail; unified: boolean; onProgress?: (value: WritebackSnapshot) => void }) {
   const [items, setItems] = useState<UnderstandingSubmission[]>([]);
   const [selected, setSelected] = useState('');
   const [ready, setReady] = useState(false);
@@ -20,6 +21,10 @@ export default function UnderstandingSubmissions({ detail, unified }: { detail: 
   const cardId = detail.card.card_id;
   const current = items.find(item => item.submission_id === selected) ?? items[0];
   const same = items.find(item => item.card_version === detail.card.card_version && item.user_text === detail.learning.note_text);
+
+  useEffect(() => {
+    onProgress?.({ submission: current, unavailable: unified && (!ready || !!error) });
+  }, [current, ready, error, unified, onProgress]);
 
   useEffect(() => {
     let active = true; epoch.current++; live.current = true; lock.current = false; setBusy(false); setReady(false); setItems([]); setSelected(''); setError('');

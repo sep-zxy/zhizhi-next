@@ -41,6 +41,7 @@ async def read_practice(suggestion_id: str) -> dict[str, Any]:
                 "title": metadata["title"],
                 "question": metadata["practice_question"],
                 "body": "",
+                **({"source_reference": metadata["source_reference"]} if "source_reference" in metadata else {}),
             },
         }
     if record:
@@ -85,6 +86,7 @@ async def submit_practice(suggestion_id: str, user_text: str) -> dict[str, Any]:
                 "radar_suggestion_id": suggestion_id,
                 "title": target["title"],
                 "practice_question": target["question"],
+                **({"source_reference": target["source_reference"]} if "source_reference" in target else {}),
                 "evidence_classification": classify_record(labels),
                 "classification_labels": sorted(classification_labels(labels)),
             },
@@ -122,13 +124,24 @@ def create_desktop_learning_routes() -> list[Route]:
         require_write_token(request)
         try:
             suggestion_id = request.path_params.get("suggestion_id")
-            if request.method == "GET":
+            if request.method == "GET" and "plan_hash" in request.path_params:
+                digest = request.path_params["plan_hash"]
+                if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                    raise ValueError("Invalid plan identity")
+                record = desktop_backend().outbox.get("learning-plan:" + digest)
+                result = {"plan_hash": digest, "delivery_state": record["state"] if record else "not_submitted",
+                          "receipt": record.get("response", {}).get("data") if record else None}
+            elif request.method == "GET":
                 result = await read_practice(suggestion_id)
             else:
                 payload = await request.json()
                 if not isinstance(payload, dict):
                     raise ValueError("Expected object")
-                if request.url.path.endswith("/runs"):
+                if request.url.path.endswith("/plans/preview"):
+                    result = (await desktop_backend().preview_learning_plan(payload))["data"]
+                elif request.url.path.endswith("/plans/accept"):
+                    result = (await desktop_backend().accept_learning_plan(payload))["data"]
+                elif request.url.path.endswith("/runs"):
                     result = (
                         await desktop_backend().run_radar(limit=int(payload.get("limit", 3)))
                     )["data"]
@@ -164,6 +177,9 @@ def create_desktop_learning_routes() -> list[Route]:
             )
 
     return [
+        Route(prefix + "/plans/preview", endpoint, methods=["POST"]),
+        Route(prefix + "/plans/{plan_hash}", endpoint, methods=["GET"]),
+        Route(prefix + "/plans/accept", endpoint, methods=["POST"]),
         Route(prefix + "/runs", endpoint, methods=["POST"]),
         Route(prefix + "/{suggestion_id}/decision", endpoint, methods=["POST"]),
         Route(prefix + "/{suggestion_id}/complete", endpoint, methods=["POST"]),

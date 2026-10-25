@@ -7,6 +7,7 @@ import sys
 
 from .checks import PreviewError, inspect_backup, restore_plan, verify_publication_manifest
 from .publication import eligibility, publish_preview, publish_build_plan
+from .build import publish_build
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--owner-id", required=True)
     publish.add_argument("--policy", required=True)
     publish.add_argument("--domain-policy-version", default="1")
-    for name in ("eligibility", "publish-preview", "publish-build-plan"):
+    for name in ("eligibility", "publish-preview", "publish-build-plan", "publish-build"):
         command = commands.add_parser(name)
         command.add_argument("--repository", required=True)
         command.add_argument("--database", required=True)
@@ -35,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             command.add_argument("--staging", required=True)
             command.add_argument("--policy", required=True)
+        if name == "publish-build":
+            command.add_argument("--manifest", required=True)
+            command.add_argument("--output", required=True)
+            command.add_argument("--template-assets", required=True)
+            command.add_argument("--public-base-url", required=True)
         if name == "publish-preview":
             command.add_argument("--revision", required=True)
             command.add_argument("--policy-version", default="1")
@@ -60,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
                 result = publish_preview(**common, staging=args.staging, revision=args.revision,
                                          policy_path=args.policy, policy_version=args.policy_version,
                                          template_version=args.template_version)
+            elif args.command == "publish-build":
+                result = publish_build(**common, staging=args.staging, policy_path=args.policy,
+                                       manifest_path=args.manifest, output=args.output,
+                                       template_assets=args.template_assets,
+                                       public_base_url=args.public_base_url)
             else:
                 result = publish_build_plan(**common, staging=args.staging, policy_path=args.policy)
     except Exception as exc:

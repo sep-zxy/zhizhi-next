@@ -23,7 +23,14 @@ class RadarService:
             raise DomainError("INVALID_INPUT", "Task is not a radar suggestion", status_code=422)
         payload = suggestion["payload"]
         state = self.domain.get_channel_state("radar:" + suggestion_id, actor=actor)
-        entry = self.domain.get_entry(payload["target_entry_ids"][0], actor=actor)
+        reference = payload.get("source_reference")
+        entry = self.domain.get_entry(
+            payload["target_entry_ids"][0], actor=actor,
+            **({"revision": reference["revision"]} if reference else {}),
+        )
+        if reference and (entry["entry_id"] != reference["entry_id"] or
+                          entry["content_hash"] != reference["expected_content_hash"]):
+            raise DomainError("CONTENT_CONFLICT", "Pinned practice source changed", status_code=409)
         if entry.get("deleted"):
             raise DomainError("INVALID_STATE", "Exercise target was deleted", status_code=409)
         result = {
@@ -40,6 +47,7 @@ class RadarService:
                 "title": entry["title"],
                 "body": entry["body"],
                 "question": payload["proposed_exercise"],
+                **({"source_reference": reference} if reference else {}),
             },
         }
         if state.get("learning_outcome_id"):
@@ -135,6 +143,8 @@ class RadarService:
             "metadata": {
                 **metadata,
                 "evidence_classification": classify_record(classifications),
+                **({"source_reference": practice["practice"]["source_reference"]}
+                   if "source_reference" in practice["practice"] else {}),
                 "classification_labels": sorted(classification_labels(classifications)),
             },
         }

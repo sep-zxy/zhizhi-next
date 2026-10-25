@@ -31,7 +31,6 @@ from ahadiff.knowledge_platform.learning.model_bridge import (
     ModelBridgeConfiguration,
     configure_model_bridge,
 )
-from ahadiff.knowledge_platform.learning.radar_practice import create_desktop_learning_routes
 from ahadiff.knowledge_platform.radar.service import RadarService
 from ahadiff.knowledge_platform.search.index import SearchService
 from ahadiff.knowledge_platform.search.routes import create_read_routes
@@ -256,7 +255,6 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
         domain, owner, writer, questions=["何时应选择事件溯源，哪些迁移成本必须考虑？"]
     )
     app = create_app(ServeState(state_dir=tmp_path / "desktop", token="local-token"))
-    app.routes[0:0] = create_desktop_learning_routes()
     client = TestClient(app, base_url="http://localhost:8765")
     headers = {"Origin": "http://localhost:8765", "X-AhaDiff-Token": "local-token"}
     prefix = "/api/growth/local/knowledge/radar"
@@ -454,3 +452,36 @@ def test_radar_lost_response_reopens_outbox_and_acknowledges_same_outcome(system
     asyncio.run(reopened.flush())
     restored = asyncio.run(read_practice(sid))
     assert restored["state"] == "submitted" and restored["outcome_id"] == outcome_id
+
+
+def test_plan_preview_explicit_accept_and_status_use_existing_real_routes(system, tmp_path):
+    domain, owner, writer, backend = system
+    entry = make_entry(domain, owner, writer)
+    app = create_app(ServeState(state_dir=tmp_path / "desktop", token="local-token"))
+    client = TestClient(app, base_url="http://localhost:8765")
+    headers = {"Origin": "http://localhost:8765", "X-AhaDiff-Token": "local-token"}
+    prefix = "/api/growth/local/knowledge/radar/plans"
+    ref = {"entry_id": entry["entry_id"], "revision": entry["revision"],
+           "expected_content_hash": entry["content_hash"], "focus": "architecture"}
+    assert client.post(prefix + "/preview", headers={"Origin": "http://localhost:8765"}, json=ref).status_code == 401
+    assert client.post(prefix + "/preview", headers={"X-AhaDiff-Token": "local-token"}, json=ref).status_code == 403
+    assert client.post(prefix + "/preview", headers={**headers, "Origin": "https://untrusted.example"}, json=ref).status_code == 403
+    before = domain.list_events(actor=owner)
+    preview = client.post(prefix + "/preview", headers=headers, json=ref)
+    assert preview.status_code == 200, preview.text
+    plan = preview.json()
+    assert domain.list_events(actor=owner) == before
+    assert not backend.outbox.records()
+    status_path = prefix + "/" + plan["plan_hash"]
+    assert client.get(status_path, headers=headers).json()["delivery_state"] == "not_submitted"
+    wrong = client.post(prefix + "/accept", headers=headers, json={**ref, "plan_hash": "0" * 64})
+    assert wrong.status_code == 409
+    accepted = client.post(prefix + "/accept", headers=headers, json={**ref, "plan_hash": plan["plan_hash"]})
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["suggestion_state"] == "accepted"
+    assert accepted.json()["learning_id"].startswith("tsk_")
+    assert client.post(prefix + "/accept", headers=headers, json={**ref, "plan_hash": plan["plan_hash"]}).json() == accepted.json()
+    status = client.get(status_path, headers=headers).json()
+    assert status["delivery_state"] == "acknowledged"
+    assert status["receipt"] == accepted.json()
+    assert client.get(prefix + "/bad", headers=headers).status_code == 422

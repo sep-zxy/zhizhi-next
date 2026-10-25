@@ -33,7 +33,6 @@ class IntakeCache:
         directory = self.root / intake_id
         if directory.is_symlink():
             raise IntakeError("UNSAFE_CACHE_PATH", "临时素材路径无效。", status_code=500)
-        directory.mkdir(exist_ok=True, mode=0o700)
         return directory
 
     def put(self, intake_id: str, document: dict[str, Any]) -> dict[str, Any]:
@@ -45,6 +44,8 @@ class IntakeCache:
             raise IntakeError("CONTENT_TOO_LARGE", "临时素材包超过大小限制。")
         digest = hashlib.sha256(body).hexdigest()
         directory = self._directory(intake_id)
+        # Reads and cleanup must not recreate directories another keep removed.
+        directory.mkdir(exist_ok=True, mode=0o700)
         target = directory / (digest + ".json")
         if target.is_symlink():
             raise IntakeError("UNSAFE_CACHE_PATH", "临时素材路径无效。", status_code=500)

@@ -129,6 +129,8 @@ uv run --project projects/growth --no-sync python `
 
 只有同时显式注入 `ZHIZHI_LEARNING_VIEWER_URL` 与 `ZHIZHI_LEARNING_VIEWER_TOKEN` 才注册；地址必须带明确端口且是 HTTP(S) loopback origin，不能含路径、凭据、查询或片段。令牌必须是已经存在的 viewer 本人身份，不能复用领域 agent token。此版本不更改启动器环境白名单、不读取身份文件、不调用 token bootstrap、不新建登录、不猜端口。配置缺失或不合规时 `/zhizhi-help` 说明未启用。
 
+- `/zhizhi-learn-plan --entry <entry_id> --revision <n> --hash <sha256> --focus architecture`：只读预览固定架构练习模板；本人在 TUI 确认后才通过现有 Radar 建练习任务。模板不是 AI 解答或本人观点，不调用模型、不创建伪工程卡。正式源始终固定 revision/hash，后续条目更新不替换练习源。
+- `/zhizhi-learn-plan-status <plan_hash>`：只读本机 outbox 投递回执，不自动重发；pending 不代表远端未接受。接受不确定时先核对，必要时本人重新预览并确认同一计划，复用持久幂等身份。没有回执不推定成功；不改变已有 outcome 原话流程。
 - `/zhizhi-learn <entry_id> <revision> <sha256>`：本人确认精确正式版本，创建复用的学习上下文。
 - `/zhizhi-learn-open <context_id>`：只读已有上下文与本人笔记。
 - `/zhizhi-learn-note <context_id>`：用本人 TUI 编辑器输入原话，确认后按 context_version 保存；取消不写入、不自动提交。
@@ -140,3 +142,5 @@ uv run --project projects/growth --no-sync python `
 
 C05/C07只读补齐：`zhizhi_source` 读取保留来源投影；`zhizhi_evidence` 使用恰一个 source/external_document/learning_outcome 引用和必填 content_hash，可带source_revision与文字locator。回执的引用ID、hash、指定来源版本必须匹配；locator仅注释，不把任意定位描述当作服务端已验证摘录。仍执行已有分类门禁，不暴露原始投递包/文件路径。`zhizhi_read_entry` 可选 revision，精确读回版本不符则报错。没有现成版本列表/diff API，不宣称该部分已完成。
 固定schema现为16项，当前用户身份allowed_tools子集不自动扩权；4/3/16/180调用预算不变。
+
+计划接线为 `/api/growth/local/knowledge/radar/plans/{preview,accept}` 与只读 `plans/<plan_hash>`，复用已有领域 Radar 决策、learning task 和 durable outbox。仅支持 architecture 的确定性模板，不承诺个性化课程、多阶段规划、自动安排或模型生成。完成练习仍进入已有独立复核/回写流程；不自动登记掌握、不公开。

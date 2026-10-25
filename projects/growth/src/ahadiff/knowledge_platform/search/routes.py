@@ -143,6 +143,12 @@ def create_read_routes(domain: Any, model_runner: Any = None) -> list[Route]:
             radar.read, request.path_params["suggestion_id"], actor=actor
         )
 
+    async def plan_handler(request: Request, actor: Any, trace_id: str) -> dict[str, Any]:
+        from ..learning.plan import accept_plan, preview_plan
+
+        function = accept_plan if request.url.path.endswith("/accept") else preview_plan
+        return await run_in_threadpool(function, domain, await body(request), actor=actor)
+
     def endpoint(handler: Any) -> Any:
         async def wrapped(request: Request) -> JSONResponse:
             return await dispatch(request, handler)
@@ -150,6 +156,8 @@ def create_read_routes(domain: Any, model_runner: Any = None) -> list[Route]:
         return wrapped
 
     return [
+        Route("/api/knowledge/v1/radar/plans/preview", endpoint(plan_handler), methods=["POST"]),
+        Route("/api/knowledge/v1/radar/plans/accept", endpoint(plan_handler), methods=["POST"]),
         Route("/api/knowledge/v1/search", endpoint(search_handler), methods=["GET"]),
         Route("/api/knowledge/v1/growth", endpoint(growth_handler), methods=["GET"]),
         Route("/api/knowledge/v1/learning/outcomes", endpoint(outcome_handler), methods=["POST"]),

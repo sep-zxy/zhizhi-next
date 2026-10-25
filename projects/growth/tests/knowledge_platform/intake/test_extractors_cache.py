@@ -143,3 +143,51 @@ def test_cache_rejects_symlink_intake_directory(tmp_path):
     with pytest.raises(IntakeError):
         cache.put("in_bad", {"text": "must not escape"})
     assert list(outside.iterdir()) == []
+
+
+def test_discard_does_not_recreate_directory_during_concurrent_cleanup(tmp_path, monkeypatch):
+    import os
+
+    cache = IntakeCache(tmp_path / "cache")
+    directory = cache.root / "in_fixture"
+    directory.mkdir()
+    original_mkdir = os.mkdir
+
+    def mkdir_with_concurrent_removal(path, *args, **kwargs):
+        try:
+            return original_mkdir(path, *args, **kwargs)
+        except FileExistsError:
+            if path == directory:
+                # Another cleanup wins after EEXIST, before pathlib checks is_dir.
+                directory.rmdir()
+            raise
+
+    monkeypatch.setattr(os, "mkdir", mkdir_with_concurrent_removal)
+    cache.discard("in_fixture")
+    cache.discard("in_fixture")
+    assert not directory.exists()
+
+
+def test_missing_cache_read_does_not_create_directory(tmp_path):
+    cache = IntakeCache(tmp_path / "cache")
+    with pytest.raises(IntakeError) as error:
+        cache.read("in_missing", "0" * 64)
+    assert error.value.code == "CACHE_UNAVAILABLE"
+    assert cache.intake_ids() == []
+
+
+@pytest.mark.parametrize("operation", ["read", "discard"])
+def test_cache_read_and_discard_reject_symlink_directory(tmp_path, operation):
+    cache = IntakeCache(tmp_path / "cache")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / ("0" * 64 + ".json")
+    marker.write_text("{}", encoding="utf-8")
+    (cache.root / "in_bad").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(IntakeError) as error:
+        if operation == "read":
+            cache.read("in_bad", "0" * 64)
+        else:
+            cache.discard("in_bad")
+    assert error.value.code == "UNSAFE_CACHE_PATH"
+    assert marker.read_text(encoding="utf-8") == "{}"

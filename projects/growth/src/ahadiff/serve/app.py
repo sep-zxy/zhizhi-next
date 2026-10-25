@@ -737,7 +737,7 @@ def create_app(state: ServeState, *, viewer_dist: Path | None = None) -> Starlet
     )
     app.state.ahadiff = runtime_state
     from ahadiff.knowledge_platform.learning.radar_practice import create_desktop_learning_routes
-    app.router.routes.extend(create_desktop_learning_routes())
+    app.router.routes[0:0] = create_desktop_learning_routes()
     app.add_middleware(WriteRateLimitMiddleware)
     app.add_middleware(LoopbackGuardMiddleware)
     app.add_middleware(RequestTimeoutMiddleware)

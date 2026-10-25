@@ -710,3 +710,16 @@
     font-size: 11px;
   }
 }
+/* P06 primary action and P08 read-only delivery / review / Writer progress. */
+.zz-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.zz-writeback-progress .zz-session-steps {
+  margin: 0;
+}
+.zz-writeback-progress > .zz-muted {
+  margin: 16px 0 0;
+}

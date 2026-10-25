@@ -9,6 +9,9 @@ const record = (value: unknown): value is Record<string, any> => !!value && type
 const version = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
 export const noteHash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 export type LearningReference = { entry_id: string; revision: number; expected_content_hash: string };
+export type LearningPlan = { source_reference: LearningReference; focus: 'architecture'; plan_hash: string;
+  title: string; question: string; policy_version: string; authorship: 'deterministic_template_not_user_answer'; state: 'preview'; published: false };
+export type LearningPlanAcceptance = { suggestion_id: string; learning_id: string; suggestion_state: 'accepted' | 'completed'; plan_hash: string; source_reference: LearningReference; published: false };
 export type LearningContext = { context_id: string; context_version: number; note_text: string; note_sha256: string;
   entry: { entry_id: string; revision: number; body: string; title: string; content_hash: string } };
 export type LearningSubmission = { context_id: string; context_version: number; submission_id: string;
@@ -41,7 +44,7 @@ export class LearningViewerClient {
     let response: Response;
     try {
       response = await this.fetcher(this.origin + path, { method: body ? 'POST' : 'GET',
-        headers: { 'Content-Type': 'application/json', 'X-AhaDiff-Token': this.token },
+        headers: { 'Content-Type': 'application/json', 'X-AhaDiff-Token': this.token, 'Origin': this.origin },
         body: body ? JSON.stringify(body) : undefined, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(30000) });
     } catch { throw new Error(body ? 'VIEWER_WRITE_UNCONFIRMED_READ_BEFORE_RETRY' : 'VIEWER_READ_UNAVAILABLE'); }
     const reader = response.body?.getReader(); if (!reader) throw new Error(body ? 'VIEWER_WRITE_UNCONFIRMED_READ_BEFORE_RETRY' : 'VIEWER_RESPONSE_INVALID');
@@ -57,6 +60,35 @@ export class LearningViewerClient {
       throw new Error(`${code} (HTTP ${response.status}); read current state before retry`);
     }
     return raw;
+  }
+  async planStatus(digest: string): Promise<{plan_hash:string; delivery_state:string; receipt:unknown}> {
+    if (!matches(HASH,digest)) throw new Error('VIEWER_PLAN_HASH_INVALID');
+    const raw=await this.request('/api/growth/local/knowledge/radar/plans/'+digest);
+    if (!record(raw) || raw.plan_hash!==digest || !['not_submitted','pending','acknowledged','rejected'].includes(raw.delivery_state) ||
+      !(raw.receipt===null || record(raw.receipt))) throw new Error('VIEWER_PLAN_STATUS_UNVERIFIED');
+    return raw as {plan_hash:string; delivery_state:string; receipt:unknown};
+  }
+  async previewPlan(reference: LearningReference): Promise<LearningPlan> {
+    if (!referenceValid(reference)) throw new Error('VIEWER_REFERENCE_INVALID');
+    const raw = await this.request('/api/growth/local/knowledge/radar/plans/preview', {...reference, focus:'architecture'});
+    if (!record(raw) || !record(raw.source_reference) || !matches(HASH,raw.plan_hash) ||
+      raw.focus !== 'architecture' || raw.state !== 'preview' || raw.published !== false ||
+      raw.authorship !== 'deterministic_template_not_user_answer' || typeof raw.title !== 'string' ||
+      typeof raw.question !== 'string' || !raw.question.trim() || typeof raw.policy_version !== 'string' ||
+      raw.source_reference.entry_id !== reference.entry_id || raw.source_reference.revision !== reference.revision ||
+      raw.source_reference.expected_content_hash !== reference.expected_content_hash) throw new Error('VIEWER_PLAN_UNVERIFIED');
+    return raw as LearningPlan;
+  }
+  async acceptPlan(plan: LearningPlan): Promise<LearningPlanAcceptance> {
+    if (!referenceValid(plan.source_reference) || !matches(HASH,plan.plan_hash) || plan.focus !== 'architecture') throw new Error('VIEWER_PLAN_UNVERIFIED');
+    const raw = await this.request('/api/growth/local/knowledge/radar/plans/accept', {
+      ...plan.source_reference, focus:plan.focus, plan_hash:plan.plan_hash,
+    });
+    if (!record(raw) || !record(raw.source_reference) || !matches(/^tsk_[a-f0-9]{32}$/,raw.suggestion_id) || !matches(/^tsk_[a-f0-9]{32}$/,raw.learning_id) ||
+      !['accepted','completed'].includes(raw.suggestion_state) || raw.published !== false || raw.plan_hash !== plan.plan_hash ||
+      raw.source_reference.entry_id !== plan.source_reference.entry_id || raw.source_reference.revision !== plan.source_reference.revision ||
+      raw.source_reference.expected_content_hash !== plan.source_reference.expected_content_hash) throw new Error('VIEWER_PLAN_ACCEPTANCE_UNVERIFIED_READ_BEFORE_RETRY');
+    return raw as LearningPlanAcceptance;
   }
   async create(reference: LearningReference, requestId: string): Promise<LearningContext> {
     if (!referenceValid(reference) || !matches(UUID,requestId)) throw new Error('VIEWER_REFERENCE_INVALID');

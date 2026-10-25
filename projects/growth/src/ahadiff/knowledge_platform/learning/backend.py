@@ -445,6 +445,20 @@ class RemoteKnowledgeBackend:
             payload={"limit": limit},
         )
 
+    async def preview_learning_plan(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Read an exact-source deterministic plan, with no persistent enrollment."""
+        return await self._request("POST", "/api/knowledge/v1/radar/plans/preview", payload=payload)
+
+    async def accept_learning_plan(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Durably retain the user's exact plan decision before outbound delivery."""
+        digest = payload.get("plan_hash")
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise BackendError("INVALID_INPUT", "Invalid plan identity")
+        async with self._delivery_lock:
+            return await self._deliver(self.outbox.enqueue(
+                "learning-plan:" + digest, "/api/knowledge/v1/radar/plans/accept", payload,
+            ))
+
     async def read_radar(self, suggestion_id: str) -> dict[str, Any]:
         """Read the accepted exercise and its authoritative completion status."""
         return await self._request("GET", self._radar_path(suggestion_id))

@@ -8,7 +8,7 @@ export function capabilitySummary(toolNames: readonly string[], humanCommandsAva
     humanCommandsAvailable
       ? "本人 TUI 命令：/zhizhi-supplement <intake_id>、/zhizhi-keep <intake_id>、/zhizhi-discard <intake_id>、/zhizhi-review <change_id> [approve|reject|needs_evidence]、/zhizhi-task-resume <task_id>、/zhizhi-task-cancel <task_id>。仍须有效身份及具体确认。"
       : "本人决定命令未注册：当前桥接槽没有独立本人身份。不会替你批准或创建身份。",
-    learningAvailable ? "本人学习命令：/zhizhi-learn、/zhizhi-learn-open、/zhizhi-learn-note、/zhizhi-learn-submit。精确版本与原话确认，模型不能调用。" : "本人学习命令未启用：需明确配置同机 viewer 地址与既有独立身份；不会猜端口、读取密钥或复制领域令牌。",
+    learningAvailable ? "本人学习命令：/zhizhi-learn-plan、/zhizhi-learn-plan-status、/zhizhi-learn、/zhizhi-learn-open、/zhizhi-learn-note、/zhizhi-learn-submit。精确版本与原话确认，模型不能调用。" : "本人学习命令未启用：需明确配置同机 viewer 地址与既有独立身份；不会猜端口、读取密钥或复制领域令牌。",
     "本人只读入口：/zhizhi-change <change_id>、/zhizhi-versions <entry_id> [limit] [offset]、/zhizhi-diff <entry_id> <from_revision> <to_revision>。使用现有领域身份，不提升权限。",
     "本地操作员入口（非Pi模型工具）：python -m ahadiff.knowledge_platform.operations_preview backup-inspect <snapshot>、restore-plan <snapshot> --dry-run、eligibility、publish-preview、publish-build-plan、publish-verify（各子命令--help查看必需参数）。检查/计划只读；preview仅写全新隔离净化目录，不部署或实际恢复。",
     "尚未接入统一 CLI：实际Quartz build/发布统一执行、动态工具安装。未提供的操作不能视为完成。",

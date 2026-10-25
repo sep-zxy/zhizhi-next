@@ -965,10 +965,14 @@ test('本人原话提交到任务与只读候选差异，刷新恢复不重复�
     exact: true,
   });
   await expect(submit).toBeEnabled();
+  const progress = page.getByRole('region', { name: '成果回填处理进度' });
+  await expect(progress.getByRole('listitem')).toHaveCount(3);
+  await expect(progress).toContainText('尚未提交');
   await submit.dblclick();
   await expect(
     page.getByText('已保存到本机待发，尚未确认服务受理。', { exact: true }),
   ).toBeVisible();
+  await expect(progress).toContainText('已保存到本机待发');
   expect(calls.submissionBodies).toHaveLength(1);
   await expect(submit).toBeDisabled();
   await expect(
@@ -980,6 +984,8 @@ test('本人原话提交到任务与只读候选差异，刷新恢复不重复�
   await expect(
     page.getByText('候选等待独立复核，尚未确认正式写入。', { exact: true }),
   ).toBeVisible();
+  await expect(progress).toContainText('等待独立复核');
+  await expect(progress).toContainText('尚未确认写入');
   const diff = page.getByLabel('本人理解候选与基线差异');
   await expect(diff).toContainText('旧版只说明原子性');
   await expect(diff).toContainText('新版加入重试边界与本人实践');
@@ -1006,7 +1012,9 @@ test('本人原话提交到任务与只读候选差异，刷新恢复不重复�
   await expect(
     page.getByText('公开状态：此接口未提供，不推定已公开。', { exact: true }),
   ).toBeVisible();
+  await expect(progress).toContainText('已确认写入 v');
   await page.reload();
+  await expect(progress).toContainText('已确认写入 v');
   await expect(submit).toBeDisabled();
   await expect(
     page.getByText('已确认正式写入，不代表公开。', { exact: true }),
@@ -1918,4 +1926,16 @@ test('学习库视图恢复、会话独立导航和搜索空态', async ({ page 
   await expect(
     page.getByRole('heading', { name: '选择要继续的学习会话' }),
   ).toBeVisible();
+});
+
+test('学习库新建入口进入真实工程来源并可返回，不自动生成或提交', async ({ page }) => {
+  const calls = await serve(page);
+  await page.goto('/#/growth?view=library&project=p1&library_tab=revisit');
+  await page.getByRole('link', { name: '新建学习任务', exact: true }).click();
+  await expect(page).toHaveURL(/view=projects&project=p1/);
+  await expect(page.getByRole('heading', { name: '工程项目与提交证据' })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/view=library&project=p1&library_tab=revisit/);
+  await expect(page.getByRole('link', { name: '新建学习任务', exact: true })).toBeVisible();
+  expect(calls.submissionBodies).toHaveLength(0);
 });

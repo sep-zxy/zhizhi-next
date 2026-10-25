@@ -199,6 +199,11 @@ def test_concurrent_keep_remains_one_durable_source(service, actors):
         sources = list(pool.map(keep, range(4)))
     assert len({item["source_id"] for item in sources}) == 1
     assert len({item["task_id"] for item in sources}) == 1
+    assert service.cache.intake_ids() == []
+    evidence = service.domain.read_evidence(
+        {"source_id": sources[0]["source_id"]}, actor=actors[0]
+    )
+    assert "Synthetic owner-supplied evidence." in evidence["text"]
 
 
 def test_quota_resume_reuses_captured_body_not_network(service, actors):

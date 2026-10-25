@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Lightbulb,
   RefreshCw,
+  PlusCircle,
 } from 'lucide-react';
 import GrowthShell from '../growth/GrowthShell';
 import { getGrowthLocalState, type GrowthLocalState } from '../api/growth';
@@ -151,14 +152,22 @@ export default function GrowthPage() {
             <h1>{TITLES[view]}</h1>
             <p>从真实工程出发，理解机制、边界与技术取舍。</p>
           </div>
-          <button
-            className="zz-button secondary"
-            disabled={loading}
-            onClick={() => void refresh()}
-          >
-            <RefreshCw size={16} />
-            刷新
-          </button>
+          <div className="zz-heading-actions">
+            {view === 'library' && !cardId && (
+              <Link className="zz-button" to={learningUrl('projects', projectId)}>
+                <PlusCircle size={16} aria-hidden="true" />
+                新建学习任务
+              </Link>
+            )}
+            <button
+              className="zz-button secondary"
+              disabled={loading}
+              onClick={() => void refresh()}
+            >
+              <RefreshCw size={16} />
+              刷新
+            </button>
+          </div>
         </header>
         {error && (
           <div className="zz-notice error" role="alert">
