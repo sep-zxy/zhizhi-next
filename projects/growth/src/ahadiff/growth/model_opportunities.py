@@ -132,6 +132,7 @@ def prepare_model_preview(
     binding_id: str,
     provider_name: str,
     source_ref_ids: list[str],
+    *, provider_config: ProviderConfig | None = None,
 ) -> ModelPreview:
     if not 1 <= len(source_ref_ids) <= 8 or len(set(source_ref_ids)) != len(source_ref_ids):
         raise ValueError("必须选择 1–8 个不重复的源码引用")
@@ -148,7 +149,9 @@ def prepare_model_preview(
     if snapshot is None:
         raise ValueError("快照与本机仓库绑定不匹配")
     repo_path = repository_root(Path(snapshot["canonical_local_path"]))
-    config, _, _ = _provider(repo_path, provider_name, require_api_key=False)
+    config = provider_config
+    if config is None:
+        config, _, _ = _provider(repo_path, provider_name, require_api_key=False)
     refs = db.execute(
         "SELECT source_ref_id, relative_path, content, deleted FROM source_refs "
         "WHERE snapshot_id=?",
@@ -257,6 +260,33 @@ def prepare_model_preview(
     )
 
 
+def opportunity_request(preview: ModelPreview, config: ProviderConfig) -> ProviderRequest:
+    """Construct the precise first request for preview and bounded execution."""
+    return ProviderRequest(
+        prompt_name="growth_opportunities",
+        prompt_fingerprint=_digest(_PROMPT),
+        prompt_version=_PROMPT_VERSION,
+        eval_bundle_version="growth-v1",
+        model=config.model_name,
+        thinking_level=config.thinking_level,
+        payload_text=preview.payload_text,
+        redacted_payload_text=preview.payload_text,
+        diff_content=preview.selected_patch,
+        source_ref=preview.snapshot_id,
+        context_bundle_hash=_digest(json.dumps({
+            "snapshot_id": preview.snapshot_id, "binding_id": preview.binding_id,
+            "source_ref_ids": preview.source_ref_ids, "approval_hash": preview.approval_hash,
+        }, sort_keys=True, separators=(",", ":"))),
+        privacy_mode="redacted_remote",
+        response_format="json_schema",
+        output_schema_id="growth_opportunities",
+        output_schema_version="1",
+        output_schema=OpportunityBatch.model_json_schema(),
+        max_output_tokens=4000,
+        enforcement_mode="native_json_schema",
+    )
+
+
 def generate_opportunities(
     repo_path: Path, preview: ModelPreview,
 ) -> tuple[OpportunityBatch, ProviderResponse]:
@@ -265,37 +295,21 @@ def generate_opportunities(
     )
     if _config_hash(config) != preview.provider_config_hash:
         raise ValueError("模型配置已变化，请重新确认发送范围")
-    schema = OpportunityBatch.model_json_schema()
     with make_provider(
         config, api_key=api_key, security_config=security,
         workspace_root=repo_path, execution_origin="growth",
     ) as provider:
-        request = ProviderRequest(
-            prompt_name="growth_opportunities",
-            prompt_fingerprint=_digest(_PROMPT),
-            prompt_version=_PROMPT_VERSION,
-            eval_bundle_version="growth-v1",
-            model=config.model_name,
-            thinking_level=config.thinking_level,
-            payload_text=preview.payload_text,
-            redacted_payload_text=preview.payload_text,
-            diff_content=preview.selected_patch,
-            source_ref=preview.snapshot_id,
-            privacy_mode="redacted_remote",
-            response_format="json_schema",
-            output_schema_id="growth_opportunities",
-            output_schema_version="1",
-            output_schema=schema,
-            max_output_tokens=4000,
-            enforcement_mode="native_json_schema",
-        )
-        for attempt in range(3):
+        request = opportunity_request(preview, config)
+        maximum_attempts = min(3, max(1, getattr(provider, "max_schema_attempts", 3)))
+        for attempt in range(maximum_attempts):
             response = provider.generate(request)
             try:
                 return OpportunityBatch.model_validate_json(response.content), response
             except ValidationError as exc:
-                if attempt == 2:
-                    raise ValueError("模型学习机会连续三次未符合结构要求") from None
+                if attempt + 1 == maximum_attempts:
+                    message = ("模型学习机会连续三次未符合结构要求" if maximum_attempts == 3
+                               else "模型学习机会未符合结构要求，已停止本次允许的尝试")
+                    raise ValueError(message) from None
                 feedback = build_validation_retry_feedback(
                     schema_id="growth_opportunities", schema_version="1",
                     errors=exc.errors(include_input=False),

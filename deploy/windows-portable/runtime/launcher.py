@@ -243,8 +243,14 @@ def platform_command(config,local_test=False,owner_acceptance=False,learning_vie
  for provider in config.get('providers',[]):args.extend(['--provider',provider])
  return args,port,'configured'
 
-def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False,no_browser=False):
+def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi=False,no_browser=False,owner_engineering=False):
  import msvcrt
+ if owner_engineering and (not owner_acceptance or owner_model or owner_pi or local_test):
+  raise ValueError('Engineering scope cannot be mixed with other execution scopes')
+ engineering_file=None
+ if owner_engineering:
+  from ahadiff.knowledge_platform.owner_engineering import desktop_config_path
+  engineering_file=desktop_config_path(ROOT)
  # Never inherit a caller's Viewer capability into unrelated children. Only this
  # launcher allocates the existing one-session token for its human Pi process.
  env={key:value for key,value in env.items() if key not in {
@@ -279,7 +285,8 @@ def start(env,local_test=False,owner_acceptance=False,owner_model=False,owner_pi
   status.update(fixture=False,mode='owner-acceptance',browser_authentication='pairing_required',
                 pi='disabled_in_owner_acceptance',model='disabled',worker='disabled')
   if owner_model:status.update(mode='owner-fixed-material-acceptance',model='bounded_scope_not_verified',worker='fixed_scope_enabled',publication='disabled')
-  viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(owner_desktop_config(port))
+  viewer_env['AHADIFF_KNOWLEDGE_CONFIG']=str(engineering_file or owner_desktop_config(port))
+  if owner_engineering:status.update(mode='owner-engineering-one-shot',model='single_engineering_attempt_not_verified',worker='disabled',publication='disabled')
  if identities:
   # Desktop config is an authorized deployment input, not generated credentials.
   if config.get('desktop_config'):
@@ -392,6 +399,7 @@ def parse_arguments(argv=None):
  parser.add_argument('action',choices=['start','stop','diagnostics','publish',
                                      'local-test-start','local-test-initialize','local-test-pair',
                                      'owner-acceptance-start','owner-acceptance-initialize','owner-acceptance-pair','owner-acceptance-reuse',
+                                     'owner-engineering-preview','owner-engineering-activate','owner-engineering-start',
                                      'owner-model-activate','owner-model-start','owner-pi-activate','owner-pi-start','owner-pi-once'])
  parser.add_argument('--approve-local-test-identity',action='store_true')
  parser.add_argument('--approve-owner-acceptance-identity',action='store_true')
@@ -404,11 +412,14 @@ def parse_arguments(argv=None):
  parser.add_argument('--expected-release')
  parser.add_argument('--codex-exe')
  parser.add_argument('--codex-home')
+ parser.add_argument('--engineering-spec')
+ parser.add_argument('--approved-engineering-scope-hash')
+ parser.add_argument('--approve-owner-engineering',action='store_true')
  parser.add_argument('--port',type=int)
  parser.add_argument('--pairing-code')
  parser.add_argument('--no-browser',action='store_true',help='Do not discover or launch a browser; preserve existing browser profiles.')
  args=parser.parse_args(argv)
- if args.no_browser and args.action not in {'start','local-test-start','owner-acceptance-start','owner-model-start','owner-pi-start'}:
+ if args.no_browser and args.action not in {'start','local-test-start','owner-acceptance-start','owner-model-start','owner-pi-start','owner-engineering-start'}:
   parser.error('--no-browser requires a start action')
  if args.action=='owner-acceptance-reuse':
   if not args.approve_owner_identity_reuse or not args.new_acceptance_run:
@@ -418,7 +429,15 @@ def parse_arguments(argv=None):
  elif args.approve_owner_identity_reuse or args.new_acceptance_run or args.anchor_release is not None:
   parser.error('Reuse options require owner-acceptance-reuse')
  model_fields=[args.expected_source,args.expected_release,args.codex_exe,args.codex_home]
- if args.action=="owner-model-activate":
+ if args.action in {'owner-engineering-preview','owner-engineering-activate'}:
+  if (not all(model_fields) or not args.engineering_spec or args.approve_owner_acceptance_model or args.approve_owner_pi_search):
+   parser.error('Exact engineering preview/activation arguments required')
+  if args.action=='owner-engineering-activate':
+   if not args.approve_owner_engineering or not args.approved_engineering_scope_hash or not re.fullmatch(r'[0-9a-f]{64}',args.approved_engineering_scope_hash):
+    parser.error('Exact reviewed engineering scope hash and approval required')
+  elif args.approve_owner_engineering or args.approved_engineering_scope_hash:
+   parser.error('Preview cannot activate engineering scope')
+ elif args.action=="owner-model-activate":
   if not args.approve_owner_acceptance_model or not all(model_fields) or args.approve_owner_pi_search:
    parser.error("Explicit fixed-release model activation arguments required")
  elif args.action=="owner-pi-activate":
@@ -427,7 +446,9 @@ def parse_arguments(argv=None):
    parser.error("Separate explicit Pi search activation arguments required")
  elif args.approve_owner_acceptance_model or args.approve_owner_pi_search or any(value is not None for value in model_fields):
   parser.error("Activation arguments require their separate activation action")
- if args.action in {"owner-model-activate","owner-pi-activate"}:
+ if args.action not in {'owner-engineering-preview','owner-engineering-activate'} and (args.engineering_spec or args.approve_owner_engineering or args.approved_engineering_scope_hash):
+  parser.error('Engineering options require their explicit preview/activation action')
+ if args.action in {"owner-model-activate","owner-pi-activate","owner-engineering-preview","owner-engineering-activate"}:
   if not re.fullmatch(r"[0-9a-f]{40}",args.expected_source):parser.error("Invalid source commit")
   if not re.fullmatch(re.escape(args.expected_source[:12])+r"-[0-9]+-[0-9]+",args.expected_release):parser.error("Invalid release binding")
  if args.action=='local-test-initialize':
@@ -508,6 +529,25 @@ def run_owner_model_activation(args):
  finally:sys.argv=previous
 
 
+def run_owner_engineering(args):
+ if args.action not in {'owner-engineering-preview','owner-engineering-activate'}:
+  raise ValueError('Explicit engineering action required')
+ source,release=owner_release_binding()
+ if (source,release)!=(args.expected_source,args.expected_release):raise ValueError('Release changed')
+ name='ahadiff.knowledge_platform.owner_engineering'
+ module=importlib.import_module(name)
+ arguments=['activate' if args.action=='owner-engineering-activate' else 'preview',
+            '--spec',str(within(args.engineering_spec)), '--codex-exe',args.codex_exe,'--codex-home',args.codex_home]
+ if args.action=='owner-engineering-activate':
+  if not args.approve_owner_engineering:raise ValueError('Explicit engineering approval required')
+  arguments.extend(['--approved-scope-hash',args.approved_engineering_scope_hash])
+ previous=sys.argv
+ try:
+  sys.argv=[name,*arguments]
+  module.main()
+ finally:sys.argv=previous
+
+
 def run_owner_pi_activation(args):
  if args.action!='owner-pi-activate' or not args.approve_owner_pi_search:
   raise ValueError('Separate explicit Pi scope activation required')
@@ -542,6 +582,10 @@ def main():
   if not within('data').is_dir():print('This package is not running.');return
   within('data/stop.request').write_text('stop\n',encoding='ascii');print('Stop requested for this package only.');return
  verify_distribution()
+ if args.action in {'owner-engineering-preview','owner-engineering-activate'}:
+  env=isolated_environment();os.environ.clear();os.environ.update(env)
+  run_owner_engineering(args)
+  return
  if args.action=="owner-pi-activate":
   env=isolated_environment();os.environ.clear();os.environ.update(env)
   run_owner_pi_activation(args)
@@ -571,9 +615,10 @@ def main():
   run_once(sys.modules[__name__],env)
   return
  start(env,local_test=args.action=='local-test-start',
-       owner_acceptance=args.action in {'owner-acceptance-start','owner-model-start','owner-pi-start'},
+       owner_acceptance=args.action in {'owner-acceptance-start','owner-model-start','owner-pi-start','owner-engineering-start'},
        owner_model=args.action in {'owner-model-start','owner-pi-start'},
-       owner_pi=args.action=='owner-pi-start',no_browser=args.no_browser)
+       owner_pi=args.action=='owner-pi-start',no_browser=args.no_browser,
+       owner_engineering=args.action=='owner-engineering-start')
 
 if __name__=='__main__':
  if len(sys.argv)>1 and sys.argv[1]=='_child':

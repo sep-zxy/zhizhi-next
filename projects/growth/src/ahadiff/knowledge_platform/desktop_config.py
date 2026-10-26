@@ -31,6 +31,7 @@ def configure_desktop(
         "providers",
         "input_classification",
         "identity_format",
+        "owner_engineering_scope",
     }
     if set(config) - allowed:
         raise ValueError("Unknown desktop configuration field")
@@ -72,7 +73,13 @@ def configure_desktop(
     bridge = ModelBridgeConfiguration(
         enabled=True, allowed_provider_ids=tuple(providers), input_classification=classification
     )
-    runner = build_runner_from_config(config.get("model"))
+    if "owner_engineering_scope" in config:
+        # This loader validates exact path, original disabled base, activation,
+        # release and saved engineering inputs. Never a general config escape.
+        from .owner_engineering import desktop_runner
+        runner, bridge = desktop_runner(path, state_directory)
+    else:
+        runner = build_runner_from_config(config.get("model"))
     backend = RemoteKnowledgeBackend(
         config["service_url"],
         token_provider=token_provider,
