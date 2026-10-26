@@ -1,6 +1,6 @@
 import { launchTestChromium } from '../fixtures/browser';
 import { createHash } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFailed } from 'vitest';
 import { type Browser, type Locator, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 
@@ -145,9 +145,10 @@ async function createHarnessServer(): Promise<{ server: ViteDevServer; baseUrl: 
   return { server, baseUrl: `http://127.0.0.1:${address.port}` };
 }
 
-async function renderDialog(page: Page, options: RenderOptions = {}): Promise<void> {
+async function renderDialog(page: Page, options: RenderOptions = {}, beforeRender?: () => Promise<void>): Promise<void> {
   await page.goto(`${baseUrl}${TEST_PATH}`);
   await page.waitForFunction(() => Boolean(window.__learnModeDialogReady));
+  await beforeRender?.();
   await page.evaluate((opts) => window.__renderLearnModeDialog(opts), options);
 }
 
@@ -290,29 +291,42 @@ describe('LearnModeDialog source selection and preview', () => {
   });
 
   it.each(['en', 'zh-CN'] as const)('does not steal keyboard focus from a file chooser when the opening frame arrives late in %s', async locale => {
+    let stage = 'load harness';
+    onTestFailed(() => console.error(`Delayed-focus regression (${locale}) stopped at: ${stage}`));
     // Hold the opening autofocus frame until after the user focuses a control.
     // This reproduces the race without sleeps, slower CI, or a timeout increase.
-    await page.addInitScript(() => {
-      window.__pendingFocusFrames = [];
-      window.requestAnimationFrame = callback => window.__pendingFocusFrames.push(callback);
-      window.cancelAnimationFrame = id => { window.__pendingFocusFrames[id - 1] = () => {}; };
-      window.__flushFocusFrames = () => {
-        const callbacks = window.__pendingFocusFrames.splice(0);
-        for (const callback of callbacks) callback(performance.now());
-      };
+    await renderDialog(page, { initialSource: 'files', locale }, async () => {
+      stage = 'install opening-frame gate';
+      // Install only after readiness and Playwright's native builtins capture.
+      // An init script would also freeze Playwright's own RAF-based polling,
+      // making the test driver depend on the frame it is supposed to release.
+      await page.evaluate(() => {
+        window.__pendingFocusFrames = [];
+        window.requestAnimationFrame = callback => window.__pendingFocusFrames.push(callback);
+        window.cancelAnimationFrame = id => { window.__pendingFocusFrames[id - 1] = () => {}; };
+        window.__flushFocusFrames = () => {
+          const callbacks = window.__pendingFocusFrames.splice(0);
+          for (const callback of callbacks) callback(performance.now());
+        };
+      });
     });
-    await renderDialog(page, { initialSource: 'files', locale });
+    stage = 'wait for chooser and held opening frame';
     const chooser = page.getByRole('button', {
       name: locale === 'en' ? 'Choose file: Before' : '修改前：选择文件', exact: true,
     });
     await expect.poll(() => chooser.isVisible()).toBe(true);
     await expect.poll(() => page.evaluate(() => window.__pendingFocusFrames.length)).toBe(1);
+    stage = 'focus chooser';
     await chooser.focus();
+    stage = 'release opening frame and verify focus';
     await page.evaluate(() => window.__flushFocusFrames());
     expect(await chooser.evaluate(element => element === document.activeElement)).toBe(true);
+    stage = 'activate native file chooser';
     const fileChooser = page.waitForEvent('filechooser');
     await page.keyboard.press('Enter');
+    stage = 'receive chooser and select file';
     await (await fileChooser).setFiles({ name: 'focus.md', mimeType: 'text/plain', buffer: Buffer.from('content') });
+    stage = 'verify selected filename';
     await expect.poll(() => page.locator('#learn-file-before-status strong').textContent()).toBe('focus.md');
   });
 
