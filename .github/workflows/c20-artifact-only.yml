@@ -3,7 +3,7 @@ name: C20 isolated real Quartz artifact verification
 on:
   push:
     branches: [main]
-    paths: ['deploy/c20-artifact-only/once-3909d2dc-7f5412a9.json']
+    paths: ['deploy/c20-artifact-only/once-8986f868-c9a42e71.json']
   workflow_dispatch:
     inputs:
       expected_source:
@@ -23,7 +23,7 @@ jobs:
     if: >-
       github.repository == 'sep-zxy/zhizhi-platform' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'push' && github.event.before == '3909d2dcf97935c5751b70c079b860d517fdcb93' &&
+       (github.event_name == 'push' && github.event.before == '8986f8686ee0ae388fcb85ce6e45ad7eace19bbd' &&
         github.run_attempt == 1 && github.event.forced == false &&
         github.event.created == false && github.event.deleted == false))
     runs-on: ubuntu-24.04

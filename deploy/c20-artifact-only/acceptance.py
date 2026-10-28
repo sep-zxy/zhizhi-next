@@ -12,6 +12,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from bounded_command import run_synthetic
+
 
 def require(condition, message):
     if not condition:
@@ -101,10 +103,9 @@ def independent_assets(work, source_sha):
                          policy_version="c20-template", template_version="c20-template", policy={})
         env = {key: os.environ[key] for key in ("PATH", "TMPDIR", "LANG") if key in os.environ}
         env.update(TZ="UTC", QUARTZ_OFFLINE_PLUGINS="1", QUARTZ_PUBLIC_BASE_URL="https://example.org")
-        subprocess.run([shutil.which("node"), "quartz/bootstrap-cli.mjs", "build", "-d", str(staging),
+        run_synthetic([shutil.which("node"), "quartz/bootstrap-cli.mjs", "build", "-d", str(staging),
                         "-o", str(output), "--concurrency=1"], cwd=build._SITE, env=env,
-                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       check=True, timeout=900)
+                       timeout=900, label=f"template-{index}")
         mappings.append({name: digest for name, digest in tree_hashes(output).items()
                          if Path(name).suffix.lower() in {".css", ".js", ".woff", ".woff2", ".ttf", ".svg", ".png", ".ico"}})
     # Only stable assets from TWO unrelated inputs; never inspect target outputs

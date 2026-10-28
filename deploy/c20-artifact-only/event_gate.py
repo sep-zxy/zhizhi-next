@@ -5,13 +5,14 @@ from pathlib import Path
 import re
 import subprocess
 
-BASE = '3909d2dcf97935c5751b70c079b860d517fdcb93'
-BASE_TREE = '011de54bddac998e45bf48a0a08b26cbd487ffdc'
-NONCE = 'c20-docker-once-20261028-3909d2dc-7f5412a9'
-MARKER = 'deploy/c20-artifact-only/once-3909d2dc-7f5412a9.json'
+BASE = '8986f8686ee0ae388fcb85ce6e45ad7eace19bbd'
+BASE_TREE = '6d5a584684f05c9e6ad2b2b02a75ac56a85d5c4f'
+NONCE = 'c20-diagnostic-once-20261028-8986f868-c9a42e71'
+MARKER = 'deploy/c20-artifact-only/once-8986f868-c9a42e71.json'
 CHANGES = frozenset({'.github/workflows/c20-artifact-only.yml', MARKER,
-    'deploy/c20-artifact-only/event_gate.py', 'deploy/c20-artifact-only/test_event_gate.py',
-    'deploy/c20-artifact-only/prepare_and_run.py', 'deploy/c20-artifact-only/docker_executor.py',
+    'deploy/c20-artifact-only/event_gate.py', 'deploy/c20-artifact-only/acceptance.py',
+    'deploy/c20-artifact-only/bounded_command.py', 'deploy/c20-artifact-only/test_bounded_command.py',
+    'deploy/c20-artifact-only/prepare_and_run.py', 'deploy/c20-artifact-only/test_prepare_and_run.py',
     'deploy/c20-artifact-only/README.md'})
 MARKER_VALUE = {'base_commit': BASE, 'base_tree': BASE_TREE, 'nonce': NONCE,
                 'scope': 'one-approved-docker-synthetic-acceptance-no-deployment'}

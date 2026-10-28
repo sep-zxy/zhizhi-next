@@ -13,6 +13,47 @@ spec.loader.exec_module(driver)
 
 
 class IsolationConfiguration(unittest.TestCase):
+    def test_pruning_provenance_exact_allowlist_and_hashes(self):
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / "projects/selfweb/docs/pruning-v1"
+            folder.mkdir(parents=True)
+            site = root / "projects/selfweb/site/.quartz"
+            site.mkdir(parents=True)
+            lock, index = b'{"plugins":{}}', b'// synthetic original index\n'
+            digest = lambda data: hashlib.sha256(data).hexdigest()
+            original = json.dumps({"lock_sha256": digest(lock), "files": {
+                ".quartz/plugins/index.ts": [digest(index)]}}).encode()
+            (folder / "original-vendored-source-manifest.json").write_bytes(original)
+            (folder / "original-quartz.lock.json").write_bytes(lock)
+            (folder / "original-plugin-index.ts.txt").write_bytes(index)
+            (site / "vendored-source-manifest.json").write_text(json.dumps({"derivation": {
+                "version": 1, "original_manifest_sha256": digest(original),
+                "original_lock_sha256": digest(lock)}}))
+            driver.validate_pruning_provenance(root)
+            stage = root / "staged"
+            tracked = sorted(driver.PROVENANCE_FILES) + ["projects/selfweb/site/.quartz/vendored-source-manifest.json"]
+            (folder / "unrelated.json").write_text("not copied")
+            tracked.append("projects/selfweb/docs/pruning-v1/unrelated.json")
+            with patch.object(driver.subprocess, "check_output", return_value=("\0".join(tracked) + "\0").encode()):
+                driver.copy_tracked(root, stage)
+            driver.validate_pruning_provenance(stage)
+            self.assertFalse((stage / "projects/selfweb/docs/pruning-v1/unrelated.json").exists())
+            self.assertEqual(len(driver.PROVENANCE_FILES), 3)
+            self.assertFalse("projects/selfweb/docs/pruning-v1/other.json" in driver.PROVENANCE_FILES)
+            file = folder / "original-quartz.lock.json"
+            file.unlink()
+            with self.assertRaisesRegex(ValueError, "Missing or unsafe"):
+                driver.validate_pruning_provenance(root)
+            file.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                driver.validate_pruning_provenance(root)
+            file.unlink(); file.symlink_to(folder / "original-plugin-index.ts.txt")
+            with self.assertRaisesRegex(ValueError, "Missing or unsafe"):
+                driver.validate_pruning_provenance(root)
+
     def test_font_helper_can_import_sibling_and_restores_path(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(sys.modules):
             sys.modules.pop("build_bundle", None)

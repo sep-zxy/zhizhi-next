@@ -6,6 +6,7 @@ This driver never changes product isolation_attested receipts.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,37 @@ SOURCE_PREFIXES = (
     "projects/selfweb/scripts/", "projects/selfweb/docs/build-assets/",
     "deploy/c20-artifact-only/",
 )
+
+
+PROVENANCE_FILES = frozenset({
+    "projects/selfweb/docs/pruning-v1/original-vendored-source-manifest.json",
+    "projects/selfweb/docs/pruning-v1/original-quartz.lock.json",
+    "projects/selfweb/docs/pruning-v1/original-plugin-index.ts.txt",
+})
+
+
+def validate_pruning_provenance(repo: Path) -> None:
+    """Supply, never bypass, the existing read-only Quartz derivation verifier."""
+    manifest = json.loads((repo / "projects/selfweb/site/.quartz/vendored-source-manifest.json").read_text())
+    derivation = manifest.get("derivation")
+    if derivation is None:
+        return
+    if derivation.get("version") != 1:
+        raise ValueError("Unsupported pruning provenance version")
+    files = {}
+    for relative in PROVENANCE_FILES:
+        file = repo / relative
+        if not file.is_file() or file.is_symlink() or not file.resolve().is_relative_to(repo.resolve()):
+            raise ValueError("Missing or unsafe pruning provenance")
+        files[file.name] = file.read_bytes()
+    original_bytes = files["original-vendored-source-manifest.json"]
+    original = json.loads(original_bytes)
+    if (hashlib.sha256(original_bytes).hexdigest() != derivation.get("original_manifest_sha256")
+            or hashlib.sha256(files["original-quartz.lock.json"]).hexdigest() != derivation.get("original_lock_sha256")
+            or original.get("lock_sha256") != derivation.get("original_lock_sha256")
+            or hashlib.sha256(files["original-plugin-index.ts.txt"]).hexdigest()
+                not in original.get("files", {}).get(".quartz/plugins/index.ts", [])):
+        raise ValueError("Pruning provenance hash mismatch")
 
 
 def run(argv: list[str], cwd: Path) -> None:
@@ -43,7 +75,7 @@ def load_font_preparer(repo: Path):
 def copy_tracked(repo: Path, destination: Path) -> None:
     names = subprocess.check_output(["git", "ls-files", "-z"], cwd=repo).decode().split("\0")
     for name in names:
-        if not name.startswith(SOURCE_PREFIXES):
+        if not name.startswith(SOURCE_PREFIXES) and name not in PROVENANCE_FILES:
             continue
         source = repo / name
         if source.is_symlink() or not source.is_file():
@@ -71,6 +103,7 @@ def prepare(repo: Path, work: Path, source: str) -> None:
         raise ValueError("Preparation requires an unmodified source checkout")
     if work.exists():
         raise ValueError("A fresh isolated work directory is required")
+    validate_pruning_provenance(repo)
     work.mkdir(parents=True)
     result = work / "result"
     result.mkdir()
@@ -102,6 +135,7 @@ def prepare(repo: Path, work: Path, source: str) -> None:
     stage = work / "source"
     stage.mkdir()
     copy_tracked(repo, stage)
+    validate_pruning_provenance(stage)
     # Copy only installed runtime/dependency trees, no checkout .git/config.
     shutil.copytree(repo / "projects/growth/.venv", stage / "projects/growth/.venv", symlinks=True)
     # Relocate the selected runtime to a neutral mountpoint; uv-managed Python
