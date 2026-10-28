@@ -48,20 +48,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes bubblewrap
           uv sync --project projects/growth --frozen --group dev --no-install-project
           uv run --project projects/growth --no-sync python deploy/c20-artifact-only/prepare_and_run.py --phase prepare --repo "$GITHUB_WORKSPACE" --work "$RUNNER_TEMP/c20-artifact-only" --source "$GITHUB_SHA"
       - name: Execute real Quartz in kernel-isolated network and mounts
+        id: isolated_execution
         shell: bash
         run: |
           set -euo pipefail
           uv run --project projects/growth --no-sync python deploy/c20-artifact-only/prepare_and_run.py --phase execute --repo "$GITHUB_WORKSPACE" --work "$RUNNER_TEMP/c20-artifact-only" --source "$GITHUB_SHA"
-      - name: Preserve bounded synthetic evidence, not live E2E approval
+      - name: Clean up only the exact container owned by this run
+        id: isolated_cleanup
         if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --no-project --offline python deploy/c20-artifact-only/docker_executor.py --cleanup --work "$RUNNER_TEMP/c20-artifact-only" --source "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Safely export bounded evidence without following payload links
+        id: evidence_export
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --no-project --offline python deploy/c20-artifact-only/export_evidence.py --work "$RUNNER_TEMP/c20-artifact-only"
+      - name: Preserve bounded synthetic evidence, not live E2E approval
+        id: evidence_artifact
+        if: always() && steps.evidence_export.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: c20-real-quartz-synthetic-evidence-${{ github.sha }}
-          path: ${{ runner.temp }}/c20-artifact-only/result/
+          path: ${{ runner.temp }}/c20-artifact-only/evidence-export/
           if-no-files-found: error
           retention-days: 7
+      - name: Summarize bounded evidence even if execution or upload failed
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_OUTCOME: ${{ steps.evidence_artifact.outcome }}
+          EXECUTION_OUTCOME: ${{ steps.isolated_execution.outcome }}
+          CLEANUP_OUTCOME: ${{ steps.isolated_cleanup.outcome }}
+          EXPORT_OUTCOME: ${{ steps.evidence_export.outcome }}
+        run: |
+          set -euo pipefail
+          uv run --no-project --offline python deploy/c20-artifact-only/summary.py --work "$RUNNER_TEMP/c20-artifact-only" --artifact-outcome "$ARTIFACT_OUTCOME" --execution-outcome "$EXECUTION_OUTCOME" --cleanup-outcome "$CLEANUP_OUTCOME" --export-outcome "$EXPORT_OUTCOME" --source "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --step-summary "$GITHUB_STEP_SUMMARY"

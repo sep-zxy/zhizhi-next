@@ -48,17 +48,42 @@ class IsolationConfiguration(unittest.TestCase):
         self.assertFalse(".env".startswith(driver.SOURCE_PREFIXES))
         self.assertFalse("projects/growth/.local/secrets".startswith(driver.SOURCE_PREFIXES))
 
-    def test_sandbox_has_no_host_root_home_or_socket_mount(self):
-        # This inspects code, not a fabricated runner environment or execution.
+    def test_executor_is_explicit_and_has_no_host_execution_fallback(self):
+        # Inspect configuration only; never launch Docker or fabricate CI.
         text = Path(driver.__file__).read_text()
-        for flag in ("--unshare-all", "--clearenv", "--die-with-parent", "--new-session"):
-            self.assertIn(flag, text)
-        self.assertNotIn('"--ro-bind", "/", "/"', text)
-        self.assertNotIn('"--bind", "/home"', text)
-        self.assertNotIn('"--bind", "/run"', text)
-        self.assertIn('os.environ["GITHUB_ACTIONS"]', text)
-        self.assertIn('os.environ["RUNNER_ENVIRONMENT"]', text)
+        self.assertIn("docker_executor", text)
+        self.assertNotIn('"bwrap"', text)
+        self.assertIn('choices=("prepare", "execute")', text)
         self.assertNotIn('"GITHUB_TOKEN":', text)
+        import ast
+        tree = ast.parse(text)
+        execute = next(item for item in tree.body if isinstance(item, ast.FunctionDef) and item.name == "execute")
+        # A failed executor must propagate; no catch-and-run-on-host fallback.
+        self.assertFalse(any(isinstance(item, ast.ExceptHandler) for item in ast.walk(execute)))
+
+    def test_workflow_preserves_failures_and_always_summarizes_upload(self):
+        root = Path(__file__).resolve().parents[2]
+        text = (root / ".github/workflows/c20-artifact-only.yml").read_text()
+        self.assertNotIn("bubblewrap", text)
+        self.assertNotIn("apt-get", text)
+        self.assertNotIn("continue-on-error", text)
+        self.assertIn("id: evidence_artifact", text)
+        self.assertIn("steps.evidence_artifact.outcome", text)
+        self.assertIn("id: isolated_execution", text)
+        self.assertIn("steps.isolated_execution.outcome", text)
+        self.assertIn('--source "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"', text)
+        self.assertIn("c20-artifact-only/evidence-export/", text)
+        self.assertNotIn("c20-artifact-only/result/", text)
+        self.assertNotIn("c20-artifact-only/host-evidence/", text)
+        self.assertIn("steps.evidence_export.outcome == 'success'", text)
+        self.assertIn("docker_executor.py --cleanup", text)
+        self.assertIn("export_evidence.py --work", text)
+        self.assertIn('if-no-files-found: error', text)
+        self.assertIn('summary.py --work', text)
+        self.assertIn('--phase prepare', text)
+        self.assertIn('--phase execute', text)
+        summary_step = text.split("- name: Summarize bounded evidence", 1)[1]
+        self.assertIn("if: always()", summary_step)
 
     def test_no_publish_permissions_or_model_steps(self):
         root = Path(__file__).resolve().parents[2]
