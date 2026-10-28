@@ -15,6 +15,8 @@ import re
 import subprocess
 import sys
 
+from event_gate import require_event
+
 IMAGE = "docker.io/library/ubuntu@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d"
 IMAGE_ID = "sha256:d9b8c34d61a9b9a3c44cab883d7d2f2619d674966ab520186f799cf32e3e0377"
 MEMORY = 6 * 1024**3
@@ -50,8 +52,8 @@ def require_hosted():
     require(os.environ.get("GITHUB_ACTIONS") == "true"
         and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
         and os.environ.get("GITHUB_REPOSITORY") == "sep-zxy/zhizhi-platform"
-        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-        and os.environ.get("GITHUB_REF") == "refs/heads/main", "GitHub-hosted manual main required")
+        and os.environ.get("GITHUB_REF") == "refs/heads/main", "GitHub-hosted approved main required")
+    require_event()
 
 
 def control(work, args, *, capture=True, timeout=120):

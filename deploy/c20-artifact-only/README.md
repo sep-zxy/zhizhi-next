@@ -92,3 +92,9 @@ artifact quota/权限/上传失败不会 `continue-on-error`，不会因摘要�
 Quartz 或联网模型，不伪造 CI。此前 bwrap 执行失败不等于 Quartz 通过；本次 Docker
 改造是否可运行、真实 Quartz 验收和完整 artifact 是否成功保存，均须以针对新精确 SHA
 的 GitHub 实跑证据为准。禁止为获得绿灯移除隔离或吞掉上传失败。
+
+## Single approved push alternative (dispatch transport unavailable)
+
+A single main fast-forward from `3909d2dcf97935c5751b70c079b860d517fdcb93` touching the uniquely named marker may execute the same Docker job. The gate requires run attempt 1, a non-forced/non-created/non-deleted push, exact before/after identity, one parent, baseline tree, marker content and exact seven-file change set. Basic source/clean checks precede uv bootstrap; the full marker gate uses uv and precedes Node setup, project dependency installation and Docker preparation. Future ordinary main updates and reruns of this push do not execute the job; workflow_dispatch remains separately explicit and source-bound.
+
+This is at-most-once under normal non-rewritten main history, not a distributed exactly-once guarantee: GitHub delivery failures can yield zero runs, and a repository administrator could deliberately reset history/change workflow policy. Neither reset/replay nor extra dispatch is authorized. No persistent credentials, write permission, deployments, model calls or artifact deletion are added. A skipped job is not acceptance evidence. The publisher must perform one non-force compare-and-update from the exact baseline and inspect the resulting run, never automatically retry publication/dispatch.

@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import sys
 
+from event_gate import require_event
+
 
 SOURCE_PREFIXES = (
     "projects/growth/src/", "projects/selfweb/site/",
@@ -55,10 +57,10 @@ def require_hosted_source(repo: Path, source: str) -> None:
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"
             or os.environ.get("GITHUB_REPOSITORY") != "sep-zxy/zhizhi-platform"
-            or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
             or os.environ.get("GITHUB_SHA") != source
             or not re.fullmatch(r"[0-9a-f]{40}", source)):
         raise ValueError("Only the bound manual GitHub-hosted workflow may execute")
+    require_event()
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip() != source:
         raise ValueError("Source mismatch")
 
