@@ -116,6 +116,8 @@ jobs:
           ./scripts/dev.ps1 test-integration -Target backend
       - name: Performance gates on the Linux reference runner
         if: ${{ !cancelled() && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           $ErrorActionPreference = 'Stop'
           uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py

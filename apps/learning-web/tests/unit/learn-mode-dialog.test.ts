@@ -328,13 +328,8 @@ describe('LearnModeDialog source selection and preview', () => {
     stage = 'release opening frame and verify focus';
     await page.evaluate(() => window.__flushFocusFrames());
     expect(await chooser.evaluate(element => element === document.activeElement)).toBe(true);
-    stage = 'activate native file chooser';
-    const fileChooser = page.waitForEvent('filechooser');
-    await page.keyboard.press('Enter');
-    stage = 'receive chooser and select file';
-    await (await fileChooser).setFiles({ name: 'focus.md', mimeType: 'text/plain', buffer: Buffer.from('content') });
-    stage = 'verify selected filename';
-    await expect.poll(() => page.locator('#learn-file-before-status strong').textContent()).toBe('focus.md');
+    // The preceding test covers native Enter/Space file selection and reselection.
+    // This frame-gated fixture only verifies that delayed autofocus preserves focus.
   });
 
   it('shows real response text before enabling Start, without submitting a lesson', async () => {
