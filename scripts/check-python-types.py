@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -20,14 +21,14 @@ BASELINE = "62397c2ffed74d4938149f5d40e4d7a1b88c7c29"
 
 
 def run_types(project: Path, configuration: dict, output: Path) -> dict:
+    config = output.with_suffix(".config.json")
     settings = dict(configuration)
     settings.update({
-        "include": [str(project / "src/ahadiff/knowledge_platform")],
+        "include": [os.path.relpath(project / "src/ahadiff/knowledge_platform", config.parent)],
         "extraPaths": [str(project / "src")],
         "venvPath": str(ROOT / "backend"),
         "venv": ".venv",
     })
-    config = output.with_suffix(".config.json")
     config.write_text(json.dumps(settings), encoding="utf-8")
     result = subprocess.run(
         ["uv", "run", "--project", str(ROOT / "backend"), "--no-sync", "pyright", "--project", str(config), "--outputjson"],
@@ -36,6 +37,9 @@ def run_types(project: Path, configuration: dict, output: Path) -> dict:
     if result.returncode not in {0, 1}:
         raise RuntimeError("Pyright execution failed")
     report = json.loads(result.stdout)
+    expected_files = len(list((project / "src/ahadiff/knowledge_platform").rglob("*.py")))
+    if expected_files == 0 or report["summary"]["filesAnalyzed"] < expected_files:
+        raise RuntimeError("Pyright scanned an empty or unexpectedly narrowed source set")
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
 

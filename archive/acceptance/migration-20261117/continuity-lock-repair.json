@@ -1,0 +1,39 @@
+{
+  "source": "e4b8e2ab4c208b6a7769e65b97c46fce18a04834",
+  "run_url": "https://github.com/sep-zxy/zhizhi-next/actions/runs/43905712298",
+  "evidence": "npm package-lock-only repair followed by npm ci --ignore-scripts on GitHub-hosted runner",
+  "direct_manifest_unchanged": true,
+  "changed_packages": [
+    {
+      "path": "node_modules/@emnapi/wasi-threads",
+      "from": "1.2.2",
+      "to": "1.2.3"
+    },
+    {
+      "path": "node_modules/picomatch",
+      "from": "4.0.5",
+      "to": "4.0.5"
+    },
+    {
+      "path": "node_modules/@emnapi/core",
+      "to": "1.11.3"
+    },
+    {
+      "path": "node_modules/@emnapi/runtime",
+      "to": "1.11.3"
+    },
+    {
+      "path": "node_modules/@rolldown/binding-wasm32-wasi/node_modules/@emnapi/core",
+      "to": "1.11.1"
+    },
+    {
+      "path": "node_modules/@rolldown/binding-wasm32-wasi/node_modules/@emnapi/runtime",
+      "to": "1.11.1"
+    },
+    {
+      "path": "node_modules/@rolldown/binding-wasm32-wasi/node_modules/@emnapi/wasi-threads",
+      "to": "1.2.2"
+    }
+  ],
+  "real_model_calls": 0
+}

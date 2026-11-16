@@ -98,6 +98,14 @@
     {
       "from": "deploy/windows-portable/test_codex_patch.py",
       "to": "archive/delivery/windows-portable/test_codex_patch.py"
+    },
+    {
+      "from": "archive/acceptance/growth/scenarios/m7_local_cloud_server.py",
+      "to": "backend/acceptance/scenarios/m7_local_cloud_server.py"
+    },
+    {
+      "from": "projects/growth/acceptance/scenarios/m7_local_cloud_server.py",
+      "to": "backend/acceptance/scenarios/m7_local_cloud_server.py"
     }
   ]
 }
