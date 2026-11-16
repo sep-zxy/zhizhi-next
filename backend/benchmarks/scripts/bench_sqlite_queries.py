@@ -60,15 +60,13 @@ def _measure(operation: Any, *, iterations: int) -> dict[str, Any]:
 def main() -> dict[str, Any]:
     try:
         from ahadiff.contracts import ResultEvent, ReviewCard
-        from ahadiff.core.sqlite_util import managed_sqlite_connection
         from ahadiff.review.database import (
-            _sync_result_event,
-            connect_review_db,
             import_cards_from_jsonl,
             initialize_review_db,
             list_due_cards,
             load_finalized_ratchet_history_page,
             load_result_events_page,
+            sync_result_event,
         )
     except Exception as exc:
         return {
@@ -109,7 +107,6 @@ def main() -> dict[str, Any]:
         event_count = 1000
         ratchet_statuses = ("baseline", "keep", "keep_final")
         finalized_event_ids: list[str] = []
-        events: list[ResultEvent] = []
         for index in range(event_count):
             status = ratchet_statuses[index % len(ratchet_statuses)]
             event_id = f"018f0f52-91c0-7abc-8123-{index:012d}"
@@ -130,14 +127,7 @@ def main() -> dict[str, Any]:
                 weakest_dim="evidence",
                 note_json=None,
             )
-            events.append(event)
-
-        # Fixture creation is outside the read-query measurements. Seed the
-        # same real rows in one transaction, avoiding 1,000 separate fsyncs on
-        # hosted macOS while preserving query sample counts and perf gates.
-        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
-            for event in events:
-                _sync_result_event(connection, event)
+            sync_result_event(db_path, event)
 
         now_utc = datetime.now(UTC) + timedelta(days=365)
         operations = {

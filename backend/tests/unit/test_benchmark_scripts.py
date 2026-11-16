@@ -10,14 +10,12 @@ from typing import TYPE_CHECKING, Any, cast
 
 from tests.environment_support import bash_executable
 
-import pytest
 
 if TYPE_CHECKING:
     from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUN_ALL_SCRIPT = REPO_ROOT / "benchmarks" / "scripts" / "run_all.sh"
-BASELINE_PATH = REPO_ROOT / "benchmarks" / "results" / "baseline_20260428.json"
 GRAPHIFY_BENCH_SCRIPT = REPO_ROOT / "benchmarks" / "scripts" / "bench_graphify.py"
 SERVE_READ_BENCH_SCRIPT = REPO_ROOT / "benchmarks" / "scripts" / "bench_serve_read_routes.py"
 RELEASE_WORKFLOW = REPO_ROOT.parent / ".github" / "workflows" / "ci.yml"
@@ -77,41 +75,46 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
     )
     fake_mktemp.chmod(0o755)
 
-    original_output = BASELINE_PATH.read_text(encoding="utf-8") if BASELINE_PATH.exists() else None
+    # This case verifies interpreter selection and aggregation, not performance.
+    # The real read-route and Graphify gates run once in CI's performance step.
+    fixture_root = tmp_path / "benchmark-project"
+    scripts = fixture_root / "benchmarks" / "scripts"
+    scripts.mkdir(parents=True)
+    runner_script = scripts / "run_all.sh"
+    runner_script.write_bytes(RUN_ALL_SCRIPT.read_bytes())
+    cases = ("cli_startup", "api_latency", "serve_read_routes", "sqlite_queries", "diff_parse", "graphify")
+    for name in cases:
+        status = "pass" if name == "serve_read_routes" else "ok"
+        body = "import json, sys\nprint(json.dumps({" + f"'status': {status!r}, " + "'python': sys.executable, 'fixture': 'large_graph.json'}))\n"
+        (scripts / f"bench_{name}.py").write_text(body, encoding="utf-8", newline="\n")
+    (scripts / "bench_bundle_size.sh").write_text(
+        "#!/usr/bin/env bash\npython3 -c 'import json,sys; print(json.dumps({\"status\": \"ok\", \"python\": sys.executable}))'\n",
+        encoding="utf-8", newline="\n",
+    )
+    gate = fixture_root / "benchmarks" / "graphify" / "bench_graphify.py"
+    gate.parent.mkdir()
+    gate.write_text("print('fixture gate invoked')\n", encoding="utf-8", newline="\n")
 
     env = os.environ.copy()
-    env["AHADIFF_BENCH_PYTHON"] = sys.executable
+    env["AHADIFF_BENCH_PYTHON"] = Path(sys.executable).as_posix()
     env["TMPDIR"] = str(tmp_path)
     env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
-
-    try:
-        try:
-            completed = subprocess.run(
-                [bash_executable(), str(RUN_ALL_SCRIPT)],
-                cwd=REPO_ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=360,
-                env=env,
-            )
-        except subprocess.TimeoutExpired as exc:
-            pytest.fail(f"Benchmark runner exceeded 360s; last stages: {exc.stderr!r}")
-
-        assert completed.returncode == 0, completed.stdout + completed.stderr
-        payload = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-        assert payload["cli_startup"]["status"] == "ok"
-        assert payload["diff_parse"]["status"] == "ok"
-        assert payload["sqlite_queries"]["status"] == "ok"
-        assert payload["graphify"]["status"] == "ok"
-        assert payload["graphify"]["fixture"] == "large_graph.json"
-    finally:
-        if original_output is None:
-            BASELINE_PATH.unlink(missing_ok=True)
-        else:
-            BASELINE_PATH.write_text(original_output, encoding="utf-8")
+    completed = subprocess.run(
+        [bash_executable(), runner_script.as_posix()],
+        cwd=fixture_root, check=False, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=60, env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    output = fixture_root / "benchmarks" / "results" / "baseline_20260428.json"
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    for name in (*cases, "bundle_size"):
+        assert Path(payload[name]["python"]).resolve() == Path(sys.executable).resolve()
+    assert payload["cli_startup"]["status"] == "ok"
+    assert payload["diff_parse"]["status"] == "ok"
+    assert payload["sqlite_queries"]["status"] == "ok"
+    assert payload["graphify"]["status"] == "ok"
+    assert payload["graphify"]["fixture"] == "large_graph.json"
+    assert payload["graphify_perf_gate"] == "pass"
 
 
 def test_graphify_benchmark_reports_token_reduction_metric() -> None:
