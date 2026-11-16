@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from tests.environment_support import bash_executable
 
+import pytest
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -83,17 +85,20 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
     env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
 
     try:
-        completed = subprocess.run(
-            [bash_executable(), str(RUN_ALL_SCRIPT)],
-            cwd=REPO_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=360,
-            env=env,
-        )
+        try:
+            completed = subprocess.run(
+                [bash_executable(), str(RUN_ALL_SCRIPT)],
+                cwd=REPO_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=360,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            pytest.fail(f"Benchmark runner exceeded 360s; last stages: {exc.stderr!r}")
 
         assert completed.returncode == 0, completed.stdout + completed.stderr
         payload = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))

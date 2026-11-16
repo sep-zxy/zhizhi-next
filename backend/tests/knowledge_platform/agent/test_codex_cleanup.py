@@ -47,6 +47,31 @@ def workspace(tmp_path):
     return root
 
 
+def test_temp_parent_alias_is_canonicalized_before_owning_workspace(tmp_path, monkeypatch):
+    import tempfile
+
+    parent = tmp_path / "physical-temp"
+    parent.mkdir()
+    alias = tmp_path / "temp-alias"
+    alias.symlink_to(parent, target_is_directory=True)
+    foreign = parent / "another-invocation"
+    foreign.mkdir()
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(alias))
+    runner = CodexModelRunner(settings(tmp_path))
+
+    async def use_workspace():
+        async with runner._workspace("zhizhi-codex-") as root:
+            assert root.parent == parent.resolve()
+            (root / "owned.txt").write_text("synthetic", encoding="utf-8")
+            return root
+
+    owned = asyncio.run(use_workspace())
+    assert not owned.exists() and foreign.is_dir() and alias.is_symlink()
+    # Existing/unowned alias paths are still rejected by the cleanup boundary.
+    report = asyncio.run(cleanup.cleanup_owned_workspace(alias / foreign.name))
+    assert report["status"] == "failed" and foreign.is_dir()
+
+
 def test_normal_cleanup_is_scoped_and_never_changes_permissions(tmp_path, monkeypatch):
     root = workspace(tmp_path)
     sibling = tmp_path / "earlier-invocation"
@@ -157,7 +182,7 @@ def retained_workspace(tmp_path, monkeypatch):
     original = tempfile.mkdtemp
     created = []
 
-    def create(*, prefix):
+    def create(*, prefix, dir=None):
         result = original(prefix=prefix, dir=tmp_path)
         created.append(Path(result))
         return result
@@ -352,7 +377,7 @@ def test_process_cleanup_is_independent_and_blocks_workspace_deletion(
 
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(
-        tempfile, "mkdtemp", lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path)
+        tempfile, "mkdtemp", lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path)
     )
     original_stop = codex_runner._stop
     stopped = []
@@ -462,7 +487,7 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
     import tempfile
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(tempfile, "mkdtemp",
-                        lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path))
+                        lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path))
 
     async def run():
         async with runner._workspace("zhizhi-codex-") as cwd:
@@ -504,7 +529,7 @@ def test_previous_success_cache_is_inaccessible_after_later_cleanup_failure(tmp_
     from dataclasses import replace
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(tempfile, "mkdtemp",
-                        lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path))
+                        lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path))
     runner = CodexModelRunner(settings(tmp_path))
     first_task = fixed_public_smoke_task()
     second_task = replace(first_task, task_id="synthetic-second", dedupe_key="synthetic-second")
@@ -534,7 +559,7 @@ def test_setup_primary_and_handle_cleanup_are_independent_and_latched(tmp_path, 
     import tempfile
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(tempfile, "mkdtemp",
-                        lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path))
+                        lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path))
     runner = CodexModelRunner(settings(tmp_path), collect_process_diagnostics=True)
     process = SimpleNamespace(pid=99999999, returncode=None)
     stopped = []

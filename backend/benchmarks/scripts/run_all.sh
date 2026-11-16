@@ -103,6 +103,7 @@ run_benchmark() {
   shift 2
   local stderr_file="${output_file}.stderr"
   local returncode=0
+  echo "Running benchmark: $benchmark_name" >&2
   if AHADIFF_BENCH_PYTHON="$benchmark_python" PATH="$python_shim_dir:${PATH:-}" "$@" >"$output_file" 2>"$stderr_file"; then
     if ! validate_json "$output_file" >/dev/null 2>&1; then
       write_fallback_json "$benchmark_name" "$output_file" "$stderr_file" "invalid_json" 0

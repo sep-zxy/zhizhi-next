@@ -408,7 +408,7 @@ def test_projection_notification_primary_survives_cleanup_failure(
 
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(
-        tempfile, "mkdtemp", lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path)
+        tempfile, "mkdtemp", lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path)
     )
     original_gather = asyncio.gather
     original_stop = codex_runner._stop
@@ -494,7 +494,7 @@ def test_projection_cannot_replay_old_success_after_cleanup_failure(tmp_path, mo
 
     original_temp = tempfile.mkdtemp
     monkeypatch.setattr(
-        tempfile, "mkdtemp", lambda *, prefix: original_temp(prefix=prefix, dir=tmp_path)
+        tempfile, "mkdtemp", lambda *, prefix, dir=None: original_temp(prefix=prefix, dir=tmp_path)
     )
     runner = CodexModelRunner(
         settings(tmp_path, "arithmetic"), collect_process_diagnostics=True,

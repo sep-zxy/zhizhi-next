@@ -388,7 +388,11 @@ class CodexModelRunner:
         """No finalizer, forced permission reset, or cleanup of earlier invocations."""
         import tempfile
 
-        root = Path(tempfile.mkdtemp(prefix=prefix))
+        # Resolve the trusted parent before allocating our unique directory.
+        # macOS TMPDIR may pass through /var -> /private/var; resolving the
+        # newly created root instead could hide a malicious root replacement.
+        parent = Path(tempfile.gettempdir()).resolve(strict=True)
+        root = Path(tempfile.mkdtemp(prefix=prefix, dir=parent))
         primary: BaseException | None = None
         report: dict[str, Any]
         try:
