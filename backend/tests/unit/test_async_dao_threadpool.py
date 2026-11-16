@@ -13,6 +13,7 @@ this localhost-only API.
 from __future__ import annotations
 
 import statistics
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -75,6 +76,7 @@ async def _warmup(db_path: Path) -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.skipif(sys.platform != "linux", reason="Fixed latency budget uses the Linux CI reference")
 async def test_threadpool_concurrent_reads_latency() -> None:
     """10-way concurrent reads stay within localhost thread-dispatch latency budget."""
     with tempfile.TemporaryDirectory(prefix="ahadiff-1b-bench-") as tmp:
@@ -105,6 +107,7 @@ async def test_threadpool_concurrent_reads_latency() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.skipif(sys.platform != "linux", reason="Fixed latency budget uses the Linux CI reference")
 async def test_threadpool_mixed_workload_latency() -> None:
     """10-way mixed reads stay within localhost thread-dispatch latency budget."""
     with tempfile.TemporaryDirectory(prefix="ahadiff-1b-bench-") as tmp:
@@ -162,6 +165,7 @@ async def test_threadpool_high_concurrency_no_deadlock() -> None:
 
         assert len(latencies) == 200, "not all queries completed"
         p99 = sorted(latencies)[int(len(latencies) * 0.99)]
-        assert p99 < _THREADPOOL_P99_TARGET_MS, (
-            f"p99={p99:.1f}ms: excessive contention under 20-way concurrency"
-        )
+        if sys.platform == "linux":
+            assert p99 < _THREADPOOL_P99_TARGET_MS, (
+                f"p99={p99:.1f}ms: excessive contention under 20-way concurrency"
+            )

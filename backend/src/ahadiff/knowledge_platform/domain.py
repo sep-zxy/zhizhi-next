@@ -11,6 +11,8 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -539,8 +541,8 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
                 target.mkdir(parents=True)
                 head = self.writer.head()
                 with (
-                    sqlite3.connect(self.store.path) as source_db,
-                    sqlite3.connect(target / "platform.db") as target_db,
+                    managed_sqlite_connection(sqlite3.connect(self.store.path)) as source_db,
+                    managed_sqlite_connection(sqlite3.connect(target / "platform.db")) as target_db,
                 ):
                     source_db.backup(target_db)
                 shutil.copytree(self.writer.repository, target / "vault.git", symlinks=True)

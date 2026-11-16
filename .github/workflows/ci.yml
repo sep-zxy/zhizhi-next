@@ -114,6 +114,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 test-integration -Target backend
+      - name: Performance gates on the Linux reference runner
+        if: ${{ !cancelled() && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
           uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py
           if ($LASTEXITCODE -ne 0) { throw 'Read-route performance check failed' }
           uv run --project backend --no-sync python backend/benchmarks/graphify/bench_graphify.py

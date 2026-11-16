@@ -2,6 +2,7 @@
 import hashlib
 import json
 import sqlite3
+import stat
 
 import pytest
 
@@ -207,7 +208,9 @@ def test_external_git_config_is_rejected(snapshot):
 
 def test_missing_history_object_is_rejected(snapshot):
     revision = manifest(snapshot)["git_revision"]
-    (snapshot / "vault.git/objects" / revision[:2] / revision[2:]).unlink()
+    object_path = snapshot / "vault.git/objects" / revision[:2] / revision[2:]
+    object_path.chmod(stat.S_IREAD | stat.S_IWRITE)
+    object_path.unlink()
     with pytest.raises(Exception):
         inspect_backup(snapshot)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 
 import pytest
@@ -75,6 +76,7 @@ def fake_connection(monkeypatch, *, status=200, payload=None, fail=False):
     return calls
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows plaintext owner policy is deliberately blocked")
 def test_existing_identity_approval_is_exact_one_fixed_loopback_request(configured, monkeypatch):
     path, _ = configured
     calls = fake_connection(monkeypatch)
@@ -95,6 +97,7 @@ def test_existing_identity_approval_is_exact_one_fixed_loopback_request(configur
         (200, "x" * 5000),
     ],
 )
+@pytest.mark.skipif(os.name == "nt", reason="Windows plaintext owner policy is deliberately blocked")
 def test_redirect_failure_or_wrong_protocol_never_retries(configured, monkeypatch, status, payload):
     path, _ = configured
     calls = fake_connection(monkeypatch, status=status, payload=payload)
@@ -181,6 +184,11 @@ def test_policy_presence_alone_does_not_enable_browser(configured, monkeypatch):
     )
     apps[0].state.domain.close()
     monkeypatch.setattr(sys, "argv", arguments + ["--owner-browser-actor", "synthetic-person"])
+    if os.name == "nt":
+        with pytest.raises(ValueError, match="not yet verified"):
+            main()
+        assert len(apps) == 1
+        return
     main()
     assert any(
         getattr(route, "path", "") == "/api/knowledge/v1/auth/owner/request"
