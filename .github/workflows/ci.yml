@@ -94,10 +94,21 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 typecheck -Target $env:TARGET
       - name: Unit behavior
+        id: unit
         if: ${{ !cancelled() }}
         env:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 test -Target $env:TARGET
+      - name: Save backend unit diagnostics before integration
+        if: ${{ always() && matrix.target == 'backend' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            artifacts/backend-unit.xml
+            artifacts/python-types*.json
+          if-no-files-found: ${{ steps.unit.outcome == 'success' && 'error' || 'ignore' }}
+          retention-days: 7
       - name: Real isolated backend composition
         if: ${{ !cancelled() && matrix.target == 'backend' }}
         run: |

@@ -297,9 +297,10 @@ describe('LearnModeDialog source selection and preview', () => {
     // This reproduces the race without sleeps, slower CI, or a timeout increase.
     await renderDialog(page, { initialSource: 'files', locale }, async () => {
       stage = 'install opening-frame gate';
-      // Install only after readiness and Playwright's native builtins capture.
-      // An init script would also freeze Playwright's own RAF-based polling,
-      // making the test driver depend on the frame it is supposed to release.
+      // waitForFunction uses UtilityScript, not the locator InjectedScript.
+      // Force locator initialization while RAF is native so file selection's
+      // polling cannot retain the artificial gate below as its own scheduler.
+      await page.locator('body').count();
       await page.evaluate(() => {
         const nativeRequestFrame = window.requestAnimationFrame.bind(window);
         const nativeCancelFrame = window.cancelAnimationFrame.bind(window);
