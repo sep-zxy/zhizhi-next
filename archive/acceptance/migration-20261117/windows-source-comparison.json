@@ -1,0 +1,49 @@
+{
+  "baseline": "62397c2ffed74d4938149f5d40e4d7a1b88c7c29",
+  "files": [
+    {
+      "unchanged": true,
+      "file": "src/ahadiff/core/paths.py",
+      "baseline_blob": "d97120fc86491aeecd9b4c2d68904eb346173ebd",
+      "current_blob": "d97120fc86491aeecd9b4c2d68904eb346173ebd"
+    },
+    {
+      "unchanged": true,
+      "file": "src/ahadiff/review/database.py",
+      "baseline_blob": "c221d164a7ad37c34e8cc1cf7fa809f64fa92d73",
+      "current_blob": "c221d164a7ad37c34e8cc1cf7fa809f64fa92d73"
+    },
+    {
+      "unchanged": true,
+      "file": "src/ahadiff/knowledge_platform/model/_codex_job.py",
+      "baseline_blob": "d87258d84a23f79e571721cd1331b54a5ac21468",
+      "current_blob": "d87258d84a23f79e571721cd1331b54a5ac21468"
+    },
+    {
+      "unchanged": true,
+      "file": "tests/unit/core/test_budget_paths.py",
+      "baseline_blob": "768822db089628b655a697832f28938df85cf052",
+      "current_blob": "768822db089628b655a697832f28938df85cf052"
+    },
+    {
+      "unchanged": true,
+      "file": "tests/unit/test_async_dao_threadpool.py",
+      "baseline_blob": "b4d39a1701118fc33ecf9c101ba8b972d7c47a6f",
+      "current_blob": "b4d39a1701118fc33ecf9c101ba8b972d7c47a6f"
+    },
+    {
+      "unchanged": true,
+      "file": "tests/knowledge_platform/agent/test_codex_cleanup.py",
+      "baseline_blob": "facbc61b8be5b177c9f7cb5e94e039a343a3b6b9",
+      "current_blob": "facbc61b8be5b177c9f7cb5e94e039a343a3b6b9"
+    },
+    {
+      "unchanged": true,
+      "file": "tests/knowledge_platform/agent/test_codex_diagnostic_probe.py",
+      "baseline_blob": "c9675eb86b5615ebffa044113a12d3ef0929ea3e",
+      "current_blob": "c9675eb86b5615ebffa044113a12d3ef0929ea3e"
+    }
+  ],
+  "proof": "Git blob equality; not an execution of the original test tree",
+  "checked_source": "f0033f166682d22aa9958854e9b3564bc507871c"
+}

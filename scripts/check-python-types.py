@@ -60,7 +60,9 @@ def main() -> int:
     artifacts = ROOT / "artifacts"
     artifacts.mkdir(exist_ok=True)
     archive = subprocess.check_output(["git", "archive", BASELINE, "projects/growth/src", "projects/growth/pyproject.toml"], cwd=ROOT)
-    with tempfile.TemporaryDirectory(prefix="zhizhi-type-baseline-") as temporary:
+    # Keep the baseline and its relative Pyright include on one drive. Hosted
+    # Windows checks out on D: while the default temporary directory is on C:.
+    with tempfile.TemporaryDirectory(prefix="zhizhi-type-baseline-", dir=artifacts) as temporary:
         baseline_root = Path(temporary)
         with tarfile.open(fileobj=io.BytesIO(archive)) as source:
             source.extractall(baseline_root, filter="data")
