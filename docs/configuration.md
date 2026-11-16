@@ -11,3 +11,5 @@ config/toolchains.json 是精确工具链登记来源；包清单保留各自兼
 桌面原有 growth-companion-desktop 与 Continuity 数据目录保持不变。目录迁移不会复制、初始化或变更用户已有 Vault/数据库。便携包继续由其自身 launcher 配置控制，历史 owner 验收槽不是新仓库的默认授权入口。
 
 模型、渠道、自动公开发布默认关闭。缺少必要配置明确 waiting/blocked，不静默选择其他 provider、身份或收费回退。
+
+platform.example.json 对应便携包 config/launch.json，不是平台 CLI 的 --config 文件。服务部署使用上列现有显式参数；示例不会自行初始化身份或读取个人配置。

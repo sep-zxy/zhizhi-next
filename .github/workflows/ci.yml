@@ -64,6 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
         with:
@@ -75,13 +76,21 @@ jobs:
       - name: Compile Quartz vendored dependencies and renderer
         if: matrix.target == 'public-wiki'
         run: ./scripts/dev.ps1 build -Target public-wiki
-      - name: Types and unit behavior
-        env:
-          TARGET: ${{ matrix.target }}
+      - name: Install browser for browser-backed unit tests
+        if: matrix.target == 'learning-web'
         run: |
           $ErrorActionPreference = 'Stop'
-          ./scripts/dev.ps1 typecheck -Target $env:TARGET
-          ./scripts/dev.ps1 test -Target $env:TARGET
+          node apps/learning-web/node_modules/@playwright/test/cli.js install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed' }
+      - name: Types
+        env:
+          TARGET: ${{ matrix.target }}
+        run: ./scripts/dev.ps1 typecheck -Target $env:TARGET
+      - name: Unit behavior
+        if: ${{ !cancelled() }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: ./scripts/dev.ps1 test -Target $env:TARGET
       - name: Real isolated backend composition
         if: matrix.target == 'backend'
         run: |
@@ -108,19 +117,82 @@ jobs:
           path: artifacts/
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
           retention-days: 7
+  protocol:
+    needs: plan
+    if: contains(needs.plan.outputs.modules, 'backend') || contains(needs.plan.outputs.modules, 'pi-zhizhi')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Install locked Python and Pi dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/dev.ps1 install -Target backend
+          ./scripts/dev.ps1 install -Target pi-zhizhi
+      - name: Python and TypeScript protocol composition, zero real model calls
+        run: ./scripts/dev.ps1 test-integration -Target pi-zhizhi
+  browser:
+    needs: plan
+    if: contains(needs.plan.outputs.modules, 'learning-web') || contains(needs.plan.outputs.modules, 'wiki-private')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [learning-web, wiki-private]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - env:
+          TARGET: ${{ matrix.target }}
+        run: ./scripts/dev.ps1 install -Target $env:TARGET
+      - name: Install Chromium
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node "apps/$env:TARGET/node_modules/@playwright/test/cli.js" install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Browser installation failed' }
+      - name: Synthetic interaction, no screenshots or visual comparison
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location "apps/$env:TARGET"
+          if ($env:TARGET -eq 'learning-web') {
+            node node_modules/@playwright/test/cli.js test --config playwright.ci.config.ts tests/e2e/zhizhi-domain.spec.ts
+          } else { node node_modules/@playwright/test/cli.js test --config playwright.ci.config.ts }
+          if ($LASTEXITCODE -ne 0) { throw 'Browser fixture interaction failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-${{ matrix.target }}-${{ github.sha }}
+          path: artifacts/browser-*.xml
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
+          retention-days: 7
   required:
     name: Required checks
     if: always()
-    needs: [plan, repository, components]
+    needs: [plan, repository, components, protocol, browser]
     runs-on: ubuntu-24.04
     steps:
       - env:
           PLAN_RESULT: ${{ needs.plan.result }}
           REPOSITORY_RESULT: ${{ needs.repository.result }}
           COMPONENT_RESULT: ${{ needs.components.result }}
+          PROTOCOL_RESULT: ${{ needs.protocol.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
           MODULES: ${{ needs.plan.outputs.modules }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:PLAN_RESULT -ne 'success' -or $env:REPOSITORY_RESULT -ne 'success') { throw 'Repository checks did not pass' }
           if ($env:MODULES -ne '[]' -and $env:COMPONENT_RESULT -ne 'success') { throw 'Required component checks did not pass' }
+          $modules = @($env:MODULES | ConvertFrom-Json)
+          if (($modules -contains 'backend' -or $modules -contains 'pi-zhizhi') -and $env:PROTOCOL_RESULT -ne 'success') { throw 'Required protocol composition did not pass' }
+          if (($modules -contains 'learning-web' -or $modules -contains 'wiki-private') -and $env:BROWSER_RESULT -ne 'success') { throw 'Required browser interaction did not pass' }
           Write-Output 'All checks required by the affected-component plan passed; no live E2E is implied.'

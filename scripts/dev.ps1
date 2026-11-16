@@ -81,7 +81,7 @@ try {
         try {
             switch ($Command) {
                 'lint' { Invoke-Tool 'uv' @('run','--no-sync','ruff','check','--select','E9,F63,F7,F82','src') }
-                'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','pyright','--project','.', 'src/ahadiff/knowledge_platform') }
+                'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','python','../scripts/check-python-types.py') }
                 'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','--junitxml=../artifacts/backend-unit.xml') }
                 'test-integration' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e','--junitxml=../artifacts/backend-integration.xml') }
                 { $_ -in 'build','package' } {
@@ -132,6 +132,7 @@ try {
                 if ($Target -eq 'pi-zhizhi') {
                     $env:PYTHONPATH = Join-Path $repoRoot 'backend/src'
                     $env:UV_PYTHON = Join-Path $repoRoot $(if ($IsWindows) {'backend/.venv/Scripts/python.exe'} else {'backend/.venv/bin/python'})
+                    $env:VIRTUAL_ENV = Join-Path $repoRoot 'backend/.venv'
                     foreach ($case in @('bridge-schema-contract.mts','python-bridge-contract.mts','all-tools-python-handshake.mts','history-python-contract.mts','material-python-contract.mts')) {
                         Invoke-Tool 'node' @('--import','tsx',"test/$case")
                     }
