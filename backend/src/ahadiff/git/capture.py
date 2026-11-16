@@ -19,7 +19,7 @@ from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from difflib import unified_diff
-from queue import Queue
+from queue import Empty, Queue
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, cast
 
 from ahadiff.contracts import RunSource
@@ -2085,7 +2085,7 @@ def _read_stream_bytes_with_timeout(
     def _read_worker() -> None:
         try:
             result_queue.put(stream.read(max_patch_bytes + 1))
-        except OSError as exc:
+        except Exception as exc:
             result_queue.put(exc)
 
     worker = threading.Thread(target=_read_worker, daemon=True)
@@ -2094,7 +2094,10 @@ def _read_stream_bytes_with_timeout(
     if worker.is_alive():
         raise InputError("stdin patch read timed out after 30 seconds")
 
-    result = result_queue.get()
+    try:
+        result = result_queue.get_nowait()
+    except Empty as exc:
+        raise InputError("stdin patch read failed") from exc
     if isinstance(result, BaseException):
         raise InputError("stdin patch read failed") from result
     if len(result) > max_patch_bytes:

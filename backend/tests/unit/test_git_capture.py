@@ -2584,7 +2584,8 @@ def test_unlock_force_works_without_git_repo(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Removed" in result.stdout
-    assert not lock_path.exists()
+    # Windows keeps the cleared lock inode when its open handle denies deletion.
+    assert not lock_path.exists() or (os.name == "nt" and lock_path.read_bytes() == b"")
 
 
 def test_untracked_files_respect_segment_ranking_and_max_files(tmp_path: Path) -> None:
@@ -2613,6 +2614,7 @@ def test_untracked_files_respect_segment_ranking_and_max_files(tmp_path: Path) -
     assert "u2.py" not in capture.persisted_patch_text
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX selector branch; Windows uses the threaded reader")
 def test_read_stdin_bytes_times_out_when_pipe_never_becomes_readable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2643,6 +2645,7 @@ def test_read_stdin_bytes_times_out_when_pipe_never_becomes_readable(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX selector branch; Windows uses the threaded reader")
 def test_read_stdin_bytes_wraps_pipe_read_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeStream:
         def fileno(self) -> int:
