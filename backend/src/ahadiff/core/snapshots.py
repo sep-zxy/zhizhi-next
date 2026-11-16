@@ -126,8 +126,8 @@ class _Directory:
         self.check()
         flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
         if self.fd is not None:
-            return os.open(name, flags, 0o600, dir_fd=self.fd)
-        return os.open(self.path / name, flags, 0o600)
+            return os.open(name, (flags) | getattr(os, "O_BINARY", 0), 0o600, dir_fd=self.fd)
+        return os.open(self.path / name, (flags) | getattr(os, "O_BINARY", 0), 0o600)
 
     def unlink(self, name: str) -> None:
         self.check()
@@ -161,10 +161,10 @@ def _root_directory(workspace_root: Path) -> Iterator[_Directory]:
     if _HAS_DIR_FD:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         # Walk every parent using descriptors; O_NOFOLLOW alone protects only a leaf.
-        fd = os.open(root.anchor, flags)
+        fd = os.open(root.anchor, (flags) | getattr(os, "O_BINARY", 0))
         try:
             for part in root.parts[1:]:
-                next_fd = os.open(part, flags, dir_fd=fd)
+                next_fd = os.open(part, (flags) | getattr(os, "O_BINARY", 0), dir_fd=fd)
                 os.close(fd)
                 fd = next_fd
         except BaseException:
@@ -195,7 +195,7 @@ def _child_directory(parent: _Directory, name: str, *, create: bool) -> Iterator
     fd: int | None = None
     if parent.fd is not None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        fd = os.open(name, flags, dir_fd=parent.fd)
+        fd = os.open(name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent.fd)
     child = _Directory(parent.path / name, expected, fd)
     try:
         child.check()

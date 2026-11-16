@@ -152,7 +152,7 @@ def _open_safe_parent_dir(parent: Path) -> tuple[int, tuple[int, int]]:
     _reject_unsafe_dir(parent)
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(parent), flags)
+        fd = os.open(str(parent), (flags) | getattr(os, "O_BINARY", 0))
     except OSError:
         raise
     try:
@@ -265,7 +265,7 @@ def safe_write_export_file(
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     fd = -1
     try:
-        fd = os.open(tmp_name, flags, 0o600, dir_fd=parent_fd)
+        fd = os.open(tmp_name, (flags) | getattr(os, "O_BINARY", 0), 0o600, dir_fd=parent_fd)
         with os.fdopen(fd, "wb") as fh:
             fd = -1
             fh.write(data)

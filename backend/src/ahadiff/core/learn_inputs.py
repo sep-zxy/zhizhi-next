@@ -49,7 +49,7 @@ def _read_bound_file(source: Path, *, max_bytes: int) -> bytes:
         cursor = Path(source.anchor)
         parent_fd: int | None = None
         if _HAS_DIR_FD:
-            parent_fd = os.open(cursor, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            parent_fd = os.open(cursor, (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)) | getattr(os, "O_BINARY", 0))
             stack.callback(os.close, parent_fd)
         for part in source.parts[1:-1]:
             cursor = cursor / part
@@ -63,7 +63,7 @@ def _read_bound_file(source: Path, *, max_bytes: int) -> bytes:
             if parent_fd is not None:
                 child_fd = os.open(
                     part,
-                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)) | getattr(os, "O_BINARY", 0),
                     dir_fd=parent_fd,
                 )
                 stack.callback(os.close, child_fd)
@@ -83,9 +83,9 @@ def _read_bound_file(source: Path, *, max_bytes: int) -> bytes:
             raise InputError("selected input exceeds its byte limit")
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
         fd = (
-            os.open(source.name, flags, dir_fd=parent_fd)
+            os.open(source.name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
             if parent_fd is not None
-            else os.open(source, flags)
+            else os.open(source, (flags) | getattr(os, "O_BINARY", 0))
         )
         stack.callback(os.close, fd)
         opened = os.fstat(fd)

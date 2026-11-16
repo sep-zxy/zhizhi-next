@@ -392,7 +392,7 @@ def _read_feedback_text(path: Path, *, max_bytes: int) -> str:
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(os.fspath(path), flags)
+        fd = os.open(os.fspath(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("challenge feedback file must not be a symlink") from exc

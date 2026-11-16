@@ -282,7 +282,7 @@ def _read_text_no_follow_regular(path: Path, description: str) -> str:
     if path_stat.st_nlink != 1:
         raise OSError(errno.ELOOP, f"refusing {description} hardlink", str(path))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags)
+    fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_stat = os.fstat(fd)
         if not stat.S_ISREG(opened_stat.st_mode):
@@ -309,7 +309,7 @@ def read_bytes_and_mode_no_follow_regular(path: Path, description: str) -> tuple
     if path_stat.st_nlink != 1:
         raise OSError(errno.ELOOP, f"refusing {description} hardlink", str(path))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags)
+    fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_stat = os.fstat(fd)
         if not stat.S_ISREG(opened_stat.st_mode):

@@ -279,7 +279,7 @@ def _prepare_open_verification(
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise PermissionError(f"refusing to open symlink: {path}") from exc
@@ -324,7 +324,7 @@ def _prepare_missing_database_file(path: Path) -> _OpenVerificationState:
     try:
         flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
-            fd = os.open(path.name, flags, 0o600, dir_fd=parent_fd)
+            fd = os.open(path.name, (flags) | getattr(os, "O_BINARY", 0), 0o600, dir_fd=parent_fd)
         except FileExistsError:
             return _prepare_open_verification(path, create_missing=False)
         except OSError as exc:
@@ -410,7 +410,7 @@ def _open_parent_directory_for_create(path: Path) -> int:
         raise PermissionError(f"database path parent must be a directory: {parent}")
 
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(parent), flags)
+    fd = os.open(str(parent), (flags) | getattr(os, "O_BINARY", 0))
     try:
         parent_stat = os.fstat(fd)
         if not stat.S_ISDIR(parent_stat.st_mode):

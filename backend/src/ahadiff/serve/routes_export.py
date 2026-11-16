@@ -289,7 +289,7 @@ def _stat_identity(path_stat: os.stat_result) -> tuple[int, int]:
 def _open_clearable_dir_path(path: Path, expected: os.stat_result, *, label: str) -> int:
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink") from exc
@@ -311,7 +311,7 @@ def _open_clearable_child_dir(
 ) -> int:
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(name, flags, dir_fd=parent_fd)
+        fd = os.open(name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink") from exc
@@ -336,7 +336,7 @@ def _validate_opened_dir(fd: int, expected: os.stat_result, *, label: str) -> No
 def _verify_clearable_file_fd(parent_fd: int, name: str, expected: os.stat_result) -> None:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(name, flags, dir_fd=parent_fd)
+        fd = os.open(name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("stale export entry must not be a symlink") from exc

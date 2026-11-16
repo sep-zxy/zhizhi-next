@@ -86,7 +86,7 @@ def _read_text_with_stat_no_follow(
     if not stat.S_ISREG(path_stat.st_mode):
         raise OSError(errno.EINVAL, f"{description} must be a regular file", str(path))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags)
+    fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_stat = os.fstat(fd)
         if not stat.S_ISREG(opened_stat.st_mode):

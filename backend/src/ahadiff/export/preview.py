@@ -153,7 +153,7 @@ def _read_regular_bytes(path: Path, *, label: str, max_bytes: int) -> bytes | No
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink: {path.name}") from exc

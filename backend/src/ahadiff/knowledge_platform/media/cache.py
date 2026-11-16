@@ -57,7 +57,7 @@ class IntakeCache:
                 os.fsync(output.fileno())
             Path(temporary).replace(target)
             if hasattr(os, "O_DIRECTORY"):
-                dir_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+                dir_fd = os.open(directory, (os.O_RDONLY | os.O_DIRECTORY) | getattr(os, "O_BINARY", 0))
                 try:
                     os.fsync(dir_fd)
                 finally:

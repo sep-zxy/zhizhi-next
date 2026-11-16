@@ -89,7 +89,7 @@ class DurableOutbox:
     def _write(self, path: Path, record: dict[str, Any]) -> None:
         temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
         try:
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            descriptor = os.open(temporary, (os.O_WRONLY | os.O_CREAT | os.O_EXCL) | getattr(os, "O_BINARY", 0), 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                 stream.write(canonical_json(record))
                 stream.flush()

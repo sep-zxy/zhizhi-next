@@ -254,16 +254,16 @@ def _lock_metadata_from_text(text: str) -> LockMetadata:
 
 def _open_repo_lock_fd(lock_path: Path, flags: int) -> int:
     if os.open not in os.supports_dir_fd:
-        return os.open(str(lock_path), flags, 0o644)
+        return os.open(str(lock_path), (flags) | getattr(os, "O_BINARY", 0), 0o644)
     absolute = lock_path.absolute()
     directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    parent_fd = os.open(absolute.anchor, directory_flags)
+    parent_fd = os.open(absolute.anchor, (directory_flags) | getattr(os, "O_BINARY", 0))
     try:
         for part in absolute.parts[1:-1]:
-            child_fd = os.open(part, directory_flags, dir_fd=parent_fd)
+            child_fd = os.open(part, (directory_flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
             os.close(parent_fd)
             parent_fd = child_fd
-        return os.open(absolute.name, flags, 0o644, dir_fd=parent_fd)
+        return os.open(absolute.name, (flags) | getattr(os, "O_BINARY", 0), 0o644, dir_fd=parent_fd)
     finally:
         os.close(parent_fd)
 
@@ -361,7 +361,7 @@ def unlock_repo_write_lock(lock_path: Path) -> bool:
 
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(lock_path), flags)
+        fd = os.open(str(lock_path), (flags) | getattr(os, "O_BINARY", 0))
     except FileNotFoundError:
         return False
     except OSError as exc:

@@ -13,7 +13,9 @@ with audit_file.open("a", encoding="utf-8") as stream:
 
 
 def emit(value):
-    print(json.dumps(value, ensure_ascii=False), flush=True)
+    # Match Pi's UTF-8 JSONL protocol even with a scrubbed Windows environment.
+    sys.stdout.buffer.write((json.dumps(value, ensure_ascii=False) + "\n").encode("utf-8"))
+    sys.stdout.buffer.flush()
 
 
 if "--version" in args:

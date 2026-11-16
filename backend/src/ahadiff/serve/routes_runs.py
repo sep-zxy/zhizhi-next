@@ -1285,7 +1285,7 @@ def _read_text_capped(path: Path, *, max_bytes: int) -> str:
         raise InputError(f"{path.name} must not be a Windows reparse point or junction")
     _reject_hardlinked_regular_file(path, path_stat, message=f"{path.name} must not be a hardlink")
     try:
-        fd = os.open(str(path), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        fd = os.open(str(path), (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{path.name} must not be a symlink") from exc
@@ -1443,7 +1443,7 @@ def _hash_bounded_finalized_artifact(
         raise InputError("finalized run artifact changed during validation")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             message = f"refusing symlink artifact in finalized run: {relative_path}"

@@ -33,7 +33,7 @@ def make_schema(tmp_path):
 def write(root, path, content):
     target = root / path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+    target.write_bytes(content.encode("utf-8"))
     return target
 
 
@@ -56,6 +56,21 @@ def test_dry_run_preserves_unknown_fields_quotes_and_managed_body(tmp_path):
     assert plan["writes_performed"] == 0
     repeated = build_migration_plan(root, schema, stable_mapping=plan["stable_mapping"])
     assert plan == repeated
+
+
+def test_crlf_frontmatter_and_managed_body_remain_crlf(tmp_path):
+    root = tmp_path / "vault"
+    original = (
+        "---\r\ntitle: 中文条目\r\npublish: false\r\ncustom_nested:\r\n  value: yes\r\n---\r\n"
+        "<!-- growth:managed:start -->\r\n原始正文\r\n<!-- growth:managed:end -->\r\n"
+    )
+    target = write(root, "wiki/concepts/crlf.md", original)
+    plan = build_migration_plan(root, make_schema(tmp_path))
+    proposed = plan["items"][0]["proposed_text"]
+    assert target.read_bytes() == original.encode("utf-8")
+    assert "custom_nested:\r\n  value: yes" in proposed
+    assert "原始正文\r\n" in proposed
+    assert "\n" not in proposed.replace("\r\n", "")
 
 
 def test_explicit_and_registry_legacy_publish_are_preserved(tmp_path):

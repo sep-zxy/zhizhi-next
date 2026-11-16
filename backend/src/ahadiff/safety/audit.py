@@ -228,7 +228,7 @@ def _open_state_file_no_follow(path: Path, flags: int) -> int:
     validate_state_path_no_symlinks(path, allow_missing_leaf=True)
     open_flags = flags | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), open_flags, 0o600)
+        fd = os.open(str(path), (open_flags) | getattr(os, "O_BINARY", 0), 0o600)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("state path must not contain symlinks") from exc

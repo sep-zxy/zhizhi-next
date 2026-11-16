@@ -1050,7 +1050,7 @@ def _assert_directory_no_follow(path: Path) -> None:
         return
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_DIRECTORY", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("improve worktree parent directory must not be a symlink") from exc
@@ -1699,7 +1699,7 @@ def _read_bounded(path: Path, *, max_bytes: int, label: str) -> str:
         raise InputError(f"{label} exceeds {max_bytes} bytes")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink") from exc

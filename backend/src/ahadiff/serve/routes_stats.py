@@ -1132,7 +1132,7 @@ def _read_stats_regular_text(path: Path) -> str | None:
         return None
     fd = -1
     try:
-        fd = os.open(str(path), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        fd = os.open(str(path), (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)) | getattr(os, "O_BINARY", 0))
         opened_stat = os.fstat(fd)
         if (
             not stat.S_ISREG(opened_stat.st_mode)

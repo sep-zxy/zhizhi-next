@@ -700,7 +700,7 @@ def _read_mcp_regular_bytes_by_path(path: Path, *, label: str, max_bytes: int) -
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(os.fspath(path), flags)
+        fd = os.open(os.fspath(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink: {path}") from exc
@@ -744,7 +744,7 @@ def _read_mcp_regular_bytes_from_state_dir(
 
     dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-    current_fd = os.open(os.fspath(root), dir_flags)
+    current_fd = os.open(os.fspath(root), (dir_flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_root_stat = os.fstat(current_fd)
         if (opened_root_stat.st_dev, opened_root_stat.st_ino) != (
@@ -767,7 +767,7 @@ def _read_mcp_regular_bytes_from_state_dir(
             max_bytes=max_bytes,
         )
         try:
-            file_fd = os.open(leaf_name, file_flags, dir_fd=current_fd)
+            file_fd = os.open(leaf_name, (file_flags) | getattr(os, "O_BINARY", 0), dir_fd=current_fd)
         except OSError as exc:
             if exc.errno == errno.ELOOP:
                 raise InputError(f"{label} must not be a symlink: {path}") from exc
@@ -800,7 +800,7 @@ def _supports_secure_relative_open() -> bool:
 def _open_mcp_child_dir(parent_fd: int, name: str, *, path: Path, label: str) -> int:
     dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        child_fd = os.open(name, dir_flags, dir_fd=parent_fd)
+        child_fd = os.open(name, (dir_flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} parent must not be a symlink: {path}") from exc

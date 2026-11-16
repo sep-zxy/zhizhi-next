@@ -507,7 +507,7 @@ def read_artifact_text_no_follow(path: Path, *, max_bytes: int) -> str:
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"artifact file must not be a symlink: {path}") from exc

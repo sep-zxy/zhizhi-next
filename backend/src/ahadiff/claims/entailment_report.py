@@ -665,7 +665,7 @@ def _read_artifact_bytes(path: Path, *, max_bytes: int) -> bytes:
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("artifact file must not be a symlink") from exc

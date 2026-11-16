@@ -44,6 +44,15 @@ def test_real_backup_inspection_and_plan_are_readonly(snapshot):
     assert files(snapshot) == before
 
 
+def test_backup_database_handle_is_released(snapshot):
+    database = snapshot / "platform.db"
+    content = database.read_bytes()
+    # Windows rejects replacement/deletion while the backup writer owns a handle.
+    database.unlink()
+    database.write_bytes(content)
+    assert inspect_backup(snapshot)["object_count"] == 1
+
+
 def test_dry_run_required_even_in_python(snapshot):
     with pytest.raises(PreviewError, match="DRY_RUN_REQUIRED"):
         restore_plan(snapshot, dry_run=False)

@@ -318,7 +318,7 @@ def ensure_state_gitignore(state_dir: Path, *, strict: bool = False) -> Path:
     gitignore_path = state_dir / ".gitignore"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(gitignore_path), flags, 0o644)
+        fd = os.open(str(gitignore_path), (flags) | getattr(os, "O_BINARY", 0), 0o644)
     except FileExistsError:
         _ensure_existing_state_gitignore_patterns(gitignore_path, strict=strict)
         return gitignore_path
@@ -342,7 +342,7 @@ def ensure_global_config_gitignore(config_dir: Path, *, strict: bool = False) ->
     gitignore_path = config_dir / ".gitignore"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(gitignore_path), flags, 0o644)
+        fd = os.open(str(gitignore_path), (flags) | getattr(os, "O_BINARY", 0), 0o644)
     except FileExistsError:
         _ensure_existing_state_gitignore_patterns(
             gitignore_path,
@@ -385,7 +385,7 @@ def _ensure_existing_state_gitignore_patterns(
         return
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(gitignore_path), flags)
+        fd = os.open(str(gitignore_path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         _raise_unsafe_state_gitignore(
             gitignore_path,

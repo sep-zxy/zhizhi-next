@@ -496,16 +496,16 @@ class SourceMethods:
                 raise invalid("RAW path must not contain traversal")
             if os.name != "nt":
                 # Walk directory descriptors so intermediate symlink swaps cannot escape.
-                directory_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                directory_fd = os.open(root, (os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW) | getattr(os, "O_BINARY", 0))
                 try:
                     for part in relative.parts[:-1]:
                         child_fd = os.open(
-                            part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd
+                            part, (os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW) | getattr(os, "O_BINARY", 0), dir_fd=directory_fd
                         )
                         os.close(directory_fd)
                         directory_fd = child_fd
                     descriptor_fd = os.open(
-                        relative.parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd
+                        relative.parts[-1], (os.O_RDONLY | os.O_NOFOLLOW) | getattr(os, "O_BINARY", 0), dir_fd=directory_fd
                     )
                     with os.fdopen(descriptor_fd, "rb") as handle:
                         data = handle.read(self.max_object_bytes + 1)
@@ -539,7 +539,7 @@ class SourceMethods:
                 raise DomainError(
                     "OBJECT_CORRUPT", "Existing source object failed verification", status_code=409
                 )
-            return digest, str(target.relative_to(self.object_path))
+            return digest, target.relative_to(self.object_path).as_posix()
         fd, temporary = tempfile.mkstemp(dir=target.parent, prefix=".retain-")
         try:
             with os.fdopen(fd, "wb") as handle:
@@ -548,14 +548,14 @@ class SourceMethods:
                 os.fsync(handle.fileno())
             Path(temporary).replace(target)
             if os.name != "nt":
-                directory_fd = os.open(target.parent, os.O_RDONLY)
+                directory_fd = os.open(target.parent, (os.O_RDONLY) | getattr(os, "O_BINARY", 0))
                 try:
                     os.fsync(directory_fd)
                 finally:
                     os.close(directory_fd)
         finally:
             Path(temporary).unlink(missing_ok=True)
-        return digest, str(target.relative_to(self.object_path))
+        return digest, target.relative_to(self.object_path).as_posix()
 
     def retain_source(
         self,

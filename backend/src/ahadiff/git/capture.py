@@ -2534,7 +2534,7 @@ def _open_child_compare_directory_fd(
 ) -> int:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_DIRECTORY", 0)
     try:
-        child_fd = os.open(entry_name, flags, dir_fd=parent_fd)
+        child_fd = os.open(entry_name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError("compare-dir input must not contain symlinks") from exc
@@ -2829,15 +2829,15 @@ def _open_capture_path_fd(path: Path, flags: int) -> int:
     absolute = path.absolute()
     validate_state_path_no_symlinks(absolute.parent, allow_missing_leaf=False)
     if os.open not in os.supports_dir_fd:
-        return os.open(str(absolute), flags)
+        return os.open(str(absolute), (flags) | getattr(os, "O_BINARY", 0))
     directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    parent_fd = os.open(absolute.anchor, directory_flags)
+    parent_fd = os.open(absolute.anchor, (directory_flags) | getattr(os, "O_BINARY", 0))
     try:
         for part in absolute.parts[1:-1]:
-            child_fd = os.open(part, directory_flags, dir_fd=parent_fd)
+            child_fd = os.open(part, (directory_flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
             os.close(parent_fd)
             parent_fd = child_fd
-        return os.open(absolute.name, flags, dir_fd=parent_fd)
+        return os.open(absolute.name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     finally:
         os.close(parent_fd)
 
@@ -2855,7 +2855,7 @@ def _read_regular_file_from_dir_fd(
         raise InputError(_total_budget_exceeded_message(label, total_budget_bytes))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(entry_name, flags, dir_fd=parent_fd)
+        fd = os.open(entry_name, (flags) | getattr(os, "O_BINARY", 0), dir_fd=parent_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise InputError(f"{label} must not be a symlink") from exc

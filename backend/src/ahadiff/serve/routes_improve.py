@@ -326,7 +326,7 @@ def _read_session_json(path: Path) -> str:
     ):
         raise ValueError("invalid improve session file")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags)
+    fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_stat = os.fstat(fd)
         if (

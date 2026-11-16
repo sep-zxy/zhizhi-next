@@ -199,6 +199,19 @@ def _write_run(
     return run_path
 
 
+def test_finalized_digest_uses_exact_crlf_and_control_bytes(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    run_id = "binary-digest"
+    run = _write_run(runs, run_id, claims=[_claim(claim_id="c1", run_id=run_id)], finalized=False)
+    artifact = run / "opaque.bin"
+    artifact.write_bytes(b"before\r\n\x1aafter\n")
+    _write_finalized_marker(run)
+    assert scan_entailment_corpus(runs).metrics.verified_claims == 1
+
+    artifact.write_bytes(b"before\r\n\x1atampered\n")
+    assert scan_entailment_corpus(runs).metrics.verified_claims == 0
+
+
 def test_report_counts_total_runs_claim_runs_verified_and_route_hits_separately(
     tmp_path: Path,
 ) -> None:

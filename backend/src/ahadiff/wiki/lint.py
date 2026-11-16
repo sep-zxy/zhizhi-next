@@ -610,7 +610,7 @@ def _same_file_identity(left: os.stat_result, right: os.stat_result) -> bool:
 def _read_claims_jsonl_bytes(path: Path, *, expected_stat: os.stat_result) -> bytes | None:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(os.fspath(path), flags)
+        fd = os.open(os.fspath(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         if exc.errno in {errno.ELOOP, errno.ENXIO, errno.EACCES, errno.EPERM}:
             return None

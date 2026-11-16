@@ -835,7 +835,7 @@ def _open_global_config_lock(lock_path: Path) -> Any:
         _validate_global_lock_stat(expected_stat)
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(lock_path), flags, 0o600)
+        fd = os.open(str(lock_path), (flags) | getattr(os, "O_BINARY", 0), 0o600)
     except OSError as exc:
         raise StorageError(f"global config lock is unreadable: {lock_path}") from exc
     try:
@@ -970,7 +970,7 @@ def _read_repo_env_text_no_follow(env_path: Path) -> str | None:
         return None
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(env_path), flags)
+        fd = os.open(str(env_path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         raise ConfigError(f"repo env file is unreadable: {env_path}") from exc
     try:

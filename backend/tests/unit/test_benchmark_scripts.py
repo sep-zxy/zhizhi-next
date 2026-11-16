@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from tests.environment_support import bash_executable
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -53,7 +55,7 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
     fake_python = fake_bin / "python3"
-    fake_python.write_text("#!/usr/bin/env bash\nexit 17\n", encoding="utf-8")
+    fake_python.write_text("#!/usr/bin/env bash\nexit 17\n", encoding="utf-8", newline="\n")
     fake_python.chmod(0o755)
     fake_mktemp = fake_bin / "mktemp"
     fake_mktemp.write_text(
@@ -69,6 +71,7 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
             ]
         ),
         encoding="utf-8",
+        newline="\n",
     )
     fake_mktemp.chmod(0o755)
 
@@ -81,7 +84,7 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
 
     try:
         completed = subprocess.run(
-            ["bash", str(RUN_ALL_SCRIPT)],
+            [bash_executable(), str(RUN_ALL_SCRIPT)],
             cwd=REPO_ROOT,
             check=False,
             capture_output=True,
@@ -92,7 +95,7 @@ def test_run_all_uses_configured_project_python(tmp_path: Path) -> None:
             env=env,
         )
 
-        assert completed.returncode == 0
+        assert completed.returncode == 0, completed.stdout + completed.stderr
         payload = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
         assert payload["cli_startup"]["status"] == "ok"
         assert payload["diff_parse"]["status"] == "ok"

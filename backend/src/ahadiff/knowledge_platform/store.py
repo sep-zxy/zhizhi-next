@@ -9,6 +9,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -212,7 +214,7 @@ class DomainStore:
         """Take a consistent SQLite backup, including committed WAL contents."""
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with self._lock, sqlite3.connect(destination) as target:
+        with self._lock, managed_sqlite_connection(sqlite3.connect(destination)) as target:
             self.connection.backup(target)
 
     def close(self) -> None:

@@ -569,7 +569,7 @@ def _read_regular_spec_file(path: Path) -> bytes:
         raise InputError("--against-spec file must not be a hardlink")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         raise InputError("--against-spec file is unreadable") from exc
     try:
@@ -1529,7 +1529,7 @@ def _read_regular_artifact_text(path: Path) -> str:
         raise ValueError("spec_alignment artifact must not be a hardlink")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), flags)
+        fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     except OSError as exc:
         raise ValueError("spec_alignment artifact is unreadable") from exc
     try:

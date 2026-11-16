@@ -918,7 +918,7 @@ class TestSafeSqliteConnect:
         tmp_path: Path,
     ) -> None:
         db = tmp_path / "wal-reopen.db"
-        with sqlite3.connect(db) as connection:
+        with sqlite_util_module.managed_sqlite_connection(sqlite3.connect(db)) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute("CREATE TABLE t(x)")
             connection.commit()

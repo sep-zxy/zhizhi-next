@@ -119,7 +119,7 @@ def _read_text_no_follow(path: Path) -> str:
     if stat.S_ISLNK(path_stat.st_mode) or _has_windows_reparse_point(path_stat):
         raise OSError(errno.ELOOP, "refusing to follow registry.json symlink", str(path))
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags)
+    fd = os.open(str(path), (flags) | getattr(os, "O_BINARY", 0))
     try:
         opened_stat = os.fstat(fd)
         if not stat.S_ISREG(opened_stat.st_mode):
