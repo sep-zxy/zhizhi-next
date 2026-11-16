@@ -85,14 +85,14 @@ def assemble(args):
   shutil.copytree(source,app/'wiki-private')
   components['wiki-private']={'name':'private-wiki-ui','source_commit':commit,'entrypoints':{'http':'/wiki/'},'known_limits':['Same-origin authentication and Windows E2E remain separate acceptance gates.']}
  # Only version-controlled runtime source, no local fixtures/cache/credentials.
- paths=subprocess.check_output(['git','ls-files','-z','projects/growth/src/ahadiff'],cwd=repo).decode().split('\0')
+ paths=subprocess.check_output(['git','ls-files','-z','backend/src/ahadiff'],cwd=repo).decode().split('\0')
  for relative in filter(None,paths):
   source=repo/relative
   if source.is_symlink():raise ValueError('Backend source symlink')
-  target=app/'backend'/Path(relative).relative_to('projects/growth/src')
+  target=app/'backend'/Path(relative).relative_to('backend/src')
   target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
- shutil.copy2(repo/'projects/growth/LICENSE',app/'backend/LICENSE')
- viewer=repo/'projects/growth/viewer/dist'
+ shutil.copy2(repo/'backend/LICENSE',app/'backend/LICENSE')
+ viewer=repo/'apps/learning-web/dist'
  if not (viewer/'index.html').is_file():raise ValueError('Viewer must be prebuilt in the cloud')
  shutil.copytree(viewer,app/'viewer')
  for file in (repo/'deploy/windows-portable/runtime').glob('*.py'):shutil.copy2(file,app/file.name)

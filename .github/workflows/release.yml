@@ -1,0 +1,67 @@
+name: Release verified artifacts
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful Build artifacts run ID
+        required: true
+        type: string
+      artifact_name:
+        description: Exact artifact name from that run
+        required: true
+        type: string
+      expected_source:
+        description: Full source SHA reviewed for release
+        required: true
+        type: string
+      tag:
+        description: New release tag
+        required: true
+        type: string
+      publish:
+        description: Explicitly publish these artifacts
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  release:
+    if: inputs.publish && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify source, workflow and artifact receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+          ARTIFACT: ${{ inputs.artifact_name }}
+          SOURCE: ${{ inputs.expected_source }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BUILD_RUN -notmatch '^\d+$' -or $env:SOURCE -notmatch '^[0-9a-f]{40}$' -or $env:RELEASE_TAG -notmatch '^v[0-9][A-Za-z0-9._-]*$') { throw 'Invalid immutable release input' }
+          $runPath = "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN"
+          $run = gh api $runPath | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.conclusion -ne 'success' -or $run.head_sha -ne $env:SOURCE -or $run.path -ne '.github/workflows/build.yml') { throw 'Build run identity mismatch' }
+          gh run download $env:BUILD_RUN --repo $env:GITHUB_REPOSITORY --name $env:ARTIFACT --dir release-input
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
+          $receipt = Get-Content -LiteralPath 'release-input/build-receipt.json' -Encoding UTF8 -Raw | ConvertFrom-Json
+          if ($receipt.source -ne $env:SOURCE -or $receipt.repository -ne $env:GITHUB_REPOSITORY -or $receipt.run_id -ne $env:BUILD_RUN) { throw 'Receipt identity mismatch' }
+          foreach ($line in Get-Content -LiteralPath 'release-input/SHA256SUMS.txt' -Encoding UTF8) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw 'Invalid checksum line' }
+            $expectedHash = $Matches[1]
+            $root = (Resolve-Path -LiteralPath 'release-input').Path
+            $file = [IO.Path]::GetFullPath((Join-Path $root $Matches[2]))
+            if (-not $file.StartsWith($root + [IO.Path]::DirectorySeparatorChar) -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedHash) { throw 'Artifact checksum mismatch' }
+          }
+          Compress-Archive -Path 'release-input/*' -DestinationPath 'zhizhi-artifact.zip'
+          gh release create $env:RELEASE_TAG 'zhizhi-artifact.zip' --repo $env:GITHUB_REPOSITORY --target $env:SOURCE --title $env:RELEASE_TAG --notes '发布已验证构建产物；未执行站点部署或真实账号验收。'
+          if ($LASTEXITCODE -ne 0) { throw 'Release failed' }

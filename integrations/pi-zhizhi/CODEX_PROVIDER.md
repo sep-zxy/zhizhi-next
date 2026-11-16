@@ -30,7 +30,7 @@ Pi 1.3.0 的裸 `--no-tools` 会移除全部扩展工具，不能靠 setActiveTo
 
 ## 消息与终态
 
-私有 JSONL v1 合同见 `../../docs/implementation/PI_CODEX_PROVIDER_BRIDGE.md`。
+私有 JSONL v1 合同见 `../../archive/acceptance/implementation/PI_CODEX_PROVIDER_BRIDGE.md`。
 工具 schema 必须与官方 getCurrentTools 返回的当前声明以及后端可信 schema 一致。
 只把当前新用户轮的明文、单个工具建议及完整分类领域回执发给 Python，不发送 Pi 系统提示、cwd、
 隐藏 thinking 或旧进程工具回执。工具异常只发送固定 DOMAIN_REQUEST_FAILED。

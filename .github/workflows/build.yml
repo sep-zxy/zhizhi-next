@@ -1,0 +1,102 @@
+name: Build artifacts
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Component to build; no release or deployment
+        type: choice
+        required: true
+        default: backend
+        options: [backend, learning-web, wiki-private, desktop, public-wiki, pi-zhizhi, vault-manager, continuity-widget, obsidian-ai-writer]
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        default: backend
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: pwsh
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - id: matrix
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:TARGET -eq 'desktop') {
+            $matrix = @{include=@(@{os='windows-latest';platform='windows-x64'},@{os='macos-15';platform='macos-arm64'})}
+          } else { $matrix = @{include=@(@{os='ubuntu-24.04';platform='linux-x64'})} }
+          "value=$($matrix | ConvertTo-Json -Compress -Depth 5)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+  build:
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          rust: ${{ inputs.target == 'vault-manager' || inputs.target == 'continuity-widget' }}
+      - name: Install target and required build inputs
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/dev.ps1 install -Target $env:TARGET
+          if ($env:TARGET -in 'backend','desktop') {
+            ./scripts/dev.ps1 install -Target learning-web
+            ./scripts/dev.ps1 build -Target learning-web
+          }
+          if ($env:TARGET -eq 'desktop') {
+            ./scripts/dev.ps1 install -Target backend
+            ./scripts/dev.ps1 build -Target backend
+          }
+      - name: Build selected target
+        env:
+          TARGET: ${{ inputs.target }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: ./scripts/dev.ps1 package -Target $env:TARGET
+      - name: Collect immutable artifacts
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = 'artifacts/distribution'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          switch ($env:TARGET) {
+            'backend' { Copy-Item -Path 'artifacts/backend/*.whl' -Destination $out }
+            'learning-web' { Copy-Item -LiteralPath 'apps/learning-web/dist' -Destination "$out/learning-web" -Recurse }
+            'wiki-private' { Copy-Item -LiteralPath 'apps/wiki-private/dist' -Destination "$out/wiki-private" -Recurse }
+            'desktop' {
+              $packages = @(Get-ChildItem -LiteralPath 'dist/desktop' -File | Where-Object Extension -In '.exe','.dmg')
+              if (-not $packages) { throw 'No desktop installer produced' }
+              $packages | Copy-Item -Destination $out
+            }
+            'public-wiki' {
+              Copy-Item -LiteralPath 'apps/public-wiki/site/portable/runtime.generated.mjs' -Destination $out
+              'Render-only runtime; site publication requires verified manifest, template assets and domain eligibility.' | Set-Content -LiteralPath "$out/LIMITATIONS.txt" -Encoding UTF8
+            }
+            'pi-zhizhi' { Copy-Item -LiteralPath 'integrations/pi-zhizhi/dist' -Destination "$out/pi-extension" -Recurse }
+            'vault-manager' { Copy-Item -LiteralPath 'optional/vault-manager/target/release/vault-manager' -Destination $out; Copy-Item -LiteralPath 'optional/vault-manager/target/release/vault-manager-cli' -Destination $out }
+            'continuity-widget' { Copy-Item -LiteralPath 'optional/continuity-widget/target/release/continuity-cli' -Destination $out; Copy-Item -LiteralPath 'optional/continuity-widget/dist' -Destination "$out/continuity-ui" -Recurse; 'Core CLI and UI assets; native Tauri distribution is a separate platform build.' | Set-Content -LiteralPath "$out/LIMITATIONS.txt" -Encoding UTF8 }
+            'obsidian-ai-writer' { foreach ($name in @('main.js','manifest.json','styles.css')) { Copy-Item -LiteralPath "optional/obsidian-ai-writer/$name" -Destination $out } }
+          }
+          ./scripts/build-receipt.ps1 -Target $env:TARGET -Output $out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ inputs.target }}-${{ matrix.platform }}-${{ github.sha }}
+          path: artifacts/distribution/
+          if-no-files-found: error
+          retention-days: 7

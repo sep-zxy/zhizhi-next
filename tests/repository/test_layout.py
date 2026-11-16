@@ -13,12 +13,12 @@ class LayoutTests(unittest.TestCase):
             self.assertTrue((ROOT / target).exists(), target)
 
     def test_provenance(self):
-        data = json.loads((ROOT / "docs/archive/import/provenance.json").read_text(encoding="utf-8-sig"))
+        data = json.loads((ROOT / "archive/import/provenance.json").read_text(encoding="utf-8-sig"))
         self.assertRegex(data["restoration_commit"], r"^[0-9a-f]{40}$")
         self.assertEqual({p["name"] for p in data["projects"]}, {"growth", "selfweb", "vault-manager", "continuity-widget", "obsidian-ai-writer"})
 
     def test_required_entrypoints(self):
-        for path in ("projects/growth/pyproject.toml", "projects/selfweb/site/package.json", "integrations/pi-zhizhi/package.json", "projects/vault-manager/Cargo.toml", "projects/continuity-widget/Cargo.toml", "knowledge-contracts/SCHEMA.md", "optional/obsidian-ai-writer/package.json", "optional/obsidian-ai-writer/THIRD_PARTY_NOTICES.md"):
+        for path in ("backend/pyproject.toml", "apps/public-wiki/site/package.json", "integrations/pi-zhizhi/package.json", "optional/vault-manager/Cargo.toml", "optional/continuity-widget/Cargo.toml", "knowledge-contracts/SCHEMA.md", "optional/obsidian-ai-writer/package.json", "optional/obsidian-ai-writer/THIRD_PARTY_NOTICES.md"):
             self.assertTrue((ROOT / path).is_file(), path)
 
     def test_optional_internal_paths(self):

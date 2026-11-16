@@ -36,3 +36,13 @@ cookies.json
 /artifacts/
 /publish/
 /releases/
+
+# Repository-only generated and private workspaces
+/output/
+/dist/
+/artifacts/
+**/target/
+**/.pyinstaller/
+**/sidecar/
+*.egg-info/
+/backend/viewer/

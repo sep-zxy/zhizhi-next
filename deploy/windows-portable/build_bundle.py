@@ -110,8 +110,8 @@ def wheel_plan(lockfile,extras=('captions','wechat')):
 
 def prepare(repo,output,fetch=False):
  output=Path(output);downloads=output/'downloads';downloads.mkdir(parents=True,exist_ok=True)
- plan=wheel_plan(Path(repo)/'projects/growth/uv.lock')
- json_write(output/'evidence/windows-wheel-plan.json',{'target':'cp313-win_amd64','extras':['captions','wechat'],'lock_sha256':sha256(Path(repo)/'projects/growth/uv.lock'),'wheels':plan})
+ plan=wheel_plan(Path(repo)/'backend/uv.lock')
+ json_write(output/'evidence/windows-wheel-plan.json',{'target':'cp313-win_amd64','extras':['captions','wechat'],'lock_sha256':sha256(Path(repo)/'backend/uv.lock'),'wheels':plan})
  if fetch:
   for i,p in enumerate(plan,1):
    print(f'[{i}/{len(plan)}] {p["filename"]}',flush=True)

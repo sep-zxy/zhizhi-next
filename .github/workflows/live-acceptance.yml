@@ -1,0 +1,29 @@
+name: Live acceptance preflight
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source:
+        description: Full reviewed source SHA
+        required: true
+        type: string
+      scope:
+        description: Registered acceptance scope ID, never a prompt or command
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - shell: pwsh
+        env:
+          EXPECTED_SOURCE: ${{ inputs.expected_source }}
+          SCOPE_ID: ${{ inputs.scope }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:EXPECTED_SOURCE -ne $env:GITHUB_SHA -or $env:SCOPE_ID -notmatch '^[a-z0-9][a-z0-9_-]{0,63}$') { throw 'Acceptance source or scope mismatch' }
+          throw 'BLOCKED: 新仓库尚未登记获准的真实账号/模型验收范围。此入口没有读取秘密、调用模型、重用历史预算或伪造成功。'

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "owner": null,
+  "identities_file": null,
+  "model_config": null,
+  "desktop_config": null,
+  "pi_environment_file": null,
+  "platform_port": 8766,
+  "run_worker": false,
+  "auto_commit": false,
+  "providers": []
+}

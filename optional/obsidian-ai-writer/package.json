@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run typecheck && node esbuild.config.mjs production",
+    "build": "node ../../scripts/require-github-actions.mjs && npm run typecheck && node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -22,5 +22,6 @@
     "obsidian": "1.13.1",
     "typescript": "7.0.2",
     "vitest": "4.1.10"
-  }
+  },
+  "packageManager": "npm@11.9.0"
 }

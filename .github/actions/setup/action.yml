@@ -1,0 +1,51 @@
+name: Repository toolchains
+description: Read pinned versions and prepare a GitHub-hosted tool environment
+inputs:
+  rust:
+    description: Prepare the pinned Rust toolchain
+    default: 'false'
+outputs:
+  python:
+    description: Pinned Python version
+    value: ${{ steps.versions.outputs.python }}
+runs:
+  using: composite
+  steps:
+    - id: versions
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $versions = Get-Content -LiteralPath 'config/toolchains.json' -Encoding UTF8 -Raw | ConvertFrom-Json
+        foreach ($name in @('python','node','uv','pnpm','npm','rust')) {
+          "$name=$($versions.$name)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+        }
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ steps.versions.outputs.node }}
+    - uses: astral-sh/setup-uv@v5
+      with:
+        version: ${{ steps.versions.outputs.uv }}
+        python-version: ${{ steps.versions.outputs.python }}
+        enable-cache: true
+        cache-dependency-glob: backend/uv.lock
+    - uses: pnpm/action-setup@v4
+      with:
+        version: ${{ steps.versions.outputs.pnpm }}
+        run_install: false
+    - shell: pwsh
+      env:
+        PINNED_NPM: ${{ steps.versions.outputs.npm }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        npm install --global "npm@$env:PINNED_NPM" --no-audit --fund=false
+        if ($LASTEXITCODE -ne 0) { throw 'npm toolchain installation failed' }
+    - if: inputs.rust == 'true'
+      shell: pwsh
+      env:
+        PINNED_RUST: ${{ steps.versions.outputs.rust }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        rustup toolchain install $env:PINNED_RUST --profile minimal --component rustfmt
+        if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain installation failed' }
+        rustup default $env:PINNED_RUST
+        if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain selection failed' }

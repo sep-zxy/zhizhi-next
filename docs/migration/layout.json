@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "baseline": "62397c2ffed74d4938149f5d40e4d7a1b88c7c29",
+  "upstream": "https://github.com/sep-zxy/zhizhi-platform",
+  "reference": {
+    "repository": "deepseek-ai/deepseek-harness",
+    "commit": "39163dd30f703a79079e2d2446545cff3c453738"
+  },
+  "moves": [
+    {
+      "from": "docs/implementation",
+      "to": "archive/acceptance/implementation"
+    },
+    {
+      "from": "docs/execution",
+      "to": "archive/design/execution"
+    },
+    {
+      "from": "docs/archive/import",
+      "to": "archive/import"
+    },
+    {
+      "from": ".github/workflows",
+      "to": "archive/delivery/platform-workflows"
+    },
+    {
+      "from": "projects/growth/viewer",
+      "to": "apps/learning-web"
+    },
+    {
+      "from": "projects/growth/desktop",
+      "to": "apps/desktop"
+    },
+    {
+      "from": "projects/growth/.github",
+      "to": "archive/delivery/growth-workflows"
+    },
+    {
+      "from": "projects/growth/acceptance",
+      "to": "archive/acceptance/growth"
+    },
+    {
+      "from": "projects/growth",
+      "to": "backend"
+    },
+    {
+      "from": "projects/wiki-private",
+      "to": "apps/wiki-private"
+    },
+    {
+      "from": "projects/selfweb",
+      "to": "apps/public-wiki"
+    },
+    {
+      "from": "projects/vault-manager",
+      "to": "optional/vault-manager"
+    },
+    {
+      "from": "projects/continuity-widget",
+      "to": "optional/continuity-widget"
+    },
+    {
+      "from": "deploy/c20-artifact-only",
+      "to": "archive/delivery/c20-artifact-only"
+    },
+    {
+      "from": "deploy/git-sync",
+      "to": "archive/delivery/git-sync"
+    },
+    {
+      "from": "deploy/windows-portable/build_github_product.py",
+      "to": "archive/delivery/windows-portable/build_github_product.py"
+    },
+    {
+      "from": "deploy/windows-portable/test_github_product.py",
+      "to": "archive/delivery/windows-portable/test_github_product.py"
+    },
+    {
+      "from": "deploy/windows-portable/build_codex_smoke.py",
+      "to": "archive/delivery/windows-portable/build_codex_smoke.py"
+    },
+    {
+      "from": "deploy/windows-portable/build_codex_patch.py",
+      "to": "archive/delivery/windows-portable/build_codex_patch.py"
+    },
+    {
+      "from": "deploy/windows-portable/codex-smoke",
+      "to": "archive/delivery/windows-portable/codex-smoke"
+    },
+    {
+      "from": "deploy/windows-portable/patch",
+      "to": "archive/delivery/windows-portable/patch"
+    },
+    {
+      "from": "deploy/windows-portable/test_codex_smoke.py",
+      "to": "archive/delivery/windows-portable/test_codex_smoke.py"
+    },
+    {
+      "from": "deploy/windows-portable/test_codex_patch.py",
+      "to": "archive/delivery/windows-portable/test_codex_patch.py"
+    }
+  ]
+}

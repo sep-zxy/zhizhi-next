@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Zhizhi channels configuration example",
+  "type": "object",
+  "required": [
+    "bindings",
+    "telegram",
+    "wechat_kf"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "run_worker": {
+      "type": "boolean"
+    },
+    "auto_commit": {
+      "type": "boolean"
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

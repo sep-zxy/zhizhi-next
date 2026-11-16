@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Zhizhi desktop configuration example",
+  "type": "object",
+  "required": [
+    "service_url",
+    "identity_file",
+    "device_id",
+    "providers"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "run_worker": {
+      "type": "boolean"
+    },
+    "auto_commit": {
+      "type": "boolean"
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

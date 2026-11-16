@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node ../../scripts/require-github-actions.mjs && tsc -p tsconfig.build.json",
     "build:portable": "node scripts/build-portable.mjs",
     "test:portable": "node --test test/portable-runtime.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -20,5 +22,10 @@
     "tsx": "4.20.6",
     "typescript": "5.9.3"
   },
-  "pi": { "extensions": ["./src/index.ts"] }
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "packageManager": "npm@11.9.0"
 }

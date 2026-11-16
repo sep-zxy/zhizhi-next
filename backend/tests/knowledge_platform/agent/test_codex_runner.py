@@ -1,0 +1,547 @@
+"""Fixture transport coverage only; not a real login, subscription or Windows E2E."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import sys
+from dataclasses import asdict, replace
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+
+from ahadiff.knowledge_platform.model import (
+    CodexModelRunner,
+    CodexRunnerConfig,
+    DisabledModelRunner,
+    ModelTask,
+    PiModelRunner,
+    SubscriptionRoute,
+    build_runner_from_config,
+)
+from ahadiff.knowledge_platform.model.codex_runner import CODEX_VERSION, SUPPORTED_CODEX_VERSIONS
+
+SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
+
+
+def task(**changes):
+    return replace(
+        ModelTask(
+            task_id="codex-task",
+            purpose="preview",
+            input_refs=("source-1",),
+            input_classification="public",
+            allowed_provider_ids=("openai",),
+            schema_name="preview",
+            output_schema=SCHEMA,
+            payload={"text": "untrusted text"},
+            dedupe_key="codex-1",
+        ),
+        **changes,
+    )
+
+
+def runner(tmp_path, scenario="success", **changes):
+    config = CodexRunnerConfig(
+        enabled=True,
+        reuse_existing_login=True,
+        routes=(
+            SubscriptionRoute(
+                provider_id="openai", model_id="fixture-model", account_qualified=True
+            ),
+        ),
+        executable=(
+            sys.executable,
+            str(Path(__file__).with_name("fake_codex_exec.py")),
+            scenario,
+            str(tmp_path / "calls.jsonl"),
+        ),
+        development_transport=True,
+    )
+    return CodexModelRunner(replace(config, **changes))
+
+
+def test_codex_is_opt_in_and_pi_stays_default():
+    assert isinstance(build_runner_from_config(None), DisabledModelRunner)
+    assert isinstance(build_runner_from_config({"enabled": True}), PiModelRunner)
+    assert isinstance(
+        build_runner_from_config({"enabled": True, "adapter": "codex_cli"}), CodexModelRunner
+    )
+    with pytest.raises(ValueError):
+        build_runner_from_config({"enabled": True, "adapter": "guess"})
+    for key in ("api_key", "provider_env_names", "agent_dir", "development_transport"):
+        with pytest.raises(ValueError):
+            build_runner_from_config({"enabled": True, "adapter": "codex_cli", key: "forbidden"})
+
+
+def test_success_is_fixture_with_requested_not_claimed_actual_model(tmp_path):
+    result = asyncio.run(runner(tmp_path).run(task()))
+    assert result.status == "succeeded" and result.fixture
+    assert result.output == {"text": "有效结果\u2028仍为同一JSONL"}
+    assert result.model_id is None and result.requested_model_id == "fixture-model"
+    assert (
+        result.provider_id == "openai" and result.runtime_version == "codex-cli " + CODEX_VERSION
+    )
+    assert result.result_hash and result.input_fingerprint
+    assert result.usage == {"input": 50, "cacheRead": 10, "output": 15}
+    records = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    args = records[-1]["args"]
+    for flag in ("--json", "--ephemeral", "--ignore-user-config", "--output-schema"):
+        assert flag in args
+    assert args[args.index("--sandbox") + 1] == "read-only"
+    assert args[args.index("--model") + 1] == "fixture-model"
+    assert 'forced_login_method="chatgpt"' in args and 'model_provider="openai"' in args
+    assert "shell_tool" in args and "unified_exec" in args and "apps" in args and "plugins" in args
+    assert "--dangerously-bypass-approvals-and-sandbox" not in args
+
+
+@pytest.mark.parametrize(
+    ("scenario", "status", "code"),
+    [
+        ("wrong_version", "blocked", "CODEX_VERSION_MISMATCH"),
+        ("api_key", "blocked", "METERED_AUTH_FORBIDDEN"),
+        ("auth_missing", "waiting_auth", "SUBSCRIPTION_AUTH"),
+        ("auth_error", "waiting_auth", "SUBSCRIPTION_AUTH"),
+        ("quota", "waiting_quota", "SUBSCRIPTION_QUOTA"),
+        ("invalid_inner", "invalid_output", "OUTPUT_SCHEMA_INVALID"),
+        ("invalid_envelope", "invalid_output", "OUTPUT_SCHEMA_INVALID"),
+        ("schema_wrong", "invalid_output", "OUTPUT_SCHEMA_INVALID"),
+        ("secret", "invalid_output", "OUTPUT_SCHEMA_INVALID"),
+        ("early_exit", "invalid_output", "CODEX_INCOMPLETE_TURN"),
+        ("nonzero_exit", "failed", "CODEX_PROCESS_FAILED"),
+        ("bad_jsonl", "failed", "CODEX_INVALID_JSONL"),
+        ("too_many_tokens", "invalid_output", "MODEL_OUTPUT_TOKEN_LIMIT"),
+        ("duplicate_message", "invalid_output", "CODEX_AMBIGUOUS_OUTPUT"),
+        ("after_completion", "failed", "CODEX_EVENT_AFTER_COMPLETION"),
+        ("stdout_flood", "blocked", "CODEX_OUTPUT_TOO_LARGE"),
+        ("stderr_flood", "blocked", "CODEX_OUTPUT_TOO_LARGE"),
+    ],
+)
+def test_failures_are_not_success_or_sensitive_audit(tmp_path, scenario, status, code):
+    result = asyncio.run(runner(tmp_path, scenario).run(task()))
+    assert result.status == status and result.error_code == code
+    assert result.output is None and result.fixture and result.model_id is None
+    assert "never-log-me" not in json.dumps(asdict(result), default=str)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "command_execution",
+        "file_change",
+        "mcp_tool_call",
+        "collab_tool_call",
+        "web_search",
+        "todo_list",
+        "future_unknown_tool",
+    ],
+)
+def test_all_tool_events_fail_closed(tmp_path, kind):
+    result = asyncio.run(runner(tmp_path, "tool_" + kind).run(task()))
+    assert result.status == "blocked" and result.error_code == "UNEXPECTED_MODEL_TOOL"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"input_classification": "secret"},
+        {"input_classification": "employer"},
+        {"allowed_provider_ids": ()},
+        {"payload": {"api_key": "fixture_secret_value"}},
+        {"output_schema": {"type": "object", "$ref": "https://invalid.example/schema"}},
+        {"payload": {"text": "x" * 600000}},
+        {"deadline": datetime.now(UTC) - timedelta(days=1)},
+    ],
+)
+def test_policy_stops_before_process(tmp_path, change):
+    result = asyncio.run(runner(tmp_path).run(task(**change)))
+    assert result.status in {"blocked", "cancelled"}
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+def test_auth_opt_in_stops_before_process(tmp_path):
+    assert asyncio.run(runner(tmp_path, reuse_existing_login=False).run(task())).status == "blocked"
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+def test_environment_no_api_fallback_or_auth_file_read(tmp_path, monkeypatch):
+    for key in (
+        "OPENAI_API_KEY",
+        "CODEX_API_KEY",
+        "CODEX_ACCESS_TOKEN",
+        "OPENAI_BASE_URL",
+        "HTTPS_PROXY",
+        "NODE_OPTIONS",
+    ):
+        monkeypatch.setenv(key, "must-not-be-inherited")
+    existing = tmp_path / "unread-auth-home"
+    # There is intentionally no auth directory/file. Only the fixture CLI handles it.
+    result = asyncio.run(runner(tmp_path, codex_home=existing).run(task()))
+    assert result.status == "succeeded" and not existing.exists()
+    record = json.loads((tmp_path / "calls.jsonl").read_text().splitlines()[-1])
+    assert record["codex_home"] == str(existing)
+    assert not set(record["env_keys"]) & {
+        "OPENAI_API_KEY",
+        "CODEX_API_KEY",
+        "CODEX_ACCESS_TOKEN",
+        "OPENAI_BASE_URL",
+        "HTTPS_PROXY",
+        "NODE_OPTIONS",
+    }
+
+
+def test_quota_serialization_and_no_retry(tmp_path):
+    model = runner(tmp_path, "quota")
+
+    async def twice():
+        return await asyncio.gather(
+            model.run(task()), model.run(task(task_id="two", dedupe_key="two"))
+        )
+
+    results = asyncio.run(twice())
+    assert all(r.status == "waiting_quota" and r.retry_after for r in results)
+    calls = (tmp_path / "calls.jsonl").read_text()
+    assert calls.count('"exec"') == 1
+
+
+def test_idempotency(tmp_path):
+    model = runner(tmp_path)
+
+    async def twice():
+        return (
+            await model.run(task()),
+            await model.run(task(task_id="two")),
+            await model.run(task(payload={"text": "different"})),
+        )
+
+    first, second, conflict = asyncio.run(twice())
+    assert first.result_hash == second.result_hash and second.task_id == "two"
+    assert conflict.error_code == "MODEL_IDEMPOTENCY_CONFLICT"
+    assert (tmp_path / "calls.jsonl").read_text().count('"exec"') == 1
+
+
+def test_timeout_kills_process(tmp_path):
+    result = asyncio.run(runner(tmp_path, "timeout", timeout_seconds=1).run(task()))
+    assert result.error_code == "MODEL_DEADLINE_EXCEEDED"
+    if os.name == "posix":
+        pid = int((tmp_path / "calls.jsonl.pid").read_text())
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+
+
+def test_model_self_report_is_not_audit_metadata(tmp_path):
+    result = asyncio.run(runner(tmp_path, "claimed_model").run(task()))
+    assert result.status == "succeeded" and result.model_id is None
+    assert result.requested_model_id == "fixture-model"
+
+
+def test_no_provider_or_model_fallback():
+    with pytest.raises(ValueError):
+        CodexRunnerConfig(routes=(SubscriptionRoute(provider_id="zai", model_id="model"),))
+    with pytest.raises(ValueError):
+        CodexRunnerConfig(routes=(SubscriptionRoute(provider_id="openai", model_id="a"),) * 2)
+    with pytest.raises(ValueError):
+        CodexRunnerConfig(expected_version="unknown")
+
+
+@pytest.mark.parametrize("version", [
+    "0.163.0-alpha.11.1", "0.163.0-alpha.11.3", "0.163.0-alpha.11.20",
+    "0.163.0-alpha.11.2+unreviewed", "0.163.0-alpha.11.2 ",
+    "0.163.0-alpha.12", "0.163.0", "0.163.*", "*", "",
+])
+def test_unreviewed_or_wildcard_versions_are_rejected(version):
+    with pytest.raises(ValueError, match="exact reviewed"):
+        CodexRunnerConfig(expected_version=version)
+
+
+def test_reviewed_previous_version_requires_its_exact_explicit_pin(tmp_path):
+    assert CODEX_VERSION == "0.163.0-alpha.11.2"
+    assert SUPPORTED_CODEX_VERSIONS == ("0.163.0-alpha.10.2", "0.163.0-alpha.11", CODEX_VERSION)
+    result = asyncio.run(runner(tmp_path, "reviewed_previous_version",
+                                expected_version="0.163.0-alpha.10.2").run(task()))
+    assert result.status == "succeeded" and result.fixture
+    assert result.runtime_version == "codex-cli 0.163.0-alpha.10.2"
+
+
+def test_exact_version_allowlist_matches_official_source_review_and_packaging_example():
+    root = Path(__file__).resolve().parents[4]
+    review = json.loads((root / "deploy/windows-portable/codex-version-review.json").read_text())
+    assert review["repository"] == "openai/codex"
+    assert set(review["versions"]) == set(SUPPORTED_CODEX_VERSIONS)
+    assert review["versions"][CODEX_VERSION]["commit"] == (
+        "51f97c6bca5500edbb986f6d9fe64fa2e63cbdd4"
+    )
+    for path in ("codex-rs/exec/src/cli.rs", "codex-rs/exec/src/exec_events.rs",
+                 "codex-rs/exec/src/event_processor_with_jsonl_output.rs",
+                 "codex-rs/cli/src/login.rs",
+                 "codex-rs/core/src/tools/spec_plan.rs"):
+        evidence = review["files"][path]
+        assert evidence["identical"] is True
+        assert evidence[SUPPORTED_CODEX_VERSIONS[0]] == evidence[CODEX_VERSION]
+    example_path = root / "archive/delivery/windows-portable/patch/model-codex.example.json"
+    example = json.loads(example_path.read_text())
+    assert example["expected_version"] == CODEX_VERSION
+    assert example["routes"][0]["model_id"] == "gpt-6.1-sol"
+
+
+@pytest.mark.parametrize("scenario, expected", [
+    ("reviewed_previous_version", "0.163.0-alpha.11"),
+    ("success", "0.163.0-alpha.10.2"),
+    ("unreviewed_next_version", CODEX_VERSION),
+    ("unreviewed_patch_version", CODEX_VERSION),
+    ("reviewed_base_version", CODEX_VERSION),
+    ("success", "0.163.0-alpha.11"),
+])
+def test_version_mismatch_stops_before_authentication_and_model(tmp_path, scenario, expected):
+    result = asyncio.run(runner(tmp_path, scenario, expected_version=expected).run(task()))
+    assert result.status == "blocked" and result.error_code == "CODEX_VERSION_MISMATCH"
+    records = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    assert [record["args"] for record in records] == [["--version"]]
+
+
+def test_workflow_audit_preserves_requested_model_and_unknown_actual(tmp_path):
+    from ahadiff.knowledge_platform.workflow import KnowledgeWorkflow, WorkflowSettings
+
+    class RecordingDomain:
+        def __init__(self):
+            self.patches = []
+
+        def update_task(self, task_id, patch, **kwargs):
+            self.patches.append(patch)
+
+    domain = RecordingDomain()
+    workflow = KnowledgeWorkflow(domain, None, WorkflowSettings(owner_id="fixture-owner"))
+    result = asyncio.run(runner(tmp_path, "quota").run(task()))
+    metadata = {**asdict(result), "debug": "private diagnostic", "output": {"private": True},
+                "warning_codes": ["codex_nonfatal_notification", "codex_recovered_stream_error",
+                                  "synthetic-private-warning"]}
+    metadata = json.loads(json.dumps(metadata, default=str))
+    settled = workflow._settle_model(
+        {"task_id": "fixture-task", "lease_token": "fixture-lease"},
+        {"status": "waiting_quota", "model": metadata, "model_attempts": [metadata]},
+        "generate",
+    )
+    assert settled
+    audit = domain.patches[0]["result"]
+    for saved in [audit["model"], *audit["model_attempts"]]:
+        assert saved["model_id"] is None and saved["requested_model_id"] == "fixture-model"
+        assert "debug" not in saved and "output" not in saved
+        assert saved["warning_codes"] == [
+            "codex_nonfatal_notification", "codex_recovered_stream_error",
+        ]
+        assert "synthetic-private-warning" not in json.dumps(saved)
+        assert saved["failure"]["summary"] == "subscription_quota_exhausted"
+
+
+def test_nested_secret_text_stops_before_process(tmp_path):
+    result = asyncio.run(
+        runner(tmp_path).run(task(payload={"text": '"password": "fixture_secret"'}))
+    )
+    assert result.error_code == "SECRET_INPUT_FORBIDDEN"
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+def test_caller_cancellation_closes_child(tmp_path):
+    async def cancel():
+        operation = asyncio.create_task(runner(tmp_path, "timeout").run(task()))
+        for _ in range(100):
+            if (tmp_path / "calls.jsonl.pid").exists():
+                break
+            await asyncio.sleep(0.02)
+        operation.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+
+    asyncio.run(cancel())
+    if os.name == "posix":
+        pid = int((tmp_path / "calls.jsonl.pid").read_text())
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+
+
+def test_deep_output_and_missing_local_ref_are_normalized(tmp_path):
+    result = asyncio.run(runner(tmp_path, "deep_output").run(task()))
+    assert result.status == "invalid_output" and result.error_code == "OUTPUT_SCHEMA_INVALID"
+    result = asyncio.run(
+        runner(tmp_path).run(task(output_schema={"type": "object", "$ref": "#/$defs/missing"}))
+    )
+    assert result.status == "invalid_output" and result.error_code == "OUTPUT_SCHEMA_INVALID"
+
+
+def test_iterative_secret_scan_accepts_deep_bounded_data():
+    from ahadiff.knowledge_platform.model.validation import contains_obvious_secret
+
+    value = "ordinary text"
+    for _ in range(600):
+        value = [value]
+    assert not contains_obvious_secret(value)
+
+
+def test_secret_in_object_key_stops_before_process(tmp_path):
+    result = asyncio.run(runner(tmp_path).run(task(payload={"ghp_" + "A" * 20: {}})))
+    assert result.error_code == "SECRET_INPUT_FORBIDDEN"
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="POSIX process-group regression; Windows job requires host test"
+)
+def test_exited_cli_does_not_leak_descendant(tmp_path):
+    result = asyncio.run(runner(tmp_path, "orphan_child", timeout_seconds=1).run(task()))
+    assert result.status == "cancelled"
+    pid = int((tmp_path / "calls.jsonl.child-pid").read_text())
+    status = Path(f"/proc/{pid}/stat")
+    # A killed orphan may await init's reap, but it must not be running.
+    if status.exists():
+        assert status.read_text().split()[2] == "Z"
+
+
+@pytest.mark.parametrize(
+    ("scenario", "kind", "summary", "event_type"),
+    [
+        ("transport", "transport", "transport_connection_failed", "turn.failed"),
+        ("schema", "provider", "structured_output_schema_rejected", "turn.failed"),
+        ("model", "provider", "requested_model_unavailable", "turn.failed"),
+        ("sandbox", "host", "sandbox_initialization_failed", "turn.failed"),
+        ("configuration", "host", "unsupported_cli_configuration", "turn.failed"),
+        ("unknown", "provider", "provider_reported_failure", "turn.failed"),
+        ("error", "transport", "transport_connection_failed", "error"),
+    ],
+)
+def test_provider_failure_has_controlled_diagnostic_not_raw_message(
+    tmp_path, scenario, kind, summary, event_type
+):
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+
+    result = asyncio.run(runner(tmp_path, "provider_failure_" + scenario).run(task()))
+    assert result.status == "failed" and result.error_code == "PROVIDER_FAILURE"
+    assert result.failure is not None
+    assert result.failure.stage == "execution"
+    assert result.failure.kind == kind and result.failure.summary == summary
+    assert result.failure.event_type == event_type
+    # The collector now observes natural EOF/exit before provider acceptance.
+    assert result.failure.exit_code == 1
+    audit = result_metadata(result)
+    assert audit["failure"] == asdict(result.failure)
+    encoded = json.dumps(audit, default=str)
+    assert "never-log-me" not in encoded and "untrusted text" not in encoded
+    assert "password=" not in encoded and "token=" not in encoded
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ["notification_warning", "notification_reroute"],
+)
+def test_nonfatal_cli_notifications_preserve_success_with_safe_warning(
+    tmp_path, scenario
+):
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+
+    result = asyncio.run(runner(tmp_path, scenario).run(task()))
+    assert result.status == "succeeded" and result.output is not None
+    assert result.error_code is None and result.failure is None
+    assert result.model_id is None and result.warning_codes == ("codex_nonfatal_notification",)
+    encoded = json.dumps(result_metadata(result), default=str)
+    assert "never-log-me" not in encoded and "fallback-model" not in encoded
+
+
+def test_item_notice_does_not_hide_natural_nonzero_exit(tmp_path):
+    model = runner(tmp_path, "provider_failure_item")
+    model._collect_process_diagnostics = True
+    result = asyncio.run(model.run(task()))
+    assert result.status == "failed" and result.error_code == "CODEX_PROCESS_FAILED"
+    assert result.output is None and result.failure.exit_code == 1
+    process = model.process_diagnostics[-1]
+    assert process["notification_policy"] == "nonfatal"
+    assert process["provider_turn_state"] == "incomplete"
+
+
+@pytest.mark.parametrize(
+    ("scenario", "stage", "exit_code"),
+    [
+        ("wrong_version", "version", 0),
+        ("auth_missing", "authentication", 1),
+        ("nonzero_exit", "execution", 3),
+    ],
+)
+def test_observed_exit_code_is_kept_without_raw_output(tmp_path, scenario, stage, exit_code):
+    result = asyncio.run(runner(tmp_path, scenario).run(task()))
+    assert result.failure is not None
+    assert result.failure.stage == stage and result.failure.exit_code == exit_code
+
+
+def test_diagnostic_serialization_rejects_untrusted_fields_and_values():
+    from ahadiff.knowledge_platform.model.diagnostics import ModelFailure, sanitized_failure
+
+    valid = {
+        "stage": "execution", "kind": "provider", "summary": "provider_reported_failure",
+        "event_type": "turn.failed", "exit_code": None,
+    }
+    assert sanitized_failure({**valid, "message": "never-log-me", "prompt": "private"}) == valid
+    assert sanitized_failure(ModelFailure(**valid)) == valid
+    for field, value in (
+        ("summary", "private upstream text"),
+        ("stage", "private/path"),
+        ("kind", []),
+        ("event_type", {"secret": True}),
+        ("exit_code", True),
+        ("exit_code", 2**32),
+    ):
+        assert sanitized_failure({**valid, field: value}) is None
+    assert sanitized_failure(None) is None
+
+
+def test_real_task_ledger_retains_only_allowlisted_failure_diagnostic(tmp_path):
+    from ahadiff.knowledge_platform.auth import Actor
+    from ahadiff.knowledge_platform.domain import DomainService
+    from ahadiff.knowledge_platform.generation.service import result_metadata
+    from ahadiff.knowledge_platform.workflow import KnowledgeWorkflow, WorkflowSettings
+
+    domain = DomainService(tmp_path / "platform.db")
+    owner = Actor("fixture-owner", "human", "user", frozenset({"*"}))
+    workflow = KnowledgeWorkflow(domain, None, WorkflowSettings(owner_id=owner.owner_id))
+    try:
+        queued = domain.create_task(
+            "knowledge.generate", {}, actor=owner, idempotency_key="fixture-failure-task"
+        )
+        claimed = domain.claim_task("fixture-worker", actor=workflow.worker)
+        assert claimed is not None
+        result = asyncio.run(runner(tmp_path, "provider_failure_transport").run(task()))
+        metadata = result_metadata(result)
+        metadata["failure"]["message"] = "never-log-me"
+        assert workflow._settle_model(
+            claimed, {"status": result.status, "model": metadata}, "generate"
+        )
+        saved = domain.read_task(queued["task_id"], actor=owner)
+        assert saved["state"] == "failed"
+        assert saved["result"]["model"]["failure"]["summary"] == "transport_connection_failed"
+        assert "message" not in saved["result"]["model"]["failure"]
+        assert "never-log-me" not in json.dumps(saved)
+        assert domain.list_entries(actor=owner) == []
+    finally:
+        domain.close()
+
+
+def test_reviewed_base_version_remains_explicit_only(tmp_path):
+    result = asyncio.run(runner(tmp_path, "reviewed_base_version",
+                                expected_version="0.163.0-alpha.11").run(task()))
+    assert result.status == "succeeded" and result.fixture
+    assert result.runtime_version == "codex-cli 0.163.0-alpha.11"
+
+
+def test_patch_review_records_changed_utf16_decoder_without_claiming_blob_identity():
+    root = Path(__file__).resolve().parents[4]
+    review = json.loads((root / "deploy/windows-portable/codex-version-review.json").read_text())
+    changed = review["files"]["codex-rs/exec/src/lib.rs"]
+    assert changed["identical"] is False
+    assert changed[CODEX_VERSION] == "78f6eb33e03bb36c0c4eeae025da9c380a76c270"
+    assert "decode_utf16" in review["patch_review"]["differences"]["codex-rs/exec/src/lib.rs"]
+    for evidence in review["patch_review"]["notice_producers"]:
+        assert evidence["identical"] or evidence["path"] == "codex-rs/exec/src/lib.rs"

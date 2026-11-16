@@ -15,7 +15,7 @@
 viewer 的 Vitest 包含真实 Chromium DOM fixture。GitHub 驱动先通过该应用冻结锁中的 `pnpm exec playwright install --with-deps chromium` 安装官方浏览器与系统依赖，失败立即停止；`viewer-browser-install` 是发布证据必需阶段。私有 Wiki 仍保留自己的 `npx --no-install playwright install --with-deps chromium`，不假设两份锁永远同版，不用系统浏览器或跳过浏览器测试兜底。这些隔离 fixture 不代表 Windows、真实身份或渠道 E2E 已验收。
 
 - `backend/`：项目 Python wheel 或完整运行源码，锁文件、Python 版本要求、启动入口及资源目录；由总装配准备 Windows 第三方 wheels。`viewer/` 必须是云端已构建静态资源。
-- `wiki-private/`：独立 `projects/wiki-private` 的锁定依赖、类型检查、测试与 GitHub 生产构建 `dist/`。装配参数 `--private-wiki`，固定静态入口 `/wiki/`；不使用学习 viewer 代替，不与公开 Wiki renderer 混淆。后端同源身份桥与浏览器操作必须独立验证。
+- `wiki-private/`：独立 `apps/wiki-private` 的锁定依赖、类型检查、测试与 GitHub 生产构建 `dist/`。装配参数 `--private-wiki`，固定静态入口 `/wiki/`；不使用学习 viewer 代替，不与公开 Wiki renderer 混淆。后端同源身份桥与浏览器操作必须独立验证。
 - `pi/`：固定 Pi 版本的已发布运行 JS/WASM/Windows x64 native 资源、云端预编译自有 JS 扩展、启动入口。不得在 Windows 调用 npm、npx、tsx、tsup、esbuild 或自动下载。扩展加载器的运行时转译和缓存必须明确验证并关闭/隔离。保留官方许可证及锁文件。
 - `wiki/`：已预编译 render-only JS 入口、固定插件和模板资源、字体、完整性清单及来源证据。Windows 允许解析新 Markdown、生成新 HTML/索引，但不编译 TS/SCSS/JS。保留投影、发布权限、固定 Git revision、最终产物与领域复核门槛。静态旧页面不能冒充动态发布验收。
 - `asr/`：可独立资源包，必须列出完整本地模型、模型许可证、精确 Windows wheels、必要运行时和验证状态。不得将可选分包解释为删除真实音视频验收范围。

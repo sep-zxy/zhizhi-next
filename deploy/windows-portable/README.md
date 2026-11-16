@@ -7,7 +7,7 @@ Git 获取固定交付 commit、校验并运行版本目录中的启动器。ZIP
 
 ## GitHub 构建
 
-入口、权限、候选发布与验收边界见 `docs/implementation/GITHUB_WINDOWS_DELIVERY.md`。
+入口、权限、候选发布与验收边界见 `archive/acceptance/implementation/GITHUB_WINDOWS_DELIVERY.md`。
 初次运行默认只构建，不推进交付分支；报告实际大小后，由协调者明确启用候选发布。
 以前在隔离云电脑完成的包不属于此工作流的新产物。
 

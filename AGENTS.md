@@ -1,13 +1,15 @@
-# 云端统一实施规则
+# zhizhi-next 开发规则
 
-本仓库是用户授权的源码快照集成。读取并遵守各子项目 AGENTS.md。用户于 2026-10-19 19:11:55 UTC 明确同意本次隔离云电脑构建和端到端测试，作为本次任务对 growth 仅 GitHub 托管构建规则的例外；不得伪装 CI。例外不授权生产部署、公开推送或转移真实凭据。其他项目约束（PowerShell 7、Python 经 uv、许可证与数据保护）仍然有效。
+使用简体中文解释；代码、命令、日志保留原文；提交信息使用中文。
 
-只在分配 worktree 和文件边界工作。禁止读取/转移本机秘密、启动付费模型、登录新账号、公开 push/部署。Git 提交用中文。测试结果区分单元、fixture 集成、真实渠道/模型 E2E，blocked/skipped/mock-only 不算最终通过。不删除测试以制造成功。所有真实数据使用独立获准测试范围，禁止自动发布存量内容。
+- 修改前阅读 [架构](docs/architecture.md)、所属组件 README 和子目录 AGENTS.md。方案评审不直接修改产品行为。
+- 小步修改，保留来源、许可证、既有行为与测试；目录整理不升级依赖，不擅改 ahadiff 包名、CLI、Electron appId 或用户数据目录。
+- CLI 使用 PowerShell 7；Python 经 uv；有 rtk 时使用 rtk 代理外部命令。PowerShell 脚本设置 $ErrorActionPreference = 'Stop'，文件读写指定 UTF8。
+- 本地默认仅语法校验，不自动执行测试、类型检查、构建或视觉检查。测试与构建使用 GitHub 托管 Actions runner，不伪造 CI 标记。见 [验证规则](docs/testing.md)。
+- 不提交凭据、真实个人知识、运行数据库、模型权重、缓存、依赖或构建产物。不得覆盖用户编辑，未知结果不得展示成成功。
+- 公开推送、生产部署、真实账号与模型调用按当前明确授权执行；历史文档中的临时授权不构成当前权限。
+- 跨模块接口变化同时检查消费者；持久化变化须说明迁移与恢复。业务规则在其拥有模块执行，不能只靠前端或提示词限制。
+- 行为变化同步更新所属文档；同一事实只维护一处。长期取舍记录于 [.agents/notes](.agents/notes/README.md)，机械修改不强制新增决策。
+- 报告实际运行的检查和对应提交；区分 fixture、真实组件、真实账号验收，失败、跳过、未执行如实列明。
 
-工作流见 docs/implementation/INTERFACE_FREEZE.md。共享装配和依赖由主协调管理；各路写自己模块与测试。不要改别的 worktree。
-
-## 本次恢复的临时命令例外
-
-2026-10-20 04:23:51 UTC，用户确认本次便携验收包方案（Sentinel_5363075b42bc8191a58d0de73bca6058），并明确全部代码编写和编译在云端，Windows 只运行最终结果（Sentinel_3e82b46c52388191a44f24bf27a13d6f）。此前“临时使用云端 Bash/Python 允许”的授权继续用于同一任务的便携包制作与剩余验收；这不是永久更改项目规范。Python 仍经 uv，网络、凭据、系统权限和部署限制不变。Windows 仅通过专门执行任务在 C:\Code\zhizhi-e2e-20261020 内接收、运行最终产物；不得在 Windows 安装开发依赖或编译。
-
-用户于 2026-10-20 03:03:36 UTC 明确表示“临时使用云端 Bash/Python 允许”（消息 Sentinel_ba71cb871ac48191931918ee5b0f533b）。仅本次云端恢复和重新测试可用已有 Bash/Python 替代 PowerShell；Python 仍经 uv。此例外不改变默认项目规范，不授权操作用户电脑、绕过网络或访问拒绝、扩大系统权限、登录或配置持久凭据。各阶段提交须持久保存到经验证的备份，不能只保存在临时工作目录。
+入口：[开发](docs/development.md) · [配置](docs/configuration.md) · [贡献](CONTRIBUTING.md) · [迁移](docs/migration/README.md)。

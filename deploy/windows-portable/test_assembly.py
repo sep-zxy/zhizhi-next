@@ -21,7 +21,7 @@ class AssemblyTests(unittest.TestCase):
    with self.assertRaises(ValueError):m.safe_extract(p,Path(d)/'out')
  def test_windows_dependency_closure(self):
   repo=Path(__file__).resolve().parents[2]
-  plan=m.wheel_plan(repo/'projects/growth/uv.lock')
+  plan=m.wheel_plan(repo/'backend/uv.lock')
   names={p['name'] for p in plan}
   self.assertTrue({'pywin32','tree-sitter','cryptography','webvtt-py','wechatpy'}<=names)
   self.assertNotIn('torch',names)

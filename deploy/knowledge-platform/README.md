@@ -15,7 +15,7 @@
 在 PowerShell 7 中执行。Python 使用 uv。安装到隔离环境：
 
 ```powershell
-Set-Location projects/growth
+Set-Location backend
 uv sync --frozen --group dev --extra wechat
 ```
 
@@ -73,7 +73,7 @@ pnpm --dir viewer typecheck
 pnpm --dir viewer test
 ```
 
-本次云构建已获得任务级例外，不伪造 CI 环境变量。正常默认仍要求 GitHub 托管构建。根 `.github/workflows/knowledge-platform.yml` 是隔离测试流水线，尚未推送或运行远端 Actions。
+本次云构建已获得任务级例外，不伪造 CI 环境变量。正常默认仍要求 GitHub 托管构建。根 `archive/delivery/platform-workflows/knowledge-platform.yml` 是隔离测试流水线，尚未推送或运行远端 Actions。
 
 启动 PowerShell 前使用 `POWERSHELL_TELEMETRY_OPTOUT=1` 关闭非必要遥测，方法见 [Microsoft 官方说明](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_telemetry?view=powershell-7.6)。不要以新网络目的地或代理绕过执行环境拒绝。
 

@@ -1,0 +1,11 @@
+# 知识子系统
+
+入口为 backend/src/ahadiff/knowledge_platform/app.py，统一前缀 /api/knowledge/v1。DomainService 是领域写入口；Actor 由服务认证获得，客户端不能自报 owner 或批准身份。mutation 使用幂等键，同键不同请求拒绝。
+
+收件预览、本人 keep、来源保留、知识提案、独立复核、重大事项本人决定和 Writer 提交是不同阶段。202 或任务成功不等于正式知识已写入，更不等于已公开。读取具体历史版本不得用最新版本替代。
+
+常规有来源增补可按规则通过，普通变化独立复核，个人观点、核心结论、重要合并删除与隐私放宽需要本人决定。批准绑定版本、正文/证据摘要和策略，变化后重新确认。
+
+Git 保存正文与版本化元数据，SQLite 保存目录、任务、审核及恢复账本。搜索采用中文 n-gram 与 SQLite FTS5。关系分 navigation、candidate、confirmed，不因路径连通或学习完成推断掌握。
+
+历史详细协议保留于 [领域 API 基线](../../archive/acceptance/implementation/DOMAIN_API.md)，阅读时需结合现有源码；该记录不证明新目录或当前版本已完成真实账号验收。
