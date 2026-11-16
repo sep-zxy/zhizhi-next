@@ -532,14 +532,15 @@ class SourceMethods:
     def _save_object(self, data: bytes) -> tuple[str, str]:
         """Durably create a content-addressed object before recording any reference."""
         digest = hashlib.sha256(data).hexdigest()
-        target = self.object_path / "sha256" / digest[:2] / digest
+        relative = Path("sha256") / digest[:2] / digest
+        target = self.object_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
                 raise DomainError(
                     "OBJECT_CORRUPT", "Existing source object failed verification", status_code=409
                 )
-            return digest, target.relative_to(self.object_path).as_posix()
+            return digest, relative.as_posix()
         fd, temporary = tempfile.mkstemp(dir=target.parent, prefix=".retain-")
         try:
             with os.fdopen(fd, "wb") as handle:
@@ -555,7 +556,7 @@ class SourceMethods:
                     os.close(directory_fd)
         finally:
             Path(temporary).unlink(missing_ok=True)
-        return digest, target.relative_to(self.object_path).as_posix()
+        return digest, relative.as_posix()
 
     def retain_source(
         self,
