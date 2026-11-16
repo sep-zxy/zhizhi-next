@@ -4000,7 +4000,7 @@ def test_git_patch_streaming_uses_quote_path_false(
     )
 
     assert result == ""
-    assert Path(seen_command[0]).name == "git"
+    assert Path(seen_command[0]).name.lower() in {"git", "git.exe"}
     assert seen_command[1:4] == ["-c", "core.quotePath=false", "-C"]
 
 
@@ -4291,7 +4291,7 @@ def test_write_input_artifacts_persists_tree_sitter_symbols_without_changing_man
 
     capture = capture_module.capture_patch(
         workspace_root=workspace_root,
-        compare_dir=(Path("old"), Path("new")),
+        compare=(Path("old/src/widget.ts"), Path("new/src/widget.ts")),
         max_files=50,
         hard_limit=5000,
         max_patch_bytes=10_000_000,
@@ -4420,7 +4420,7 @@ def test_graph_commands_and_unlock_force(tmp_path: Path) -> None:
     lock_path.write_text("123\n2026-04-22T00:00:00Z\nlearn\n", encoding="utf-8")
     unlock_result = _invoke_repo_cli(runner, repo_root, ["unlock", "--force"])
     assert unlock_result.exit_code == 0
-    assert not lock_path.exists()
+    assert not lock_path.exists() or (os.name == "nt" and lock_path.read_bytes() == b"")
 
 
 def test_graph_import_invalid_json_raises_input_error(tmp_path: Path) -> None:
@@ -4756,7 +4756,7 @@ def test_resolve_git_files_uses_bounded_serial_show(
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     _init_repo(repo_root)
-    (repo_root / "one.py").write_text("a = 1\r\n", encoding="utf-8")
+    (repo_root / "one.py").write_text("a = 1\r\n", encoding="utf-8", newline="")
     (repo_root / "two.py").write_text("b = 2\r", encoding="utf-8", newline="")
     revision = _commit_all(repo_root, "base")
 

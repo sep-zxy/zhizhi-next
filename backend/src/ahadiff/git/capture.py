@@ -1295,7 +1295,7 @@ def import_graphify_artifact(
     final_status.provenance["node_count"] = str(len(sanitized_graph.nodes))
     final_status.provenance["edge_count"] = str(len(sanitized_graph.links))
     try:
-        final_status.provenance["source_path"] = str(status.source_path.relative_to(workspace_root))
+        final_status.provenance["source_path"] = status.source_path.relative_to(workspace_root).as_posix()
     except ValueError:
         final_status.provenance["source_path"] = canonicalize_path_text(_GRAPHIFY_RELATIVE_PATH)
     _write_graphify_provenance(

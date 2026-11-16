@@ -83,8 +83,8 @@ try {
             switch ($Command) {
                 'lint' { Invoke-Tool 'uv' @('run','--no-sync','ruff','check','--select','E9,F63,F7,F82','src') }
                 'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','python','../scripts/check-python-types.py') }
-                'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','--maxfail=10','--junitxml=../artifacts/backend-unit.xml') }
-                'test-integration' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e','--maxfail=10','--junitxml=../artifacts/backend-integration.xml') }
+                'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','-v','--tb=short','--junitxml=../artifacts/backend-unit.xml') }
+                'test-integration' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e','-v','--tb=short','--junitxml=../artifacts/backend-integration.xml') }
                 { $_ -in 'build','package' } {
                     $webDist = Join-Path $repoRoot 'apps/learning-web/dist'
                     if (-not (Test-Path -LiteralPath (Join-Path $webDist 'index.html'))) { throw '先构建 learning-web，后端 wheel 必须含真实前端产物。' }

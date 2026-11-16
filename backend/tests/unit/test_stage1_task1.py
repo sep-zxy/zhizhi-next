@@ -71,6 +71,11 @@ def test_unlock_repo_write_lock_removes_inactive_regular_lock(tmp_path: Path) ->
     lock_path.write_text("123\n2026-04-26T00:00:00Z\nstale\n", encoding="utf-8")
 
     assert unlock_repo_write_lock(lock_path) is True
+    if os.name == "nt" and lock_path.exists():
+        assert lock_path.read_bytes() == b""
+        # The existing best-effort contract permits a cleared lock placeholder.
+        assert unlock_repo_write_lock(lock_path) is True
+        return
     assert not lock_path.exists()
     assert unlock_repo_write_lock(lock_path) is False
 

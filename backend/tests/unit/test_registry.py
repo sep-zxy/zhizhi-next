@@ -61,7 +61,7 @@ def test_register_and_list_roundtrip(tmp_path: Path) -> None:
     register_repo(repo, state)
     entries = list_registered_repos()
     assert len(entries) == 1
-    assert entries[0].repo_path == str(repo)
+    assert os.path.normcase(entries[0].repo_path) == os.path.normcase(str(repo))
 
 
 def test_unregister_removes_entry(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_stale_entries_filtered(tmp_path: Path) -> None:
     assert len(raw) == 2
     live = list_registered_repos()
     assert len(live) == 1
-    assert live[0].repo_path == str(repo_ok)
+    assert os.path.normcase(live[0].repo_path) == os.path.normcase(str(repo_ok))
 
 
 def test_idempotent_register(tmp_path: Path) -> None:
