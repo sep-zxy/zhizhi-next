@@ -15,6 +15,8 @@ defaults:
 env:
   POWERSHELL_TELEMETRY_OPTOUT: '1'
   PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONUTF8: '1'
+  PYTHONUNBUFFERED: '1'
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -97,7 +99,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 test -Target $env:TARGET
       - name: Real isolated backend composition
-        if: matrix.target == 'backend'
+        if: ${{ !cancelled() && matrix.target == 'backend' }}
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 test-integration -Target backend

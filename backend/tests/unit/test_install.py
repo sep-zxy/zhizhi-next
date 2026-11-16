@@ -573,12 +573,12 @@ def test_install_manifest_preview_lists_file_strategies(tmp_path: Path) -> None:
         {
             "action": "remove",
             "file_strategy": "generated",
-            "path": "archive/delivery/platform-workflows/ahadiff-verify.yml",
+            "path": ".github/workflows/ahadiff-verify.yml",
         },
         {
             "action": "remove",
             "file_strategy": "generated",
-            "path": "archive/delivery/platform-workflows/ahadiff-generate.yml",
+            "path": ".github/workflows/ahadiff-generate.yml",
         },
     ]
 
@@ -951,7 +951,7 @@ def test_github_action_default_uninstall_prints_only_removed_workflow(tmp_path: 
 
     assert install_result.exit_code == 0, install_result.output
     assert uninstall_result.exit_code == 0, uninstall_result.output
-    assert "- remove: archive/delivery/platform-workflows/ahadiff-verify.yml" in uninstall_result.output
+    assert "- remove: .github/workflows/ahadiff-verify.yml" in uninstall_result.output
     assert "ahadiff-generate.yml" not in uninstall_result.output
 
 

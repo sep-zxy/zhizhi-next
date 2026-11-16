@@ -32,7 +32,7 @@ def run_types(project: Path, configuration: dict, output: Path) -> dict:
     config.write_text(json.dumps(settings), encoding="utf-8")
     result = subprocess.run(
         ["uv", "run", "--project", str(ROOT / "backend"), "--no-sync", "pyright", "--project", str(config), "--outputjson"],
-        cwd=ROOT, text=True, capture_output=True, check=False,
+        cwd=ROOT, text=True, encoding="utf-8", capture_output=True, check=False,
     )
     if result.returncode not in {0, 1}:
         raise RuntimeError("Pyright execution failed")
