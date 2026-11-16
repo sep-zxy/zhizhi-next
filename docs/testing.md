@@ -24,4 +24,6 @@ ci.yml 的稳定汇总任务核对计划需要执行的任务，失败或取消�
 
 配置测试使用 backend/tests/environment_support.py 构造同时含 HOME 和 APPDATA 的隔离环境，不继承 runner 的个人配置。明确测试缺失或空环境变量的反例仍直接传递原始环境。模拟进程使用模拟 Job Object；原生进程树清理和 Windows 句柄验证使用真实进程。
 
+后端 macOS 回归使用官方 macos-15-intel 托管 runner（x64），避免 ARM 池持续排队阻塞平台验证。桌面手动打包仍使用 macos-15（ARM64），两者的架构证据分别报告；标签来源见 [官方 runner 清单](https://github.com/actions/runner-images#available-images)。
+
 Python 平台当前存在严格类型债务。CI 用同一锁定 pyright 和解释器比较迁移基线 62397c2f 与当前源码，输出完整诊断并阻断新增错误；无新增错误不等于严格类型全清。原基线通过不可变 Git 对象重建，不维护可随意扩大的忽略清单。

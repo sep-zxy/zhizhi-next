@@ -27,7 +27,7 @@ def component_matrix(modules: list[str]) -> dict:
     return {"include": [
         {"target": module, "os": runner}
         for module in modules
-        for runner in (["ubuntu-24.04", "windows-latest", "macos-15"] if module == "backend" else ["ubuntu-24.04"])
+        for runner in (["ubuntu-24.04", "windows-latest", "macos-15-intel"] if module == "backend" else ["ubuntu-24.04"])
     ]}
 
 

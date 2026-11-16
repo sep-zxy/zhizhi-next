@@ -232,7 +232,7 @@ def test_repository_backend_ci_covers_all_supported_platforms() -> None:
     planner = runpy.run_path(str(path.parents[2] / "scripts/ci-plan.py"))
     matrix = planner["component_matrix"](["backend"])
     assert {item["os"] for item in matrix["include"]} == {
-        "ubuntu-24.04", "windows-latest", "macos-15"
+        "ubuntu-24.04", "windows-latest", "macos-15-intel"
     }
     assert workflow["defaults"]["run"]["shell"] == "pwsh"
     source = path.read_text(encoding="utf-8")
