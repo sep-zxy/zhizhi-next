@@ -15,3 +15,5 @@
 文件描述符使用二进制模式，确保 Windows 上的 CRLF 和 Ctrl-Z 原始字节参与哈希、大小边界和导出校验，依据 [Python os.open 约定](https://docs.python.org/3.13/library/os.html#os.open)。保留原有路径身份与符号链接检查，不自动改写或重签历史完整性标记。新对象引用使用 POSIX 相对路径保存，实际数据目录不变。
 
 Windows 预览导出复用原生句柄校验，锁定父目录后通过文件句柄提交和清理；没有 dir_fd 或原生安全后端时仍拒绝执行。生成的证据文本保留输入换行，避免 Windows 文本写入改变已计算的哈希。备份检查的临时副本在规范化的系统临时目录中创建，仍拒绝快照内的链接和重定向。
+
+既有 compare-dir 目录对比依赖 POSIX 目录文件描述符，Windows 保持明确拒绝；其功能用例在 Linux/macOS 执行，Windows 执行对应的拒绝契约检查。

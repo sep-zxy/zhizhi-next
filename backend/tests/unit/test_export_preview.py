@@ -356,8 +356,6 @@ def test_safe_write_without_dir_fd_rejects_parent_swap_before_write(
         return identity
 
     monkeypatch.setattr(writer_module.os, "supports_dir_fd", set[object]())
-    monkeypatch.setattr(routes_export_module, "_supports_native_export_io", lambda: False)
-    monkeypatch.setattr(writer_module, "_supports_native_export_io", lambda: False)
     monkeypatch.setattr(writer_module, "_safe_parent_identity", swapping_safe_parent_identity)
 
     with pytest.raises(OSError, match="symlink|changed during validation"):
@@ -608,6 +606,8 @@ def test_route_preview_fails_closed_without_dir_fd_support(
     stale_file.write_text("old", encoding="utf-8")
     monkeypatch.setattr(routes_export_module.os, "supports_dir_fd", set[object]())
     monkeypatch.setattr(writer_module.os, "supports_dir_fd", set[object]())
+    monkeypatch.setattr(routes_export_module, "_supports_native_export_io", lambda: False)
+    monkeypatch.setattr(writer_module, "_supports_native_export_io", lambda: False)
 
     client = TestClient(
         create_app(ServeState(state_dir=state_dir, token="test-token")),

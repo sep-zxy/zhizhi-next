@@ -1037,7 +1037,7 @@ def test_run_git_uses_utf8_when_cjk_locale_would_fail(
 
     result = repo_module.run_git(Path("repo"), "diff", "--name-only")
 
-    assert Path(calls["command"][0]).name in {"git", "git.exe"}
+    assert Path(calls["command"][0]).name.lower() in {"git", "git.exe"}
     assert calls["command"][1:] == [
         "-c",
         "core.quotePath=false",
@@ -1627,6 +1627,7 @@ def test_patch_url_rechecks_dns_after_redirect_and_blocks_rebinding(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_recurses_with_posix_headers_binary_lines_and_shared_budget(
     tmp_path: Path,
 ) -> None:
@@ -1680,6 +1681,7 @@ def test_compare_dir_recurses_with_posix_headers_binary_lines_and_shared_budget(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_too_many_files_before_content_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1702,6 +1704,7 @@ def test_compare_dir_rejects_too_many_files_before_content_read(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_too_many_directories(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1722,6 +1725,7 @@ def test_compare_dir_rejects_too_many_directories(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_empty_directories(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     (workspace_root / "old").mkdir(parents=True)
@@ -1735,6 +1739,7 @@ def test_compare_dir_rejects_empty_directories(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_identical_directories(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     old_dir = workspace_root / "old"
@@ -1752,6 +1757,7 @@ def test_compare_dir_rejects_identical_directories(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_symlink_entry_and_excessive_depth(tmp_path: Path) -> None:
     if not hasattr(os, "symlink"):
         pytest.skip("symlink is not available on this platform")
@@ -1786,6 +1792,7 @@ def test_compare_dir_rejects_symlink_entry_and_excessive_depth(tmp_path: Path) -
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_control_chars_in_relative_paths(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     old_dir = workspace_root / "old"
@@ -1917,6 +1924,7 @@ def test_compare_dir_rejects_windows_without_secure_dir_fd(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_fd_scandir_unsupported_without_leaking_fd(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1963,6 +1971,7 @@ def test_compare_dir_rejects_fd_scandir_unsupported_without_leaking_fd(
     assert set(opened_fds).issubset(closed_fds)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_rejects_windows_reparse_point_entry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2040,6 +2049,7 @@ def test_compare_dir_rejects_windows_reparse_point_entry(
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_preserves_unicode_and_emoji_paths(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     old_dir = workspace_root / "old"
@@ -3199,6 +3209,7 @@ def test_compare_files_source_reference_frames_the_pair(tmp_path: Path) -> None:
     assert refs[0] != refs[1]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_ipynb_uses_cell_aware_rendering(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     old_dir = workspace_root / "old"
@@ -4792,6 +4803,7 @@ def test_resolve_git_files_skips_oversize_blob_before_show(
     assert show_calls == 0
 
 
+@pytest.mark.skipif(os.name == "nt", reason="compare-dir requires POSIX directory file descriptors")
 def test_compare_dir_patch_exceeds_byte_budget_stops_early(tmp_path: Path) -> None:
     workspace_root = tmp_path / "workspace"
     old_dir = workspace_root / "old"
