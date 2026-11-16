@@ -76,7 +76,7 @@ def _write_qualifying_run(state_dir: Path, run_id: str) -> Path:
         ),
         encoding="utf-8",
     )
-    (run_path / "patch.diff").write_text(_CANONICAL_PATCH, encoding="utf-8")
+    (run_path / "patch.diff").write_bytes(_CANONICAL_PATCH.encode("utf-8"))
     (run_path / "claims.jsonl").write_text(
         json.dumps(
             {
@@ -272,7 +272,7 @@ def test_manifest_read_allows_inline_patch_at_patch_limit(tmp_path: Path) -> Non
         "+new\n" + ("# padding\n" * 120_000)
     )
     assert len(large_patch.encode("utf-8")) > 1_000_000
-    (run_path / "patch.diff").write_text(large_patch, encoding="utf-8")
+    (run_path / "patch.diff").write_bytes(large_patch.encode("utf-8"))
 
     manifest = build_challenge(
         source_run_id="large-patch-run",
