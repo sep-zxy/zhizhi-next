@@ -218,23 +218,27 @@ def test_github_action_layer2_writes_opt_in_generate_workflow(tmp_path: Path) ->
 def _current_platform_workflow() -> Path:
     # The imported repository intentionally replaced its upstream release/CI
     # files. Verify the actual monorepo workflow, not deleted historical names.
-    return Path(__file__).resolve().parents[4] / "archive/delivery/platform-workflows/knowledge-platform.yml"
+    return Path(__file__).resolve().parents[3] / ".github/workflows/ci.yml"
 
 
 def test_repository_backend_ci_covers_all_supported_platforms() -> None:
     path = _current_platform_workflow()
     workflow = _load_workflow(path)
-    job = workflow["jobs"]["isolated"]
+    job = workflow["jobs"]["components"]
     assert job["runs-on"] == "${{ matrix.os }}"
     assert job["strategy"]["fail-fast"] is False
-    assert set(job["strategy"]["matrix"]["os"]) == {
-        "ubuntu-latest", "windows-latest", "macos-latest"
+    assert job["strategy"]["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
+    import runpy
+    planner = runpy.run_path(str(path.parents[2] / "scripts/ci-plan.py"))
+    matrix = planner["component_matrix"](["backend"])
+    assert {item["os"] for item in matrix["include"]} == {
+        "ubuntu-24.04", "windows-latest", "macos-15"
     }
-    assert job["defaults"]["run"]["shell"] == "pwsh"
+    assert workflow["defaults"]["run"]["shell"] == "pwsh"
     source = path.read_text(encoding="utf-8")
-    assert "tests/unit tests/knowledge_platform ../../tests/e2e" in source
+    assert "test-integration -Target backend" in source
     assert "benchmarks/graphify/bench_graphify.py" in source
-    assert "isolated-test-report-not-live-acceptance" in source
+    assert "real_account_e2e=$false" in source
     assert "continue-on-error" not in source
 
 
@@ -244,13 +248,13 @@ def test_current_sqlite_gate_executes_and_rejects_unsupported_versions(
 ) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     workflow = _load_workflow(_current_platform_workflow())
-    step = next(step for step in workflow["jobs"]["isolated"]["steps"]
+    step = next(step for step in workflow["jobs"]["components"]["steps"]
                 if step.get("name") == "Verify supported SQLite runtime")
     command = shlex.split(step["run"])
-    assert command[:4] == ["uv", "run", "python", "-c"]
-    assert len(command) == 5
+    assert command[:7] == ["uv", "run", "--project", "backend", "--no-sync", "python", "-c"]
+    assert len(command) == 8
     result = subprocess.run(
-        [sys.executable, "-c", f"import sqlite3; sqlite3.sqlite_version={version!r}; {command[4]}"],
+        [sys.executable, "-c", f"import sqlite3; sqlite3.sqlite_version={version!r}; {command[7]}"],
         cwd=repo_root, check=False, capture_output=True, text=True, encoding="utf-8",
         errors="replace", timeout=30,
     )
@@ -262,7 +266,7 @@ def test_current_sqlite_gate_executes_and_rejects_unsupported_versions(
 
 def test_repository_ci_does_not_enable_unrequested_paid_nightly_calls() -> None:
     workflow = _load_workflow(_current_platform_workflow())
-    assert set(workflow["on"]) == {"pull_request", "workflow_dispatch"}
+    assert set(workflow["on"]) == {"pull_request", "push", "workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     source = _current_platform_workflow().read_text(encoding="utf-8")
     assert "AHADIFF_LIVE_LLM_API_KEY" not in source
@@ -271,26 +275,28 @@ def test_repository_ci_does_not_enable_unrequested_paid_nightly_calls() -> None:
 
 
 def test_repository_release_requires_successful_matching_desktop_artifacts() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    workflow_path = repo_root / "archive/delivery/platform-workflows/publish-release.yml"
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow_path = repo_root / ".github/workflows/release.yml"
     workflow = _load_workflow(workflow_path)
     assert set(workflow["on"]) == {"workflow_dispatch"}
-    assert {"run_id", "version"} <= set(workflow["on"]["workflow_dispatch"]["inputs"])
+    assert {"build_run", "expected_source", "artifact_name", "tag", "publish"} <= set(workflow["on"]["workflow_dispatch"]["inputs"])
+    assert workflow["on"]["workflow_dispatch"]["inputs"]["publish"]["default"] is False
     source = workflow_path.read_text(encoding="utf-8")
     assert "$run.conclusion -ne 'success'" in source
-    assert "$run.workflowName -ne 'Desktop Build'" in source
-    assert "$info.commit -ne $run.headSha" in source
-    assert "$info.desktop_version -ne $env:RELEASE_VERSION" in source
-    assert "Get-FileHash -Algorithm SHA256" in source
+    assert "$run.path -ne '.github/workflows/build.yml'" in source
+    assert "$run.head_sha -ne $env:SOURCE" in source
+    assert "$receipt.source -ne $env:SOURCE" in source
+    assert "-Algorithm SHA256" in source
     assert "continue-on-error" not in source
-    build = _load_workflow(repo_root / "archive/delivery/platform-workflows/desktop-build.yml")
-    platforms = {item["platform"] for item in build["jobs"]["package"]["strategy"]["matrix"]["include"]}
-    assert platforms == {"windows-x64", "macos-arm64"}
+    build = _load_workflow(repo_root / ".github/workflows/build.yml")
+    matrix_source = build["jobs"]["plan"]["steps"][0]["run"]
+    assert "windows-x64" in matrix_source
+    assert "macos-arm64" in matrix_source
 
 
 def test_repository_does_not_publish_pages_implicitly_on_push() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    for directory in (repo_root / "archive/delivery/platform-workflows", _current_platform_workflow().parent):
+    for directory in (repo_root / ".github/workflows", _current_platform_workflow().parent):
         for path in directory.glob("*.yml"):
             workflow = _load_workflow(path)
             if "push" in workflow.get("on", {}):
@@ -337,8 +343,8 @@ def test_github_action_uninstall_removes_generated_workflows(tmp_path: Path) -> 
 
     assert install_result.exit_code == 0
     assert dry_run.exit_code == 0
-    assert "- remove: archive/delivery/platform-workflows/ahadiff-verify.yml" in dry_run.output
-    assert "- remove: archive/delivery/platform-workflows/ahadiff-generate.yml" in dry_run.output
+    assert "- remove: .github/workflows/ahadiff-verify.yml" in dry_run.output
+    assert "- remove: .github/workflows/ahadiff-generate.yml" in dry_run.output
     assert uninstall_result.exit_code == 0
     assert not (repo_root / ".github").exists()
 

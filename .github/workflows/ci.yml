@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       modules: ${{ steps.plan.outputs.modules }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,12 +56,11 @@ jobs:
   components:
     needs: plan
     if: needs.plan.outputs.modules != '[]'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      matrix:
-        target: ${{ fromJSON(needs.plan.outputs.modules) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,6 +73,11 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 install -Target $env:TARGET
+      - name: Verify supported SQLite runtime
+        if: matrix.target == 'backend'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/src
+        run: uv run --project backend --no-sync python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
       - name: Compile Quartz vendored dependencies and renderer
         if: matrix.target == 'public-wiki'
         run: ./scripts/dev.ps1 build -Target public-wiki
@@ -113,7 +118,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ci-${{ matrix.target }}-${{ github.sha }}
+          name: ci-${{ matrix.target }}-${{ matrix.os }}-${{ github.sha }}
           path: artifacts/
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
           retention-days: 7

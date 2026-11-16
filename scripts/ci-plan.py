@@ -23,6 +23,14 @@ OWNERS = {
 }
 
 
+def component_matrix(modules: list[str]) -> dict:
+    return {"include": [
+        {"target": module, "os": runner}
+        for module in modules
+        for runner in (["ubuntu-24.04", "windows-latest", "macos-15"] if module == "backend" else ["ubuntu-24.04"])
+    ]}
+
+
 def main() -> None:
     base = os.environ.get("BASE_SHA", "")
     head = os.environ.get("GITHUB_SHA", "HEAD")
@@ -43,6 +51,7 @@ def main() -> None:
     if output:
         with Path(output).open("a", encoding="utf-8") as stream:
             stream.write("modules=" + json.dumps(modules, separators=(",", ":")) + "\n")
+            stream.write("matrix=" + json.dumps(component_matrix(modules), separators=(",", ":")) + "\n")
     print(json.dumps({"selected": modules, "real_model_calls": False}))
 
 

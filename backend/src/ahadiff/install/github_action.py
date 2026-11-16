@@ -31,7 +31,7 @@ class GitHubActionTarget:
 
     def write(self, context: InstallContext) -> list[Path]:
         written: list[Path] = []
-        verify_path = repo_path(context, "archive/delivery/platform-workflows/ahadiff-verify.yml")
+        verify_path = repo_path(context, ".github/workflows/ahadiff-verify.yml")
         write_generated_file(
             verify_path,
             content=render_template("ahadiff-verify.yml.j2"),
@@ -39,7 +39,7 @@ class GitHubActionTarget:
         )
         written.append(verify_path)
         if context.layer2:
-            generate_path = repo_path(context, "archive/delivery/platform-workflows/ahadiff-generate.yml")
+            generate_path = repo_path(context, ".github/workflows/ahadiff-generate.yml")
             write_generated_file(
                 generate_path,
                 content=render_template("ahadiff-generate.yml.j2"),
@@ -58,11 +58,11 @@ class GitHubActionTarget:
 
     def _plan(self, context: InstallContext):
         actions = [
-            InstallAction(repo_path(context, "archive/delivery/platform-workflows/ahadiff-verify.yml"), "write")
+            InstallAction(repo_path(context, ".github/workflows/ahadiff-verify.yml"), "write")
         ]
         if context.layer2:
             actions.append(
-                InstallAction(repo_path(context, "archive/delivery/platform-workflows/ahadiff-generate.yml"), "write")
+                InstallAction(repo_path(context, ".github/workflows/ahadiff-generate.yml"), "write")
             )
         return plan_for(
             self.name,
@@ -72,8 +72,8 @@ class GitHubActionTarget:
 
     def _workflow_paths(self, context: InstallContext) -> tuple[Path, Path]:
         return (
-            repo_path(context, "archive/delivery/platform-workflows/ahadiff-verify.yml"),
-            repo_path(context, "archive/delivery/platform-workflows/ahadiff-generate.yml"),
+            repo_path(context, ".github/workflows/ahadiff-verify.yml"),
+            repo_path(context, ".github/workflows/ahadiff-generate.yml"),
         )
 
     def _uninstall_plan(self, context: InstallContext):
@@ -81,9 +81,9 @@ class GitHubActionTarget:
             self.name,
             "Remove AhaDiff GitHub Actions workflows.",
             [
-                InstallAction(repo_path(context, "archive/delivery/platform-workflows/ahadiff-verify.yml"), "remove"),
+                InstallAction(repo_path(context, ".github/workflows/ahadiff-verify.yml"), "remove"),
                 InstallAction(
-                    repo_path(context, "archive/delivery/platform-workflows/ahadiff-generate.yml"), "remove"
+                    repo_path(context, ".github/workflows/ahadiff-generate.yml"), "remove"
                 ),
             ],
         )

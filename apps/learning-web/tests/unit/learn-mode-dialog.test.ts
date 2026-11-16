@@ -301,11 +301,17 @@ describe('LearnModeDialog source selection and preview', () => {
       // An init script would also freeze Playwright's own RAF-based polling,
       // making the test driver depend on the frame it is supposed to release.
       await page.evaluate(() => {
+        const nativeRequestFrame = window.requestAnimationFrame.bind(window);
+        const nativeCancelFrame = window.cancelAnimationFrame.bind(window);
         window.__pendingFocusFrames = [];
         window.requestAnimationFrame = callback => window.__pendingFocusFrames.push(callback);
         window.cancelAnimationFrame = id => { window.__pendingFocusFrames[id - 1] = () => {}; };
         window.__flushFocusFrames = () => {
           const callbacks = window.__pendingFocusFrames.splice(0);
+          // The race ends here. Native file selection must not inherit the
+          // artificial frame freeze used only for opening autofocus.
+          window.requestAnimationFrame = nativeRequestFrame;
+          window.cancelAnimationFrame = nativeCancelFrame;
           for (const callback of callbacks) callback(performance.now());
         };
       });

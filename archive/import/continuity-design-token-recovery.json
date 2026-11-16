@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-17",
+  "source": "existing continuity-widget source tree, ui/src/design-tokens.css",
+  "destination": "optional/continuity-widget/ui/src/design-tokens.css",
+  "sha256": "fdac26182b66729343477006f8f61389d7aef836d5766d6003873acd8ea53b5b",
+  "reason": "The imported source references this CSS file but the original platform snapshot did not contain it. Restored unchanged from the existing local component; no visual redesign."
+}

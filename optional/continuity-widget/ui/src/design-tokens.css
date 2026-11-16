@@ -1,0 +1,25 @@
+:root {
+  --font-ui: "Inter Variable", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  --canvas: #f7f8fa;
+  --surface: #ffffff;
+  --surface-subtle: #f5f6f8;
+  --surface-hover: #f0f2f5;
+  --surface-selected: #e9edf3;
+  --text: #20242a;
+  --text-secondary: #606773;
+  --text-tertiary: #8a929e;
+  --border: #dfe3e8;
+  --border-strong: #cbd1d9;
+  --accent: #0f6b8d;
+  --accent-strong: #0b536e;
+  --accent-soft: #e7f3f7;
+  --success: #15803d;
+  --danger: #b42318;
+  --question: #8a5a14;
+  --rail-width: 48px;
+  --sidebar-width: 240px;
+  --topbar-height: 48px;
+  --project-nav-height: 44px;
+  --peek-width: 420px;
+  --radius: 6px;
+}

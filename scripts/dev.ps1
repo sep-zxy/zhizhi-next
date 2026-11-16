@@ -77,6 +77,7 @@ try {
         exit 0
     }
     if ($entry.Kind -eq 'python') {
+        $env:PYTHONPATH = (Join-Path $repoRoot 'backend/src') + [IO.Path]::PathSeparator + (Join-Path $repoRoot 'backend')
         Push-Location -LiteralPath $targetPath
         try {
             switch ($Command) {
