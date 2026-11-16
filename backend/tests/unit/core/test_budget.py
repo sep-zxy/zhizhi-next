@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from starlette.testclient import TestClient
+from tests.environment_support import config_environment
 from tests.git_fixture_support import init_test_git
 
 from ahadiff.contracts import RunSource
@@ -256,7 +257,7 @@ def test_capture_mode_config_migrates_custom_legacy_capture_to_manual(tmp_path: 
     repo = tmp_path / "repo"
     init_test_git(repo)
     (repo / ".ahadiff").mkdir()
-    env = {"HOME": str(tmp_path / "home")}
+    env = config_environment(tmp_path / "home")
 
     default_snapshot = load_config(repo, env=env)
     assert default_snapshot.values["capture"]["mode"] == "auto"

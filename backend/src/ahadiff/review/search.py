@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.core.errors import InputError, StorageError
 
 if TYPE_CHECKING:
@@ -55,7 +56,7 @@ def search_all(
     results: list[SearchResult] = []
     target_tables = ("concepts", "result_events", "cards") if tables is None else tables
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         for table_name in target_tables:
             if table_name not in _ALLOWED_FTS_TABLES:
                 continue
@@ -181,7 +182,7 @@ def search_graph_nodes_fts(
     if not sanitized:
         return ()
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _fts_table_exists(connection, _ALLOWED_GRAPH_FTS_TABLE):
             return ()
         try:

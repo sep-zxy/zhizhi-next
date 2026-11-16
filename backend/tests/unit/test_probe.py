@@ -18,6 +18,7 @@ from ahadiff.core.errors import InputError, ProviderError
 from ahadiff.llm import persist_probe_result, probe_provider, schemas
 from ahadiff.llm import provider as provider_module
 from ahadiff.llm.provider import reset_provider_runtime_state
+from tests.environment_support import config_environment
 from tests.git_fixture_support import init_test_git
 
 if TYPE_CHECKING:
@@ -88,7 +89,7 @@ def test_probe_provider_reads_headers_and_context_probe_and_persists_result(tmp_
         client=client,
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     raw_config = read_config_data(repo_root / ".ahadiff" / "config.toml")
 
     assert report.config.probed_max_context == 123456
@@ -407,7 +408,7 @@ def test_provider_cli_outputs_capabilities_table_and_persists_probe_result(
     )
     assert plain.exit_code == 0
     assert "pricing.input_per_million_usd.openrouter/custom.model = 0.4" in plain.stdout
-    assert load_config(repo_root, env={"HOME": str(tmp_path / "home")}).repo_unknown_keys == ()
+    assert load_config(repo_root, env=config_environment(tmp_path / "home")).repo_unknown_keys == ()
 
 
 def test_provider_cli_reprobe_preserves_existing_model_limits_name(

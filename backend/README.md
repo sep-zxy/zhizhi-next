@@ -9,3 +9,5 @@
 - 旧底座与 cloud、review、quiz 等代码仍保留；缺少界面入口不表示可删除。
 
 安装和检查见 [开发指南](../docs/development.md)，数据语义见 [知识子系统](../docs/subsystems/knowledge.md)。MIT 及上游版权保留在 [LICENSE](LICENSE)。
+
+复习、检索与对应 HTTP/CLI 路径拥有的 SQLite 连接通过 managed_sqlite_connection 保留事务提交/回滚，并在退出作用域时关闭。connect_review_db 的公开返回类型和调用者显式管理连接的方式保持兼容；没有数据库格式迁移。

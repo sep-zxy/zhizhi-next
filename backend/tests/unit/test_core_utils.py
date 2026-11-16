@@ -23,6 +23,35 @@ def _read_write_target(path: Path) -> str:
     return sqlite_util_module._read_write_sqlite_uri(path)  # pyright: ignore[reportPrivateUsage]
 
 
+@pytest.mark.parametrize("fail_transaction", [False, True])
+def test_managed_sqlite_connection_releases_handle_after_commit_or_rollback(
+    tmp_path: Path, fail_transaction: bool,
+) -> None:
+    database = tmp_path / "owned.sqlite"
+    connection = safe_sqlite_connect(database)
+    connection.execute("CREATE TABLE writes (value TEXT)")
+
+    class InjectedFailure(Exception):
+        pass
+
+    try:
+        with sqlite_util_module.managed_sqlite_connection(connection):
+            connection.execute("INSERT INTO writes VALUES ('owned')")
+            if fail_transaction:
+                raise InjectedFailure
+    except InjectedFailure:
+        assert fail_transaction
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connection.execute("SELECT 1")
+    with sqlite_util_module.managed_sqlite_connection(safe_sqlite_connect(database)) as reopened:
+        assert reopened.execute("SELECT value FROM writes").fetchall() == (
+            [] if fail_transaction else [("owned",)]
+        )
+    # Native Windows refuses this if any owned connection still holds the file.
+    database.unlink()
+
+
 def _is_existing_db_connect_target(database: Any, path: Path) -> bool:
     if database == _read_write_target(path):
         return True

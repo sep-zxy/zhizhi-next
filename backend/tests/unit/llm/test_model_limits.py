@@ -1,6 +1,8 @@
 # pyright: reportPrivateUsage=false
 from __future__ import annotations
 
+from tests.environment_support import config_environment
+
 import json
 import logging
 import re
@@ -2150,7 +2152,7 @@ def test_load_config_accepts_new_and_old_provider_fields(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     providers = cast("dict[str, dict[str, object]]", snapshot.values["providers"])
 
     assert snapshot.repo_unknown_keys == ()

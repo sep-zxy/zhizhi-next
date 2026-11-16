@@ -7,6 +7,8 @@ network calls or LLM requests. The LLM-assisted (Option B) path lives elsewhere.
 
 from __future__ import annotations
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
+
 import errno
 import os
 import sqlite3
@@ -525,7 +527,7 @@ def _load_status_map(db_path: Path) -> dict[str, HealthStatus]:
 
     status_map: dict[str, HealthStatus] = {}
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             rows = connection.execute(
                 "SELECT term_key, health_status FROM concept_status"
             ).fetchall()
@@ -653,7 +655,7 @@ def _persist_lint_results(
     finding_keys = {finding.term_key for finding in findings_list}
     concept_keys = _concept_term_keys(concepts)
     initialize_review_db(db_path)
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             connection.execute(

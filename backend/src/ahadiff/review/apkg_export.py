@@ -11,6 +11,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, TypedDict
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.contracts import ErrorCode
 from ahadiff.core.card_sources import CardSourceDetails, load_card_sources
 from ahadiff.core.errors import InputError, StorageError
@@ -125,7 +126,7 @@ def _load_active_cards(db_path: Path) -> tuple[_CardRow, ...]:
     if not db_path.exists():
         return ()
     try:
-        with _connect_review_db_readonly(db_path) as connection:
+        with managed_sqlite_connection(_connect_review_db_readonly(db_path)) as connection:
             if not _cards_table_exists(connection):
                 return ()
             _validate_cards_schema(connection)

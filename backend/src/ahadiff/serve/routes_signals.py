@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 from anyio import to_thread
 from starlette.responses import JSONResponse
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.contracts import (
     HelpfulnessRequest,
     MarkWrongRequest,
@@ -208,7 +209,7 @@ def record_quiz_attempt(
     """Called inside the existing repo write lock; CLI uses the same signal contract."""
     payload = quiz_signal_payload(body, question)
     if question is not None and question.exercise_kind is not None:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             existing = connection.execute(
                 "SELECT signal_type, payload_json FROM learning_signals WHERE idempotency_key = ?",
                 (body.idempotency_key,),

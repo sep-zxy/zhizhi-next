@@ -31,6 +31,7 @@ from ahadiff.git.line_map import FileLineMap, HunkLineMap, build_line_map
 from ahadiff.git.parser import parse_unified_diff
 from ahadiff.git.symbols import extract_symbols
 from ahadiff.serve import ServeState, create_app
+from tests.environment_support import config_environment
 from tests.git_fixture_support import init_test_git
 
 if TYPE_CHECKING:
@@ -55,7 +56,7 @@ def test_gate3_unknown_config_keys_remain_non_fatal(tmp_path: Path) -> None:
         'rogue = true\n\n[future_feature]\nflag = "kept as unknown"\n',
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.repo_unknown_keys == ("future_feature.flag", "rogue")
 
@@ -64,7 +65,7 @@ def test_gate3_known_config_key_rejects_wrong_toml_type(tmp_path: Path) -> None:
     repo_root = _repo_with_config(tmp_path, '[capture]\nmax_files = "50"\n')
 
     with pytest.raises(ConfigError, match=r"capture\.max_files expects int, got str"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize("key", ["max_files", "hard_limit", "max_patch_bytes"])
@@ -72,13 +73,13 @@ def test_gate3_capture_limits_reject_non_positive_values(tmp_path: Path, key: st
     repo_root = _repo_with_config(tmp_path, f"[capture]\n{key} = 0\n")
 
     with pytest.raises(ConfigError, match=rf"capture\.{key} must be >= 1"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_gate3_graph_max_nodes_import_defaults_to_fifty_thousand(tmp_path: Path) -> None:
     repo_root = _repo_with_config(tmp_path, "")
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["graph"]["max_nodes_import"] == 50_000
     resolved = resolve_effective("graph.max_nodes_import", snapshot=snapshot)
@@ -97,7 +98,7 @@ def test_gate3_graph_max_nodes_import_validates_range(
         ConfigError,
         match=r"graph\.max_nodes_import must be between 1000 and 50000",
     ):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize("raw_value", ["true", "nan", "inf"])
@@ -108,7 +109,7 @@ def test_gate3_graph_max_nodes_import_rejects_non_int_values(
     repo_root = _repo_with_config(tmp_path, f"[graph]\nmax_nodes_import = {raw_value}\n")
 
     with pytest.raises(ConfigError, match=r"graph\.max_nodes_import expects int"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_gate3_graph_max_nodes_import_env_override(tmp_path: Path) -> None:
@@ -117,7 +118,7 @@ def test_gate3_graph_max_nodes_import_env_override(tmp_path: Path) -> None:
     snapshot = load_config(
         repo_root,
         env={
-            "HOME": str(tmp_path / "home"),
+            **config_environment(tmp_path / "home"),
             "AHADIFF_GRAPH_MAX_NODES_IMPORT": "12345",
         },
     )
@@ -132,7 +133,7 @@ def test_gate3_known_config_table_rejects_scalar_value(tmp_path: Path) -> None:
     repo_root = _repo_with_config(tmp_path, 'llm = "not-a-table"\n')
 
     with pytest.raises(ConfigError, match=r"llm expects table, got str"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize(
@@ -170,7 +171,7 @@ def test_gate3_provider_config_schema_is_validated(
     repo_root = _repo_with_config(tmp_path, f"[providers.demo]\n{provider_body}")
 
     with pytest.raises(ConfigError, match=expected):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_provider_capability_overrides_load_from_config(tmp_path: Path) -> None:
@@ -189,7 +190,7 @@ supports_temperature = false
 """,
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     providers = snapshot.values["providers"]
 
     assert snapshot.repo_unknown_keys == ()
@@ -218,7 +219,7 @@ supports_native_json_schema = "true"
         ConfigError,
         match=r"providers\.demo\.capability_overrides\.supports_native_json_schema expects bool",
     ):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_provider_capability_overrides_reject_unknown_keys(tmp_path: Path) -> None:
@@ -240,7 +241,7 @@ supports_magic_schema = true
         ConfigError,
         match=r"providers\.demo\.capability_overrides\.supports_magic_schema",
     ):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_gate3_toml_parse_error_includes_path_and_line_number(tmp_path: Path) -> None:
@@ -248,7 +249,7 @@ def test_gate3_toml_parse_error_includes_path_and_line_number(tmp_path: Path) ->
     config_path = repo_config_path(repo_root)
 
     with pytest.raises(ConfigError) as error:
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     message = str(error.value)
     assert str(config_path) in message

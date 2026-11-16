@@ -30,6 +30,7 @@ from ahadiff.core.json_util import safe_json_loads
 from ahadiff.core.paths import is_wsl2_mnt
 from ahadiff.core.sqlite_util import (
     assert_sqlite_runtime_supported,
+    managed_sqlite_connection,
     safe_sqlite_connect,
 )
 
@@ -192,7 +193,7 @@ def _connect_review_db_maintenance(
 
 
 def initialize_review_db(db_path: Path) -> None:
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         _ensure_schema(connection)
 
 
@@ -235,11 +236,11 @@ def backup_review_db(db_path: Path, backup_path: Path | None = None) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         with (
-            _connect_review_db_maintenance(db_path) as source,
-            _connect_review_db_maintenance(
+            managed_sqlite_connection(_connect_review_db_maintenance(db_path)) as source,
+            managed_sqlite_connection(_connect_review_db_maintenance(
                 target,
                 create_parent=True,
-            ) as backup,
+            )) as backup,
         ):
             source.backup(backup)
             backup.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -254,7 +255,7 @@ def backup_review_db(db_path: Path, backup_path: Path | None = None) -> Path:
 def checkpoint_review_db(db_path: Path) -> None:
     if not (db_path.exists() or db_path.is_symlink()):
         return
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
 
@@ -266,8 +267,8 @@ def restore_review_db(*, db_path: Path, backup_path: Path) -> None:
     try:
         try:
             with (
-                _connect_review_db_maintenance(backup_path) as source,
-                _connect_review_db_maintenance(temp_path, create_parent=True) as target,
+                managed_sqlite_connection(_connect_review_db_maintenance(backup_path)) as source,
+                managed_sqlite_connection(_connect_review_db_maintenance(temp_path, create_parent=True)) as target,
             ):
                 source.backup(target)
                 target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -291,7 +292,7 @@ def restore_review_db(*, db_path: Path, backup_path: Path) -> None:
 def check_review_db(db_path: Path, *, ensure_schema: bool = True) -> ReviewDbCheck:
     if not db_path.exists():
         raise InputError(f"review.sqlite does not exist: {db_path}")
-    with _connect_review_db_for_check(db_path, read_only=not ensure_schema) as connection:
+    with managed_sqlite_connection(_connect_review_db_for_check(db_path, read_only=not ensure_schema)) as connection:
         if ensure_schema:
             _ensure_schema(connection)
         quick_check_row = connection.execute("PRAGMA quick_check").fetchone()
@@ -346,7 +347,7 @@ def _count_table_rows(connection: sqlite3.Connection, table_name: str) -> int:
 
 def sync_result_event(db_path: Path, event: ResultEvent) -> bool:
     try:
-        with connect_review_db(db_path, create_parent=True) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
             _ensure_schema(connection)
             return _sync_result_event(connection, event).rowcount > 0
     except sqlite3.DatabaseError as exc:
@@ -357,7 +358,7 @@ def load_result_events_from_db(db_path: Path) -> tuple[ResultEvent, ...]:
     if not db_path.exists():
         return ()
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return ()
             rows = connection.execute(
@@ -389,7 +390,7 @@ def load_result_events_page(
     if statuses is not None and not status_values:
         return ()
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return ()
             rows: list[sqlite3.Row] = []
@@ -449,7 +450,7 @@ def load_result_event_by_run_and_id(
     if not db_path.exists():
         return None
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return None
             row = connection.execute(
@@ -476,7 +477,7 @@ def load_result_events_for_improve_chain(
     if not db_path.exists():
         return ()
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return ()
             rows = connection.execute(
@@ -505,13 +506,13 @@ def load_result_events_for_improve_chain(
 def select_result_tsv_rows(db_path: Path) -> tuple[dict[str, object], ...]:
     if not db_path.exists():
         raise InputError(f"review.sqlite does not exist: {db_path}")
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         rows = _select_result_tsv_rows_from_connection(connection)
     return tuple(dict(row) for row in rows)
 
 
 def select_result_tsv_rows_readonly(db_path: Path) -> tuple[dict[str, object], ...]:
-    with _connect_review_db_readonly(db_path) as connection:
+    with managed_sqlite_connection(_connect_review_db_readonly(db_path)) as connection:
         rows = _select_result_tsv_rows_from_connection(connection)
     return tuple(dict(row) for row in rows)
 
@@ -543,7 +544,7 @@ def _select_result_tsv_rows_from_connection(
 
 def delete_result_event(db_path: Path, event_id: str) -> None:
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return
             connection.execute("DELETE FROM result_events WHERE event_id = ?", (event_id,))
@@ -556,7 +557,7 @@ def delete_result_event_and_select_tsv_rows(
     event_id: str,
 ) -> tuple[dict[str, object], ...]:
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             if not _result_events_table_exists(connection):
                 return ()
             connection.execute("DELETE FROM result_events WHERE event_id = ?", (event_id,))
@@ -592,7 +593,7 @@ def finalize_targeted_verify_event(
     event_id: str | None = None,
     timestamp: datetime | None = None,
 ) -> ResultEvent:
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         source_row = connection.execute(
             f"""
@@ -658,7 +659,7 @@ def import_results_tsv_lossy(db_path: Path, tsv_path: Path) -> LossyImportOutcom
     skipped = 0
     seen_identity_keys: set[tuple[str, str, str]] = set()
     try:
-        with connect_review_db(db_path, create_parent=True) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
             _ensure_schema(connection)
             with tsv_path.open("r", encoding="utf-8", newline="") as handle:
                 reader = csv.DictReader(handle, delimiter="\t")
@@ -695,7 +696,7 @@ def import_cards_from_jsonl(
     cards = _load_review_cards(cards_path)
     if not cards:
         if expected_run_id is not None:
-            with connect_review_db(db_path) as connection:
+            with managed_sqlite_connection(connect_review_db(db_path)) as connection:
                 _ensure_schema(connection)
                 _mark_run_cards_stale_in_connection(
                     connection,
@@ -706,7 +707,7 @@ def import_cards_from_jsonl(
     card_choice_payloads = tuple(_serialize_card_choices(card) for card in cards)
     now = _utc_now()
     inserted = 0
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         _ensure_default_scheduler_preset(connection, created_at_utc=now)
         run_ids = tuple(sorted({card.run_id for card in cards}))
@@ -902,7 +903,7 @@ def mark_run_cards_stale(
     run_id: str,
     stale_reason: str = "staleness_unknown",
 ) -> int:
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         cursor = _mark_run_cards_stale_in_connection(
             connection,
@@ -936,7 +937,7 @@ def list_due_cards(
     offset: int = 0,
 ) -> tuple[DueReviewCard, ...]:
     now_text = _datetime_to_utc_text(now_utc or datetime.now(UTC))
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if _get_schema_version(connection) != CURRENT_SCHEMA_VERSION:
             return ()
         rows = connection.execute(
@@ -972,7 +973,7 @@ def list_due_cards(
 def get_card(db_path: Path, card_id: str) -> DueReviewCard | None:
     if not db_path.exists():
         return None
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if _get_schema_version(connection) != CURRENT_SCHEMA_VERSION:
             return None
         row = connection.execute(
@@ -1014,7 +1015,7 @@ def record_card_review(
     desired_retention: float | None = None,
 ) -> ReviewUpdate:
     reviewed_at = reviewed_at_utc or datetime.now(UTC)
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         return _record_card_review(
             connection,
@@ -1038,7 +1039,7 @@ def record_card_review_once(
     desired_retention: float | None = None,
 ) -> ReviewUpdate | None:
     reviewed_at = reviewed_at_utc or datetime.now(UTC)
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         choice_payload = _review_choice_signal_payload(
             connection,
@@ -1131,7 +1132,7 @@ def set_card_queue_state(
         raise InputError("card queue state must be archived or suspended")
     timestamp = _datetime_to_utc_text(changed_at_utc or datetime.now(UTC))
     column = "archived_at_utc" if state == "archived" else "suspended_at_utc"
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         # Clear stale_reason whenever the card leaves the stale queue: ReviewCard
         # contract requires stale_reason to be set only when card_state == 'stale'.
@@ -1273,7 +1274,7 @@ def insert_learning_signal(
     payload: dict[str, object],
     created_at_utc: datetime | None = None,
 ) -> bool:
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         _ensure_schema(connection)
         return _insert_learning_signal(
             connection,
@@ -2689,7 +2690,7 @@ def upsert_concept(
 ) -> None:
     """Insert or merge a single concept entry."""
     now = _utc_now()
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         _ensure_schema(connection)
         _register_concepts_sql_functions(connection)
         connection.execute(
@@ -2747,7 +2748,7 @@ def upsert_concepts_batch(
     """Batch upsert concept entries. Returns count of rows affected."""
     now = _utc_now()
     count = 0
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         _ensure_schema(connection)
         _register_concepts_sql_functions(connection)
         for entry in entries:
@@ -2870,7 +2871,7 @@ def load_concepts_from_db(
     """Load concepts from SQLite with keyset pagination."""
     if not db_path.exists():
         return ()
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _table_exists(connection, "concepts"):
             return ()
         clauses: list[str] = []
@@ -2922,7 +2923,7 @@ def count_concepts(db_path: Path) -> int:
     """Count total concepts in the database."""
     if not db_path.exists():
         return 0
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _table_exists(connection, "concepts"):
             return 0
         row = connection.execute("SELECT COUNT(*) FROM concepts").fetchone()
@@ -3002,7 +3003,7 @@ def import_graph_nodes(
             f"graph node import exceeds limit: {len(nodes)} nodes > {effective_limit} max"
         )
     rows = _graph_node_insert_rows(nodes)
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         _ensure_schema(connection)
         try:
             connection.execute("BEGIN IMMEDIATE")
@@ -3031,7 +3032,7 @@ def replace_commit_ancestry(
     if not head_sha:
         return 0
     now = _utc_now()
-    with connect_review_db(db_path, create_parent=True) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path, create_parent=True)) as connection:
         _ensure_schema(connection)
         connection.execute("DELETE FROM commit_ancestry WHERE head_sha = ?", (head_sha,))
         inserted = 0
@@ -3053,7 +3054,7 @@ def replace_commit_ancestry(
 def load_commit_ancestry(db_path: Path, *, head_sha: str) -> tuple[str, ...]:
     if not head_sha or not db_path.exists():
         return ()
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _table_exists(connection, "commit_ancestry"):
             return ()
         rows = connection.execute(
@@ -3071,7 +3072,7 @@ def load_commit_ancestry(db_path: Path, *, head_sha: str) -> tuple[str, ...]:
 def count_commit_ancestry(db_path: Path) -> int:
     if not db_path.exists():
         return 0
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _table_exists(connection, "commit_ancestry"):
             return 0
         row = connection.execute("SELECT COUNT(*) FROM commit_ancestry").fetchone()
@@ -3081,7 +3082,7 @@ def count_commit_ancestry(db_path: Path) -> int:
 def count_graph_nodes(db_path: Path) -> int:
     if not db_path.exists():
         return 0
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if not _table_exists(connection, "graph_nodes"):
             return 0
         row = connection.execute("SELECT COUNT(*) FROM graph_nodes").fetchone()

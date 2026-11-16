@@ -8,6 +8,8 @@ import sqlite3
 import stat
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Any, cast
@@ -44,6 +46,20 @@ class _OpenVerificationState:
 
 class _RetryOpenVerification(Exception):
     """Discard an ambiguous connection and rebuild its full path verification."""
+
+
+@contextmanager
+def managed_sqlite_connection(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Own a connection, preserving commit/rollback and closing it on every exit.
+
+    SQLite's connection context manages a transaction but does not close the
+    handle. Use this scope only when the caller owns the returned connection.
+    """
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 def safe_sqlite_connect(

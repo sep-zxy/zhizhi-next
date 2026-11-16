@@ -21,6 +21,7 @@ from ahadiff.safety.ignore import (
     load_workspace_allowlist_policy,
 )
 from ahadiff.safety.redact import redaction_pipeline, scan_text_for_secrets
+from tests.environment_support import config_environment
 from tests.git_fixture_support import init_test_git
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ def test_load_config_accepts_security_arrays_without_marking_them_unknown(tmp_pa
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     security = load_security_config(repo_root)
 
     assert snapshot.repo_unknown_keys == ()
@@ -61,7 +62,7 @@ def test_invalid_privacy_mode_is_rejected_by_config_loader(tmp_path: Path) -> No
     )
 
     with pytest.raises(ConfigError, match="privacy_mode must be one of"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_soft_detect_can_be_allowlisted_by_hash_and_path(tmp_path: Path) -> None:

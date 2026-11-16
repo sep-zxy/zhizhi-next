@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import fsrs
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.core.errors import InputError, StorageError
 from ahadiff.core.json_util import safe_json_loads
 
@@ -81,7 +82,7 @@ def optimize_weights(db_path: Path, *, min_reviews: int = 512) -> OptimizeResult
         raise InputError("min_reviews must be >= 1")
     database_module = _load_review_database_module()
     connect_review_db = database_module.connect_review_db
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         review_logs = adapt_review_logs(connection)
         review_count = len(review_logs)
         effective_review_count = _count_effective_optimizer_reviews(review_logs)

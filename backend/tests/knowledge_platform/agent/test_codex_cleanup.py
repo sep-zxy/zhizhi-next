@@ -423,6 +423,17 @@ def test_reader_join_failure_still_stops_and_preserves_primary(
         stderr=SimpleNamespace(read=empty), wait=wait,
     )
 
+    # This test injects a synthetic process; keep the Job boundary synthetic on
+    # Windows too. Real owned-process cleanup is covered by the native cases.
+    class Job:
+        def assign(self, pid):
+            assert pid == process.pid
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(codex_runner, "CodexOwnedJob", Job)
+
     async def spawn(*_, **__):
         return process
 

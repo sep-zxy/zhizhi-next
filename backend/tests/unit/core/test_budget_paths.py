@@ -1,6 +1,8 @@
 # pyright: reportPrivateUsage=false
 from __future__ import annotations
 
+from tests.environment_support import config_environment
+
 import json
 from typing import TYPE_CHECKING, cast
 
@@ -26,7 +28,7 @@ def _repo(root: Path) -> Path:
 
 
 def _env_home(tmp_path: Path) -> dict[str, str]:
-    return {"HOME": str(tmp_path / "home with spaces")}
+    return config_environment(tmp_path / "home with spaces")
 
 
 def test_windows_style_repo_config_path_with_spaces_round_trips(tmp_path: Path) -> None:

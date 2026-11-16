@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
+
 import logging
 import math
 import os
@@ -128,7 +130,7 @@ def _load_improve_run_event_ids(db_path: Path | None) -> frozenset[str]:
         return frozenset()
     rows: list[sqlite3.Row] = []
     try:
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             rows = conn.execute(
                 "SELECT event_id FROM result_events WHERE event_type = 'improve_run'"
             ).fetchall()
@@ -205,7 +207,7 @@ def _query_review_stats(db_path: Path) -> dict[str, Any]:
         return result
 
     try:
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             # Count review logs
             try:
                 row = conn.execute("SELECT COUNT(*) FROM review_logs").fetchone()
@@ -348,7 +350,7 @@ def _build_heatmap(
         return ReviewHeatmapResponse(entries=entries).model_dump(mode="json")
 
     try:
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             rows = conn.execute(
                 """
                 SELECT
@@ -918,7 +920,7 @@ def _load_spec_alignment_events(db_path: Path) -> list[ResultEvent]:
     statuses = tuple(sorted(RATCHET_COUNTED_STATUSES))
     placeholders = ", ".join("?" for _ in statuses)
     try:
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             rows = conn.execute(
                 f"""
                 SELECT event_id, run_id, event_type, timestamp, source_ref, base_ref,

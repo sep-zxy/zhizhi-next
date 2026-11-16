@@ -650,7 +650,8 @@ def _resolve_runtime_provider(
                     f"{role}_provider '{config_provider}' not found in configured providers"
                 )
         if resolved_name is None:
-            from ahadiff.core.orchestrator import provider_names_for_auto_default
+            from ahadiff.core.sqlite_util import managed_sqlite_connection
+from ahadiff.core.orchestrator import provider_names_for_auto_default
 
             configured_names = provider_names_for_auto_default(
                 snapshot=snapshot,
@@ -4256,7 +4257,7 @@ def concepts_lint_cmd(
         recent_runs: list[str] = []
         if db_path.exists():
             try:
-                with connect_review_db(db_path) as connection:
+                with managed_sqlite_connection(connect_review_db(db_path)) as connection:
                     rows_cursor = connection.execute(
                         """
                         SELECT DISTINCT run_id FROM result_events

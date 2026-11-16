@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.contracts import (
     ConceptLedgerEntry,
     ConceptLedgerPageResponse,
@@ -654,7 +655,7 @@ def _merge_concept_health(db_path: Path, entries: list[dict[str, Any]]) -> list[
     if not entries or not db_path.exists():
         return entries
     try:
-        with connect_review_db(db_path) as connection:
+        with managed_sqlite_connection(connect_review_db(db_path)) as connection:
             rows = connection.execute(
                 "SELECT term_key, health_status FROM concept_status"
             ).fetchall()
@@ -783,7 +784,7 @@ def _ratchet_result_rows(db_path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not db_path.exists():
         return rows
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         if (
             connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'result_events'"

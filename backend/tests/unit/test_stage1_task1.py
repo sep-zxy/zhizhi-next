@@ -52,6 +52,7 @@ from ahadiff.core.paths import (
 from ahadiff.git.repo import repo_write_lock, unlock_repo_write_lock
 from ahadiff.llm import usage as usage_module
 from ahadiff.review import database as review_database
+from tests.environment_support import config_environment
 from tests.git_fixture_support import init_test_git
 
 
@@ -282,7 +283,7 @@ def test_load_config_resolves_five_layer_precedence(
 
     global_root = tmp_path / "global-home"
     env = {
-        "HOME": str(global_root),
+        **config_environment(global_root),
         "AHADIFF_LANG": "en",
         "AHADIFF_PRIVACY_MODE": "explicit_remote",
     }
@@ -332,7 +333,7 @@ def test_learn_desired_retention_defaults_to_point_nine_when_unset(tmp_path: Pat
     repo_root.mkdir()
     _init_git_repo(repo_root)
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["learn"]["desired_retention"] == 0.9
     resolved = resolve_effective("learn.desired_retention", snapshot=snapshot)
@@ -345,7 +346,7 @@ def test_quiz_question_count_defaults_to_three_when_unset(tmp_path: Path) -> Non
     repo_root.mkdir()
     _init_git_repo(repo_root)
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["quiz"]["quiz_question_count"] == 3
     assert snapshot.values["quiz"]["quiz_question_count_mode"] == "fixed"
@@ -369,7 +370,7 @@ def test_quiz_question_count_rejects_invalid_values(
     repo_path.write_text(f"[quiz]\nquiz_question_count = {raw_value}\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match="quiz\\.quiz_question_count"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_quiz_question_count_accepts_max_value(tmp_path: Path) -> None:
@@ -380,7 +381,7 @@ def test_quiz_question_count_accepts_max_value(tmp_path: Path) -> None:
     repo_path.parent.mkdir(parents=True)
     repo_path.write_text("[quiz]\nquiz_question_count = 30\n", encoding="utf-8")
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["quiz"]["quiz_question_count"] == 30
 
@@ -393,7 +394,7 @@ def test_quiz_auto_range_accepts_existing_legacy_max_value(tmp_path: Path) -> No
     repo_path.parent.mkdir(parents=True)
     repo_path.write_text("[quiz]\nquiz_auto_range_max = 8\n", encoding="utf-8")
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["quiz"]["quiz_auto_range_max"] == 8
 
@@ -409,7 +410,7 @@ def test_quiz_auto_range_accepts_max_values(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.values["quiz"]["quiz_auto_range_min"] == 30
     assert snapshot.values["quiz"]["quiz_auto_range_max"] == 30
@@ -428,7 +429,7 @@ def test_quiz_question_count_mode_rejects_invalid_values(
     repo_path.write_text(f"[quiz]\nquiz_question_count_mode = {raw_value}\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match="quiz\\.quiz_question_count_mode"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize("key", ["quiz_auto_range_min", "quiz_auto_range_max"])
@@ -446,7 +447,7 @@ def test_quiz_auto_range_rejects_invalid_values(
     repo_path.write_text(f"[quiz]\n{key} = {raw_value}\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match=rf"quiz\.{key}"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_quiz_auto_range_rejects_min_above_max(tmp_path: Path) -> None:
@@ -461,7 +462,7 @@ def test_quiz_auto_range_rejects_min_above_max(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="quiz\\.quiz_auto_range_min"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize("raw_value", ["0.5", "1.0", "nan", "inf"])
@@ -477,7 +478,7 @@ def test_learn_desired_retention_rejects_invalid_values(
     repo_path.write_text(f"[learn]\ndesired_retention = {raw_value}\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match="learn\\.desired_retention"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 @pytest.mark.parametrize("raw_value", ["-0.1", "1.1", "nan", "inf"])
@@ -493,7 +494,7 @@ def test_learnability_threshold_rejects_invalid_values(
     repo_path.write_text(f"[learn]\nlearnability_threshold = {raw_value}\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match="learn\\.learnability_threshold"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_load_config_resolves_llm_step_output_cap_env(tmp_path: Path) -> None:
@@ -504,7 +505,7 @@ def test_load_config_resolves_llm_step_output_cap_env(tmp_path: Path) -> None:
     snapshot = load_config(
         repo_root,
         env={
-            "HOME": str(tmp_path / "home"),
+            **config_environment(tmp_path / "home"),
             "AHADIFF_LLM_CLAIM_EXTRACTION_OUTPUT_CAP": "7000",
         },
     )
@@ -525,7 +526,7 @@ def test_locale_config_values_are_schema_checked(tmp_path: Path) -> None:
     repo_path.write_text('lang = "fr-FR"\n', encoding="utf-8")
 
     with pytest.raises(ConfigError, match="lang must be one of auto, en, zh-CN"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_llm_language_config_values_are_schema_checked(tmp_path: Path) -> None:
@@ -538,7 +539,7 @@ def test_llm_language_config_values_are_schema_checked(tmp_path: Path) -> None:
     repo_path.write_text("[llm]\noutput_lang = 42\n", encoding="utf-8")
 
     with pytest.raises(ConfigError, match="llm.output_lang expects str"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_load_config_reports_unknown_and_sensitive_repo_keys(tmp_path: Path) -> None:
@@ -553,7 +554,7 @@ def test_load_config_reports_unknown_and_sensitive_repo_keys(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     assert snapshot.repo_unknown_keys == ("llm.api_key", "llm.unknown_flag")
     assert snapshot.repo_sensitive_keys == ("llm.api_key",)
 
@@ -576,8 +577,8 @@ def test_provider_tables_and_security_local_hosts_are_supported_config_keys(tmp_
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
-    pricing = load_workspace_pricing_settings(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
+    pricing = load_workspace_pricing_settings(repo_root, env=config_environment(tmp_path / "home"))
 
     assert snapshot.repo_unknown_keys == ()
     assert resolve_effective("security.local_hosts", snapshot=snapshot).value == ("model.local",)
@@ -722,7 +723,7 @@ def test_repo_provider_api_key_env_rejects_arbitrary_env_var(tmp_path: Path) -> 
     )
 
     with pytest.raises(ConfigError, match="repo provider api_key_env"):
-        load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+        load_config(repo_root, env=config_environment(tmp_path / "home"))
 
 
 def test_global_provider_api_key_env_read_warns_and_skips_unsafe_name(
@@ -732,7 +733,7 @@ def test_global_provider_api_key_env_read_warns_and_skips_unsafe_name(
     repo_root.mkdir()
     _init_git_repo(repo_root)
     home_root = tmp_path / "home"
-    global_path = global_config_dir(env={"HOME": str(home_root)}) / "config.toml"
+    global_path = global_config_dir(env=config_environment(home_root)) / "config.toml"
     global_path.parent.mkdir(parents=True)
     global_path.write_text(
         '[providers.demo]\nprovider_class = "openai"\nmodel_name = "gpt-5.4-mini"\n'
@@ -741,7 +742,7 @@ def test_global_provider_api_key_env_read_warns_and_skips_unsafe_name(
     )
 
     with pytest.warns(RuntimeWarning, match="unsafe global provider api_key_env"):
-        snapshot = load_config(repo_root, env={"HOME": str(home_root)})
+        snapshot = load_config(repo_root, env=config_environment(home_root))
 
     providers = snapshot.values["providers"]
     assert isinstance(providers, dict)
@@ -754,7 +755,7 @@ def test_global_provider_literal_secret_is_reported_as_sensitive(tmp_path: Path)
     repo_root.mkdir()
     _init_git_repo(repo_root)
     home_root = tmp_path / "home"
-    global_path = global_config_dir(env={"HOME": str(home_root)}) / "config.toml"
+    global_path = global_config_dir(env=config_environment(home_root)) / "config.toml"
     global_path.parent.mkdir(parents=True)
     global_path.write_text(
         '[providers.demo]\nprovider_class = "openai"\nmodel_name = "gpt-5.4-mini"\n'
@@ -762,7 +763,7 @@ def test_global_provider_literal_secret_is_reported_as_sensitive(tmp_path: Path)
         encoding="utf-8",
     )
 
-    snapshot = load_config(repo_root, env={"HOME": str(home_root)})
+    snapshot = load_config(repo_root, env=config_environment(home_root))
 
     assert snapshot.repo_sensitive_keys == ()
     assert snapshot.global_sensitive_keys == ("providers.demo.api_key_env",)
@@ -932,14 +933,14 @@ def test_security_config_keeps_global_local_hosts_for_strict_local(tmp_path: Pat
     repo_root.mkdir()
     _init_git_repo(repo_root)
     home_root = tmp_path / "home"
-    global_path = global_config_dir(env={"HOME": str(home_root)}) / "config.toml"
+    global_path = global_config_dir(env=config_environment(home_root)) / "config.toml"
     global_path.parent.mkdir(parents=True)
     global_path.write_text('[security]\nlocal_hosts = ["global.model"]\n', encoding="utf-8")
     repo_path = repo_config_path(repo_root)
     repo_path.parent.mkdir(parents=True)
     repo_path.write_text('[security]\nlocal_hosts = ["repo.model"]\n', encoding="utf-8")
 
-    snapshot = load_config(repo_root, env={"HOME": str(home_root)})
+    snapshot = load_config(repo_root, env=config_environment(home_root))
     security = config_module._security_config_from_snapshot(snapshot)  # pyright: ignore[reportPrivateUsage]
 
     assert security.local_hosts == ("repo.model",)
@@ -952,7 +953,7 @@ def test_load_workspace_config_resolves_local_and_global_layers_without_git(
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir()
     home_root = tmp_path / "home"
-    global_path = global_config_dir(env={"HOME": str(home_root)}) / "config.toml"
+    global_path = global_config_dir(env=config_environment(home_root)) / "config.toml"
     global_path.parent.mkdir(parents=True)
     global_path.write_text("[capture]\nmax_files = 9\n", encoding="utf-8")
     (workspace_root / ".ahadiff").mkdir()
@@ -964,7 +965,7 @@ def test_load_workspace_config_resolves_local_and_global_layers_without_git(
     snapshot = load_workspace_config(
         workspace_root,
         cli_overrides={"capture.max_patch_bytes": 1234},
-        env={"HOME": str(home_root)},
+        env=config_environment(home_root),
     )
 
     assert resolve_effective("privacy_mode", snapshot=snapshot).value == "explicit_remote"
@@ -979,7 +980,7 @@ def test_load_workspace_config_resolves_capture_symbol_extractor_precedence(
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir()
     home_root = tmp_path / "home"
-    global_path = global_config_dir(env={"HOME": str(home_root)}) / "config.toml"
+    global_path = global_config_dir(env=config_environment(home_root)) / "config.toml"
     global_path.parent.mkdir(parents=True)
     global_path.write_text('[capture]\nsymbol_extractor = "builtin"\n', encoding="utf-8")
     (workspace_root / ".ahadiff").mkdir()
@@ -992,7 +993,7 @@ def test_load_workspace_config_resolves_capture_symbol_extractor_precedence(
         workspace_root,
         cli_overrides={"capture.symbol_extractor": "builtin"},
         env={
-            "HOME": str(home_root),
+            **config_environment(home_root),
             "AHADIFF_CAPTURE_SYMBOL_EXTRACTOR": "auto",
         },
     )
@@ -1044,7 +1045,7 @@ def test_sensitive_repo_config_detection_matches_supported_keys(tmp_path: Path) 
     repo_path.parent.mkdir(parents=True)
     repo_path.write_text('provider_token = "plain-text-token"\n', encoding="utf-8")
 
-    snapshot = load_config(repo_root, env={"HOME": str(tmp_path / "home")})
+    snapshot = load_config(repo_root, env=config_environment(tmp_path / "home"))
     assert snapshot.repo_sensitive_keys == ("provider_token",)
 
 

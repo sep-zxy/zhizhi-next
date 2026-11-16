@@ -7,6 +7,7 @@ from anyio import to_thread
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.contracts import (
     DueReviewCardResponse,
     ErrorCode,
@@ -308,7 +309,7 @@ def _weak_concepts_sync(db_path: Path, limit: int) -> dict[str, Any]:
 
     try:
         initialize_review_db(db_path)
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             # Truly weak: reviewed at least once but struggling (stability < 30 days)
             weak_rows = conn.execute(
                 """
@@ -361,7 +362,7 @@ def _mastery_sync(db_path: Path, limit: int) -> dict[str, Any]:
         return {"mastery": []}
     try:
         initialize_review_db(db_path)
-        with connect_review_db(db_path) as conn:
+        with managed_sqlite_connection(connect_review_db(db_path)) as conn:
             rows = conn.execute(
                 """
                 SELECT c.concept,

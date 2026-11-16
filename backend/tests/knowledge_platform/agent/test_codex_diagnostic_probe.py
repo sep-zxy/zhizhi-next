@@ -257,7 +257,7 @@ def test_notification_classifier_is_bounded_and_parser_collection_default_off():
     "Under-development features enabled: benign; credential=never-log-me",
     "is deprecated; token=never-log-me",
     "私" * 8192 + " is deprecated",
-])
+], ids=["untrusted-prefix", "private-route", "private-feature", "private-token", "utf8-byte-bound"])
 def test_malicious_text_and_byte_bound_cannot_authorize_a_turn(message):
     from ahadiff.knowledge_platform.model.codex_runner import _ExecEvents
     events = _ExecEvents(4096, notification_details=True)
