@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 
 from ahadiff.core.errors import InputError
+from ahadiff.core.windows_sqlite import windows_export_available as _supports_native_export_io
 
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
@@ -291,8 +292,12 @@ def safe_write_export_file(
 def _safe_write_export_file_without_dir_fd(target: Path, data: bytes) -> Path:
     parent = target.parent
     parent_identity = _safe_parent_identity(parent)
-    del data
     _parent_identity_unchanged(parent, parent_identity)
+    if _supports_native_export_io():
+        from ahadiff.core.windows_sqlite import atomic_write_windows_export
+
+        atomic_write_windows_export(target, data, expected_parent=parent_identity)
+        return target
     not_supported = getattr(errno, "ENOTSUP", errno.EOPNOTSUPP)
     raise OSError(not_supported, "safe export write requires dir_fd support", str(parent))
 

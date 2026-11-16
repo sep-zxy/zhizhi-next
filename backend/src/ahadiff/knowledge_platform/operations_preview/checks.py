@@ -115,7 +115,8 @@ def _read_database(database: Path, expected_hash: str):
     # SQLite mode=ro may create WAL/SHM files beside a WAL-mode database even
     # when no query mutates it. Inspect only a disposable, hash-matched copy.
     # This is not a restored application: no objects, Git, migrations or writes.
-    with tempfile.TemporaryDirectory(prefix="knowledge-backup-inspect-") as temporary:
+    parent = Path(tempfile.gettempdir()).resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix="knowledge-backup-inspect-", dir=parent) as temporary:
         copy = Path(temporary) / "platform.db"
         copy.write_bytes(database.read_bytes())
         _require(_hash(copy) == expected_hash, "SNAPSHOT_CHANGED_DURING_INSPECTION")

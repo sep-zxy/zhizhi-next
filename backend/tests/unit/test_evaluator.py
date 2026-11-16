@@ -1187,7 +1187,7 @@ def test_spec_alignment_uses_patch_anchors_without_claims(tmp_path: Path) -> Non
     run_path = workspace_root / ".ahadiff" / "runs" / "run-spec-patch"
     run_path.mkdir(parents=True)
     spec_text = "- The CLI must expose `--against-spec` and write `spec_alignment.json`.\n"
-    (workspace_root / "SPEC.md").write_text(spec_text, encoding="utf-8")
+    (workspace_root / "SPEC.md").write_bytes(spec_text.encode("utf-8"))
     (run_path / "patch.diff").write_text(
         """\
 diff --git a/src/ahadiff/cli.py b/src/ahadiff/cli.py

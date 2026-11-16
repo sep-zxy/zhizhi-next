@@ -356,6 +356,8 @@ def test_safe_write_without_dir_fd_rejects_parent_swap_before_write(
         return identity
 
     monkeypatch.setattr(writer_module.os, "supports_dir_fd", set[object]())
+    monkeypatch.setattr(routes_export_module, "_supports_native_export_io", lambda: False)
+    monkeypatch.setattr(writer_module, "_supports_native_export_io", lambda: False)
     monkeypatch.setattr(writer_module, "_safe_parent_identity", swapping_safe_parent_identity)
 
     with pytest.raises(OSError, match="symlink|changed during validation"):
@@ -737,6 +739,20 @@ def test_route_rejects_exports_parent_swap_during_cleanup(
         return original_open_dir(path, expected, label=label)
 
     monkeypatch.setattr(routes_export_module, "_open_clearable_dir_path", swapping_open_dir)
+    if writer_module._supports_native_export_io():
+        from ahadiff.core import windows_sqlite
+
+        original_guard = windows_sqlite._guard_windows_parent
+
+        def swapping_guard(path: Path):
+            nonlocal swapped
+            if path == export_dir and not swapped:
+                exports_parent.rename(exports_parent.with_name("exports-real"))
+                exports_parent.symlink_to(outside_exports, target_is_directory=True)
+                swapped = True
+            return original_guard(path)
+
+        monkeypatch.setattr(windows_sqlite, "_guard_windows_parent", swapping_guard)
 
     client = TestClient(
         create_app(ServeState(state_dir=state_dir, token="test-token")),

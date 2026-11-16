@@ -1,4 +1,4 @@
-"""Native Windows handles for safe creation of a local SQLite database.
+"""Native Windows handles for safe local SQLite creation and export I/O.
 
 NtCreateFile opens each component relative to its verified parent handle. The
 directory handles deny write/delete sharing until SQLite has opened and checked
@@ -12,6 +12,9 @@ from __future__ import annotations
 import ctypes
 import importlib
 import os
+import stat
+import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any, cast
@@ -33,6 +36,7 @@ _FILE_READ_DATA = 0x1  # FILE_LIST_DIRECTORY for directory handles.
 _FILE_WRITE_DATA = 0x2
 _FILE_READ_ATTRIBUTES = 0x80
 _SYNCHRONIZE = 0x00100000
+_DELETE = 0x00010000
 _FILE_SHARE_READ = 0x1
 _FILE_SHARE_WRITE = 0x2
 _OBJ_CASE_INSENSITIVE = 0x40
@@ -63,6 +67,15 @@ class _IoStatusBlock(ctypes.Structure):
     _fields_ = [("status", ctypes.c_void_p), ("information", ctypes.c_size_t)]
 
 
+class _FileRenameInformation(ctypes.Structure):
+    _fields_ = [
+        ("replace_if_exists", ctypes.c_ubyte),
+        ("root_directory", ctypes.c_void_p),
+        ("file_name_length", ctypes.c_uint32),
+        ("file_name", ctypes.c_uint16 * 1),
+    ]
+
+
 class _FileInformation(ctypes.Structure):
     _fields_ = [
         ("attributes", ctypes.c_uint32),
@@ -88,6 +101,7 @@ class _WindowsFileApi:
         self._get_last_error: Callable[[], int] = windows_ctypes.get_last_error
         kernel32 = loader("kernel32", use_last_error=True)
         ntdll = loader("ntdll", use_last_error=True)
+        self._ntdll = ntdll
         self._create: Any = ntdll.NtCreateFile
         self._create.argtypes = [
             ctypes.POINTER(ctypes.c_void_p),
@@ -120,6 +134,7 @@ class _WindowsFileApi:
         parent: int | None,
         directory: bool,
         create: bool = False,
+        delete_access: bool = False,
     ) -> int:
         length = len(name.encode("utf-16-le"))
         if length > 65532:
@@ -141,10 +156,13 @@ class _WindowsFileApi:
         handle = ctypes.c_void_p()
         io_status = _IoStatusBlock()
         access = _FILE_READ_ATTRIBUTES | _FILE_READ_DATA | _SYNCHRONIZE
+        if delete_access:
+            access |= _DELETE
         sharing = _FILE_SHARE_READ
         if not directory:
             access |= _FILE_WRITE_DATA
-            sharing |= _FILE_SHARE_WRITE
+            if not delete_access:
+                sharing |= _FILE_SHARE_WRITE
         options = _FILE_DIRECTORY_FILE if directory else _FILE_NON_DIRECTORY_FILE
         options |= _FILE_OPEN_REPARSE_POINT | _FILE_SYNCHRONOUS_IO_NONALERT
         status = int(
@@ -154,7 +172,7 @@ class _WindowsFileApi:
                 ctypes.byref(attributes),
                 ctypes.byref(io_status),
                 None,
-                _FILE_ATTRIBUTE_NORMAL,
+                _FILE_ATTRIBUTE_DIRECTORY if directory and create else _FILE_ATTRIBUTE_NORMAL,
                 sharing,
                 _FILE_CREATE if create else _FILE_OPEN,
                 options,
@@ -190,6 +208,34 @@ class _WindowsFileApi:
     def close(self, handle: int) -> None:
         self._close(handle)
 
+    def _set_information(self, handle: int, value: Any, information_class: int) -> None:
+        call: Any = self._ntdll.NtSetInformationFile
+        call.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(_IoStatusBlock), ctypes.c_void_p,
+            ctypes.c_uint32, ctypes.c_int,
+        ]
+        call.restype = ctypes.c_int32
+        io_status = _IoStatusBlock()
+        status = int(call(handle, ctypes.byref(io_status), ctypes.byref(value),
+                          ctypes.sizeof(value), information_class))
+        if status < 0:
+            raise self._win_error(int(self._status_error(status)))
+
+    def rename_in_parent(self, handle: int, name: str) -> None:
+        """Rename the owned open file in its existing parent without reopening a path."""
+        encoded = name.encode("utf-16-le")
+        buffer = ctypes.create_string_buffer(ctypes.sizeof(_FileRenameInformation) + len(encoded))
+        information = _FileRenameInformation.from_buffer(buffer)
+        information.replace_if_exists = 1
+        # A simple name with NULL RootDirectory means the file's current parent.
+        information.file_name_length = len(encoded)
+        ctypes.memmove(ctypes.addressof(buffer) + _FileRenameInformation.file_name.offset,
+                       encoded, len(encoded))
+        self._set_information(handle, buffer, 10)  # FileRenameInformation
+
+    def delete_on_close(self, handle: int) -> None:
+        self._set_information(handle, ctypes.c_ubyte(1), 13)  # FileDispositionInformation
+
 
 @dataclass
 class WindowsDirectoryGuard:
@@ -206,13 +252,9 @@ class WindowsDirectoryGuard:
             self._api.close(self._handles.pop())
 
 
-def create_windows_sqlite_file(path: Path) -> tuple[int, WindowsDirectoryGuard]:
-    """Exclusively create a file relative to locked, non-reparse ancestors.
-
-    If another creator wins, open the existing leaf under the same guards and
-    apply the same regular-file, reparse and hardlink checks. The caller owns
-    both the returned fd and directory guard.
-    """
+def _guard_windows_parent(
+    path: Path,
+) -> tuple[_WindowsFileApi, WindowsDirectoryGuard, int, PureWindowsPath]:
     api = _WindowsFileApi()
     absolute = PureWindowsPath(str(path.absolute()))
     if (
@@ -231,13 +273,23 @@ def create_windows_sqlite_file(path: Path) -> tuple[int, WindowsDirectoryGuard]:
     ):
         raise PermissionError("SQLite create requires an unambiguous local Windows path")
     guard = WindowsDirectoryGuard(api, [])
-    file_handle: int | None = None
     try:
         parent = api.open(f"\\??\\{absolute.anchor}", parent=None, directory=True)
         guard.hold(parent)
         for part in absolute.parts[1:-1]:
             parent = api.open(part, parent=parent, directory=True)
             guard.hold(parent)
+        return api, guard, parent, absolute
+    except BaseException:
+        guard.close()
+        raise
+
+
+def create_windows_sqlite_file(path: Path) -> tuple[int, WindowsDirectoryGuard]:
+    """Create/open a verified SQLite leaf while keeping its ancestors locked."""
+    api, guard, parent, absolute = _guard_windows_parent(path)
+    file_handle: int | None = None
+    try:
         try:
             file_handle = api.open(absolute.name, parent=parent, directory=False, create=True)
         except FileExistsError:
@@ -253,3 +305,100 @@ def create_windows_sqlite_file(path: Path) -> tuple[int, WindowsDirectoryGuard]:
             api.close(file_handle)
         guard.close()
         raise
+
+
+def windows_export_available() -> bool:
+    return os.name == "nt" and callable(getattr(ctypes, "WinDLL", None))
+
+
+def _verify_export_parent(path: Path, expected: tuple[int, int]) -> None:
+    metadata = path.parent.lstat()
+    if (int(metadata.st_dev), int(metadata.st_ino)) != expected:
+        raise PermissionError("export parent changed during validation")
+
+
+def atomic_write_windows_export(
+    path: Path, data: bytes, *, expected_parent: tuple[int, int],
+) -> None:
+    """Commit an owned open file by handle, never through a pathname fallback."""
+    api, guard, parent, _ = _guard_windows_parent(path)
+    handle: int | None = None
+    try:
+        _verify_export_parent(path, expected_parent)
+        temporary = f".{path.name}.{uuid.uuid4().hex}.ahadiff-export.tmp"
+        handle = api.open(temporary, parent=parent, directory=False, create=True, delete_access=True)
+        msvcrt = importlib.import_module("msvcrt")
+        open_osfhandle = cast("Callable[[int, int], int]", msvcrt.open_osfhandle)
+        fd = open_osfhandle(handle, os.O_RDWR | getattr(os, "O_BINARY", 0))
+        owned_handle, handle = handle, None
+        with os.fdopen(fd, "wb") as stream:
+            try:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+                api.rename_in_parent(owned_handle, path.name)
+            except BaseException:
+                with suppress(OSError):
+                    api.delete_on_close(owned_handle)
+                raise
+    finally:
+        if handle is not None:
+            with suppress(OSError):
+                api.delete_on_close(handle)
+            api.close(handle)
+        guard.close()
+
+
+def clear_windows_export(
+    path: Path, *, expected_parent: tuple[int, int],
+) -> tuple[str, ...]:
+    """Clear a preview tree using non-reparse child handles and delete-on-close.
+
+    Locked directory ancestors also bind scandir's pathname. Files and directories
+    are deleted by their validated handles, including final root replacement.
+    """
+    api, guard, parent, absolute = _guard_windows_parent(path)
+    root: int | None = None
+    stale: list[str] = []
+
+    def clear(directory: Path, directory_handle: int, prefix: str) -> None:
+        with os.scandir(directory) as iterator:
+            entries = sorted(iterator, key=lambda entry: entry.name)
+        for entry in entries:
+            metadata = entry.stat(follow_symlinks=False)
+            if (stat.S_ISLNK(metadata.st_mode)
+                    or getattr(metadata, "st_file_attributes", 0) & _FILE_ATTRIBUTE_REPARSE_POINT):
+                raise PermissionError("refusing symlink/reparse point during export cleanup")
+            is_directory = stat.S_ISDIR(metadata.st_mode)
+            relative = f"{prefix}/{entry.name}" if prefix else entry.name
+            child = api.open(entry.name, parent=directory_handle, directory=is_directory,
+                             delete_access=True)
+            try:
+                if is_directory:
+                    clear(directory / entry.name, child, relative)
+                api.delete_on_close(child)
+            finally:
+                api.close(child)
+            stale.append(relative)
+
+    try:
+        _verify_export_parent(path, expected_parent)
+        try:
+            before = path.lstat()
+        except FileNotFoundError:
+            return ()
+        root = api.open(absolute.name, parent=parent, directory=True, delete_access=True)
+        after = path.lstat()
+        if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+            raise PermissionError("export directory changed during validation")
+        clear(path, root, "")
+        api.delete_on_close(root)
+        api.close(root)
+        root = None
+        replacement = api.open(absolute.name, parent=parent, directory=True, create=True)
+        api.close(replacement)
+        return tuple(stale)
+    finally:
+        if root is not None:
+            api.close(root)
+        guard.close()

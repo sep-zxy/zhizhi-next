@@ -20,6 +20,7 @@ from ahadiff.core.errors import AhaDiffError, InputError, StorageError
 from ahadiff.core.ids import make_event_id
 from ahadiff.core.json_util import safe_json_loads, safe_tsv_cell
 from ahadiff.core.paths import validate_run_id
+from ahadiff.core.windows_sqlite import windows_export_available as _supports_native_export_io
 from ahadiff.export.preview import (
     ExportManifest,
     build_zip_bytes,
@@ -213,6 +214,16 @@ def _clear_existing_preview_dir(exports_root: Path) -> tuple[str, ...]:
         raise InputError("export target parent is unreadable") from exc
     _validate_clearable_path(parent_stat, label="export target parent")
     if not _supports_export_dir_fd_cleanup():
+        if _supports_native_export_io():
+            from ahadiff.core.windows_sqlite import clear_windows_export
+
+            try:
+                return clear_windows_export(
+                    exports_root,
+                    expected_parent=_stat_identity(parent_stat),
+                )
+            except OSError as exc:
+                raise InputError("export target is unsafe or unreadable") from exc
         not_supported = getattr(errno, "ENOTSUP", errno.EOPNOTSUPP)
         raise OSError(
             not_supported,

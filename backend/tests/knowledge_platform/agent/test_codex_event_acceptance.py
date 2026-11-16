@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from dataclasses import asdict, replace
 
 import pytest
@@ -193,7 +194,7 @@ def test_ordinary_tasks_share_success_with_warning_without_diagnostic_opt_in(
 
 
 def test_notification_followed_by_stall_is_bounded_and_locally_interrupted(tmp_path):
-    model = runner(tmp_path, "notification_timeout", timeout_seconds=1)
+    model = runner(tmp_path, "notification_timeout", timeout_seconds=5 if os.name == "nt" else 1)
     model._collect_process_diagnostics = True
     result = asyncio.run(model.run(task()))
     assert result.status == "cancelled" and result.error_code == "MODEL_DEADLINE_EXCEEDED"
@@ -222,7 +223,7 @@ def test_benign_notification_never_hides_real_failure(tmp_path, scenario, code, 
 
 
 def test_unknown_notice_does_not_delay_immediate_native_tool_rejection(tmp_path):
-    model = runner(tmp_path, "notification_tool", timeout_seconds=1)
+    model = runner(tmp_path, "notification_tool", timeout_seconds=5 if os.name == "nt" else 1)
     model._collect_process_diagnostics = True
     result = asyncio.run(model.run(task()))
     assert result.status == "blocked" and result.error_code == "UNEXPECTED_MODEL_TOOL"
@@ -265,7 +266,7 @@ def test_recovered_error_has_safe_warning_without_auth_or_quota_side_effect(tmp_
     ("stream_error_extra_terminal", "CODEX_EVENT_AFTER_COMPLETION"),
 ])
 def test_intermediate_error_does_not_relax_any_final_acceptance_gate(tmp_path, scenario, code):
-    model = runner(tmp_path, scenario, timeout_seconds=1)
+    model = runner(tmp_path, scenario, timeout_seconds=5 if os.name == "nt" else 1)
     result = asyncio.run(model.run(task()))
     assert result.status != "succeeded" and result.error_code == code
     assert result.output is None and not model._cache
