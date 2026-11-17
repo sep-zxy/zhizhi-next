@@ -563,7 +563,10 @@ def test_production_async_preflight_cannot_late_reserve_or_block_loop(slot, bloc
 
 def test_packaged_factory_uses_cancellable_read_callbacks_without_calls(slot):
     scope = enabled(slot)
-    scope.context.base_activation.update(codex_exe='/synthetic/codex.exe', codex_home='/synthetic')
+    scope.context.base_activation.update(
+        codex_exe=str(scope.context.root / 'synthetic' / 'codex.exe'),
+        codex_home=str(scope.context.root / 'synthetic'),
+    )
     with patch.object(pi, 'active_scope', return_value=scope), \
          patch.object(pi, '_existing_cli_path', side_effect=lambda path, **kwargs: str(path)):
         instance = pi.create_bridge(scope.context.root)

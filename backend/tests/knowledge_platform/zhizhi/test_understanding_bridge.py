@@ -154,7 +154,7 @@ def test_stale_version_or_exact_whitespace_hash_never_enqueues(system, version, 
     assert domain.list_events(actor=owner) == []
 
 
-@pytest.mark.parametrize("text", ["", " \n", "长" * 20001])
+@pytest.mark.parametrize("text", ["", " \n", "长" * 20001], ids=["empty", "whitespace", "oversized"])
 def test_empty_or_unbounded_note_not_submitted(system, text):
     _, _, backend, detail = system
     detail["learning"]["note_text"] = text

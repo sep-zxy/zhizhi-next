@@ -120,6 +120,7 @@ def test_attachment_rejects_paths_types_encoding_scope_and_limits(service, actor
         b"MZsynthetic",
         b"\xef\xbb\xbf  \n",
     ],
+    ids=["empty", "oversized", "non-utf8", "binary", "zip", "pdf", "executable", "bom-whitespace"],
 )
 def test_attachment_rejects_binary_archive_non_utf8_empty_and_large_bytes(service, actors, content):
     item = received(service, actors)

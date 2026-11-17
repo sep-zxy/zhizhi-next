@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 
 import pytest
 
@@ -37,6 +38,7 @@ def test_desktop_explicit_wiring_and_token_rotation(configuration):
     asyncio.run(check())
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits do not represent Windows DACLs")
 def test_desktop_rejects_publicly_readable_credentials(configuration):
     state, config, identity = configuration
     identity.chmod(0o644)

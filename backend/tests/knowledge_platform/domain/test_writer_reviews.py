@@ -434,6 +434,8 @@ from ahadiff.knowledge_platform.domain import DomainService
 service = DomainService(sys.argv[1])
 def kill(stage, journal):
     if stage == sys.argv[3]:
+        if os.name == 'nt':
+            os._exit(137)
         os.kill(os.getpid(), signal.SIGKILL)
 service.fault_injector = kill
 actor = Actor('owner-one', 'child-writer', 'service', frozenset({'*'}))
@@ -447,7 +449,7 @@ raise RuntimeError('kill point was not reached')
         timeout=20,
         check=False,
     )
-    assert child.returncode == -signal.SIGKILL
+    assert child.returncode == (137 if os.name == "nt" else -signal.SIGKILL)
     restarted = DomainService(domain.store.path)
     try:
         restarted.recover_writer(actor=writer)
