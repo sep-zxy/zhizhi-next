@@ -121,7 +121,7 @@ def test_unlock_repo_write_lock_refuses_active_lock(
     assert lock_path.read_text(encoding="utf-8") != ""
 
 
-@pytest.mark.skipif(not hasattr(os, "symlink"), reason="requires symlink support")
+@pytest.mark.skipif(os.name == "nt" or not hasattr(os, "symlink"), reason="requires POSIX replacement of an open file")
 def test_repo_write_lock_contention_reads_metadata_from_open_handle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -319,7 +319,7 @@ def test_load_config_resolves_five_layer_precedence(
     assert resolve_effective("privacy_mode", snapshot=snapshot).value == "explicit_remote"
     assert resolve_effective("privacy_mode", snapshot=snapshot).source == "env:AHADIFF_PRIVACY_MODE"
     provider_source = resolve_effective("provider.qps_limit", snapshot=snapshot).source
-    assert provider_source.endswith(".ahadiff/config.toml")
+    assert provider_source.replace(os.sep, "/").endswith(".ahadiff/config.toml")
     assert resolve_effective("learn.learnability_threshold", snapshot=snapshot).value == 0.5
     global_source = resolve_effective("learn.learnability_threshold", snapshot=snapshot).source
     assert global_source == f"global:{global_path}"
@@ -892,7 +892,7 @@ def test_global_config_lock_rejects_symlink_leaf(tmp_path: Path) -> None:
     os.symlink(target, global_dir / ".global.lock")
 
     with (
-        pytest.raises(StorageError, match="global config lock.*symlink"),
+        pytest.raises(StorageError, match="global config lock.*(symlink|reparse)"),
         global_config_write_lock(global_dir),
     ):
         raise AssertionError("lock body must not run")
@@ -1482,7 +1482,7 @@ def test_cli_maint_clean_orphans_removes_tmp_runs_and_audit_tmp_files(
 
     assert result.exit_code == 0
     assert "Removed" in result.stdout
-    assert ".ahadiff/runs/.run_123.tmp" in result.stdout
+    assert str(Path(".ahadiff/runs/.run_123.tmp")) in result.stdout
     assert not orphan_run_dir.exists()
     assert not audit_tmp.exists()
     assert snapshot.exists()

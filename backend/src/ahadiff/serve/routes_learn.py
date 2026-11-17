@@ -220,7 +220,11 @@ def _coerce_changed_paths(value: object) -> tuple[str, ...]:
             raise ValueError("changed_paths entry contains control characters")
         normalized = item.replace("\\", "/")
         path = Path(normalized)
-        if path.is_absolute() or _looks_like_windows_absolute_or_unc_path(item):
+        if (
+            normalized.startswith("/")
+            or path.is_absolute()
+            or _looks_like_windows_absolute_or_unc_path(item)
+        ):
             raise ValueError("changed_paths entries must be repository-relative paths")
         if any(part in {"", ".", ".."} for part in path.parts) or normalized in {"", "."}:
             raise ValueError("changed_paths entry escapes repository root")

@@ -236,7 +236,8 @@ def test_repo_env_file_write_upserts_quotes_and_chmods(tmp_path: Path) -> None:
     assert text.count("AHADIFF_DEMO_KEY=") == 1
     assert "stale-wins-before-fix" not in text
     assert "AHADIFF_NEW_KEY=plain-token\n" in text
-    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
 
     with pytest.raises(ConfigError, match="must not contain newlines"):
         write_repo_env_var(env_path, "AHADIFF_BAD_KEY", "line1\nline2")
@@ -365,9 +366,9 @@ def test_repo_env_file_load_rejects_symlink_leaf(
     env_path.symlink_to(outside_env)
     monkeypatch.delenv("AHADIFF_LINKED_KEY", raising=False)
 
-    with pytest.raises(ConfigError, match="symlink"):
+    with pytest.raises(ConfigError, match="symlink|reparse"):
         load_repo_env_file(env_path)
-    with pytest.raises(ConfigError, match="symlink"):
+    with pytest.raises(ConfigError, match="symlink|reparse"):
         apply_repo_env_file(env_path)
     assert "AHADIFF_LINKED_KEY" not in os.environ
 
@@ -411,7 +412,7 @@ def test_repo_env_file_write_rejects_symlink_leaf(tmp_path: Path) -> None:
     outside_env.write_text("AHADIFF_EXTERNAL_KEY=external-secret\n", encoding="utf-8")
     env_path.symlink_to(outside_env)
 
-    with pytest.raises(ConfigError, match="symlink"):
+    with pytest.raises(ConfigError, match="symlink|reparse"):
         write_repo_env_var(env_path, "AHADIFF_DEMO_KEY", "sk-safe-secret")
 
     assert outside_env.read_text(encoding="utf-8") == "AHADIFF_EXTERNAL_KEY=external-secret\n"
@@ -466,7 +467,8 @@ def test_provider_create_with_plain_api_key_stores_env_reference_and_verifies(
 
     env_path = state_dir / ".env"
     assert env_path.read_text(encoding="utf-8") == f"AHADIFF_DEMO_KEY={raw_key}\n"
-    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
     gitignore_text = (state_dir / ".gitignore").read_text(encoding="utf-8")
     assert ".env" in gitignore_text.splitlines()
     assert ".env.*" in gitignore_text.splitlines()

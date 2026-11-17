@@ -2480,15 +2480,6 @@ def test_usage_db_quarantines_when_reindex_fails(
 ) -> None:
     db_path = tmp_path / "usage.sqlite"
     usage_module.record_usage_event(_usage_record(), db_path=db_path)
-    real_signature = usage_module._usage_db_file_signature  # pyright: ignore[reportPrivateUsage]
-
-    def fixture_signature(path: Path) -> tuple[int, int, int, int] | None:
-        signature = real_signature(path)
-        # This injected-corruption fixture has no concurrent healer. Keep its
-        # identity/size checks while excluding close-time timestamp variation.
-        return None if signature is None else (*signature[:3], 0)
-
-    monkeypatch.setattr(usage_module, "_usage_db_file_signature", fixture_signature)
     original_quick_check = usage_module._fetch_usage_quick_check  # pyright: ignore[reportPrivateUsage]
     calls = 0
 

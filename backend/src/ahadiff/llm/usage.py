@@ -16,6 +16,7 @@ from ahadiff.core.ids import make_event_id
 from ahadiff.core.paths import is_wsl2_mnt, usage_db_path
 from ahadiff.core.sqlite_util import (
     assert_sqlite_runtime_supported,
+    managed_sqlite_connection,
     safe_sqlite_connect,
 )
 
@@ -438,7 +439,7 @@ def record_usage_event(record: UsageRecord, *, db_path: Path | None = None) -> N
     target = usage_db_path() if db_path is None else db_path
     for attempt in range(_USAGE_WRITE_ATTEMPTS):
         try:
-            with connect_usage_db(target, create_parent=True) as connection:
+            with managed_sqlite_connection(connect_usage_db(target, create_parent=True)) as connection:
                 _ensure_usage_schema(connection, target)
                 connection.execute(
                     """
@@ -626,7 +627,7 @@ def query_usage_summary(
         clauses.append("timestamp_utc <= ?")
         params.append(_normalize_usage_time_bound(until, "--until"))
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-    with connect_usage_db(target) as connection:
+    with managed_sqlite_connection(connect_usage_db(target)) as connection:
         _ensure_usage_schema(connection, target)
         row = connection.execute(
             f"""
@@ -675,7 +676,7 @@ def query_usage_by_model(
         clauses.append("timestamp_utc <= ?")
         params.append(_normalize_usage_time_bound(until, "--until"))
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-    with connect_usage_db(target) as connection:
+    with managed_sqlite_connection(connect_usage_db(target)) as connection:
         _ensure_usage_schema(connection, target)
         rows = connection.execute(
             f"""

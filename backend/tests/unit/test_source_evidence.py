@@ -55,7 +55,7 @@ def test_document_requires_portable_markdown_basename(name: str) -> None:
         DocumentInput(name=name, content="example")
 
 
-@pytest.mark.parametrize("content", ["bad\x00text", "\ud800", "中" * 90_000])
+@pytest.mark.parametrize("content", ["bad\x00text", "\ud800", "中" * 90_000], ids=["nul", "surrogate", "oversized"])
 def test_document_rejects_invalid_or_oversized_utf8(content: str) -> None:
     with pytest.raises(ValidationError):
         DocumentInput(name="guide.md", content=content)

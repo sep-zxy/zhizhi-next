@@ -8,6 +8,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import portalocker
@@ -377,9 +378,13 @@ def test_fstat_identity_mismatch_blocks_read(
     def mismatched(fd: int) -> os.stat_result:
         result = original(fd)
         if stat.S_ISREG(result.st_mode):
-            fields = list(result)
-            fields[1] = result.st_ino + 1
-            return os.stat_result(fields)
+            return cast("os.stat_result", SimpleNamespace(
+                st_ino=result.st_ino + 1,
+                st_dev=result.st_dev,
+                st_mode=result.st_mode,
+                st_nlink=result.st_nlink,
+                st_file_attributes=getattr(result, "st_file_attributes", 0),
+            ))
         return result
 
     monkeypatch.setattr(snapshots.os, "fstat", mismatched)

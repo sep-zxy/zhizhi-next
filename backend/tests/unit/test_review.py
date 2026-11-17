@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from ahadiff import cli as cli_module
@@ -17,6 +18,7 @@ from ahadiff.cli import app
 from ahadiff.contracts import QuizChoice, ResultEvent, ReviewCard
 from ahadiff.core.errors import InputError, MigrationError, StorageError
 from ahadiff.core.paths import is_wsl2_mnt, lock_file_path, review_db_path
+from ahadiff.core.sqlite_util import managed_sqlite_connection
 from ahadiff.llm import usage as usage_module
 from ahadiff.quiz import QuizArtifactPaths
 from ahadiff.review import database as review_database_module
@@ -49,7 +51,7 @@ _RUNNER = CliRunner()
 
 
 def _write_minimal_result_events_db(db_path: Path, *, run_id: str) -> None:
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.execute(
             """
             CREATE TABLE result_events (
@@ -171,7 +173,7 @@ def _write_cards_jsonl(path: Path, cards: tuple[ReviewCard, ...]) -> None:
 
 def _create_v1_review_db_without_stale_reason(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.executescript(
             """
             CREATE TABLE schema_version (
@@ -260,7 +262,7 @@ def _create_v1_review_db_without_stale_reason(db_path: Path) -> None:
 
 def _create_v8_review_db_without_choice_columns(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.executescript(
             """
             PRAGMA user_version=8;
@@ -356,7 +358,7 @@ def _create_v8_review_db_without_choice_columns(db_path: Path) -> None:
 
 
 def _insert_v1_review_data(db_path: Path) -> None:
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.execute(
             """
             INSERT INTO scheduler_presets (
@@ -474,7 +476,7 @@ def test_initialize_review_db_creates_full_schema_and_pragmas(tmp_path: Path) ->
 
     initialize_review_db(db_path)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         table_names = {
             row[0]
             for row in connection.execute(
@@ -502,7 +504,7 @@ def test_initialize_review_db_creates_full_schema_and_pragmas(tmp_path: Path) ->
     assert journal_mode == "wal"
     assert quick_check == "ok"
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         card_info = {
             str(row["name"]): row
             for row in connection.execute("PRAGMA table_info(cards)").fetchall()
@@ -537,7 +539,7 @@ def test_initialize_review_db_rolls_back_partial_fresh_schema(
     with pytest.raises(sqlite3.DatabaseError, match="boom"):
         initialize_review_db(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         tables = {
             row[0]
@@ -581,7 +583,7 @@ def test_connect_review_db_applies_resolved_journal_mode(
     assert resolve_sqlite_journal_mode(db_path) == expected_mode
     initialize_review_db(db_path)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
 
     assert journal_mode == expected_mode.lower()
@@ -800,7 +802,7 @@ def test_initialize_review_db_creates_missing_parent_directory(tmp_path: Path) -
 def test_initialize_review_db_migrates_legacy_result_events_only_db(tmp_path: Path) -> None:
     db_path = tmp_path / "review.sqlite"
     event = _result_event()
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.execute(
             """
             CREATE TABLE result_events (
@@ -859,7 +861,7 @@ def test_migration_v1_to_v2_preserves_data(tmp_path: Path) -> None:
 
     outcome = upgrade_review_db(db_path)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         card_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cards)")}
         legacy_schema_table = connection.execute(
@@ -918,7 +920,7 @@ def test_migration_v8_to_v9_defaults_legacy_cards_to_open_answer_mode(
 
     initialize_review_db(db_path)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         card_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cards)")}
         legacy_card = connection.execute(
@@ -957,7 +959,7 @@ def test_migration_v8_to_v9_rolls_back_partial_choice_column_step(
     with pytest.raises(RuntimeError, match="boom during v9 migration"):
         initialize_review_db(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         card_columns = {row[1] for row in connection.execute("PRAGMA table_info(cards)")}
 
@@ -969,13 +971,13 @@ def test_migration_v8_to_v9_rolls_back_partial_choice_column_step(
 def test_legacy_schema_version_newer_than_supported_is_rejected(tmp_path: Path) -> None:
     db_path = tmp_path / "review.sqlite"
     _create_v1_review_db_without_stale_reason(db_path)
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.execute("UPDATE schema_version SET version = ? WHERE id = 1", (999,))
 
     with pytest.raises(MigrationError, match="legacy schema version 999 is newer than supported"):
         initialize_review_db(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         card_columns = {row[1] for row in connection.execute("PRAGMA table_info(cards)")}
     assert user_version == 0
@@ -985,7 +987,7 @@ def test_legacy_schema_version_newer_than_supported_is_rejected(tmp_path: Path) 
 def test_newer_version_friendly_error(tmp_path: Path) -> None:
     db_path = tmp_path / "review.sqlite"
     initialize_review_db(db_path)
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         connection.execute(f"PRAGMA user_version={CURRENT_SCHEMA_VERSION + 1}")
 
     with pytest.raises(MigrationError, match="newer than supported"):
@@ -996,14 +998,14 @@ def test_partial_migration_rollback(tmp_path: Path) -> None:
     db_path = tmp_path / "review.sqlite"
     _create_v1_review_db_without_stale_reason(db_path)
     _insert_v1_review_data(db_path)
-    with sqlite3.connect(db_path) as connection:
+    with managed_sqlite_connection(sqlite3.connect(db_path)) as connection:
         connection.execute("DROP TABLE review_logs")
         connection.execute("CREATE INDEX review_logs ON cards(id)")
 
     with pytest.raises(MigrationError, match="rolled back"):
         upgrade_review_db(db_path)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         card_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cards)")}
         leftover = connection.execute(
@@ -1061,7 +1063,7 @@ def test_cards_schema_rejects_invalid_state_and_null_core_fields(tmp_path: Path)
         "2026-04-24T00:00:00Z",
     )
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         with pytest.raises(sqlite3.IntegrityError, match="cards\\.card_state|CHECK constraint"):
             connection.execute(insert_sql, (*base_params[:4], "broken", *base_params[5:]))
         with pytest.raises(
@@ -1193,7 +1195,7 @@ def test_import_cards_and_record_fsrs_review(tmp_path: Path) -> None:
     assert loaded_card.reps == 1
     assert loaded_card.lapses == 0
     assert loaded_card.last_rating == 3
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         card_row = connection.execute("SELECT reps, last_rating FROM cards").fetchone()
         log_row = connection.execute("SELECT rating, state FROM review_logs").fetchone()
         preset_row = connection.execute(
@@ -1252,7 +1254,7 @@ def test_import_cards_persists_question_and_answer_columns(tmp_path: Path) -> No
 
     assert import_cards_from_jsonl(db_path, cards_path) == 1
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         row = connection.execute(
             "SELECT id, question, answer FROM cards WHERE id = ?",
             ("card-1",),
@@ -1273,7 +1275,7 @@ def test_import_cards_accepts_legacy_rows_without_question_answer_fields(
 
     assert import_cards_from_jsonl(db_path, cards_path) == 1
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         row = connection.execute(
             "SELECT id, question, answer FROM cards WHERE id = ?",
             ("card-legacy",),
@@ -1315,7 +1317,7 @@ def test_import_multiple_choice_card_persists_choices_and_daos_round_trip(
 
     assert import_cards_from_jsonl(db_path, cards_path) == 1
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         row = connection.execute(
             "SELECT answer_mode, choices_json FROM cards WHERE id = ?",
             (card.card_id,),
@@ -1346,7 +1348,7 @@ def test_list_due_cards_rejects_corrupt_choices_json_with_storage_error(
     _write_cards_jsonl(cards_path, (card,))
     assert import_cards_from_jsonl(db_path, cards_path) == 1
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         connection.execute(
             "UPDATE cards SET choices_json = ? WHERE id = ?",
             ("{not valid json", card.card_id),
@@ -1466,7 +1468,7 @@ def test_import_cards_migrates_v1_cards_table_before_writing_stale_reason(tmp_pa
 
     assert inserted == 1
     assert check.schema_version == CURRENT_SCHEMA_VERSION
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         card_columns = {row[1] for row in connection.execute("PRAGMA table_info(cards)").fetchall()}
         stored = connection.execute(
             "SELECT id, stale_reason FROM cards WHERE id = 'card-1'"
@@ -1489,7 +1491,7 @@ def test_import_cards_marks_missing_run_cards_stale_instead_of_leaving_duplicate
 
     due_cards = list_due_cards(db_path)
     assert [card.card_id for card in due_cards] == ["card-2"]
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         rows = connection.execute(
             "SELECT id, card_state, stale_reason FROM cards ORDER BY id"
         ).fetchall()
@@ -1510,7 +1512,7 @@ def test_import_cards_from_runs_marks_empty_run_cards_stale(tmp_path: Path) -> N
     assert import_cards_from_runs(db_path, state_dir) == 0
 
     assert list_due_cards(db_path) == ()
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         row = connection.execute(
             "SELECT card_state, stale_reason FROM cards WHERE id = 'card-1'"
         ).fetchone()
@@ -1614,7 +1616,7 @@ def test_card_queue_archive_suspend_do_not_write_review_log(tmp_path: Path) -> N
     set_card_queue_state(db_path, card_id="card-2", state="suspended")
 
     assert list_due_cards(db_path) == ()
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         rows = connection.execute(
             "SELECT id, card_state, archived_at_utc, suspended_at_utc FROM cards ORDER BY id"
         ).fetchall()
@@ -1650,7 +1652,7 @@ def test_set_card_queue_state_rejects_missing_card_and_allows_double_archive(
         changed_at_utc=datetime(2026, 4, 25, tzinfo=UTC),
     )
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         row = connection.execute(
             "SELECT card_state, archived_at_utc FROM cards WHERE id = 'card-1'"
         ).fetchone()
@@ -1688,7 +1690,7 @@ def test_review_cli_imports_cards_and_records_answer(tmp_path: Path) -> None:
 
     assert review_result.exit_code == 0
     assert "Rating" in review_result.stdout
-    with connect_review_db(review_db_path(repo_root)) as connection:
+    with managed_sqlite_connection(connect_review_db(review_db_path(repo_root))) as connection:
         row = connection.execute("SELECT reps, lapses, last_rating FROM cards").fetchone()
     assert tuple(row) == (1, 1, 1)
 
@@ -1739,7 +1741,7 @@ def test_review_cli_accepts_easy_answer(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Rating" in result.stdout
     assert "4" in result.stdout
-    with connect_review_db(review_db_path(repo_root)) as connection:
+    with managed_sqlite_connection(connect_review_db(review_db_path(repo_root))) as connection:
         row = connection.execute("SELECT last_rating FROM cards WHERE id = 'card-1'").fetchone()
     assert row is not None
     assert int(row[0]) == 4
@@ -1749,8 +1751,9 @@ def test_review_cli_help_mentions_easy_answer() -> None:
     result = _RUNNER.invoke(app(), ["review", "--help"], catch_exceptions=False)
 
     assert result.exit_code == 0
-    assert "Review answer: easy, good, hard, or" in result.stdout
-    assert "wrong." in result.stdout
+    help_text = " ".join(unstyle(result.stdout).replace("│", " ").split())
+    assert "Review answer: easy, good, hard, or" in help_text
+    assert "wrong." in help_text
 
 
 def test_review_cli_archive_card_without_rating(tmp_path: Path) -> None:
@@ -1776,7 +1779,7 @@ def test_review_cli_archive_card_without_rating(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Archived" in result.stdout
-    with connect_review_db(review_db_path(repo_root)) as connection:
+    with managed_sqlite_connection(connect_review_db(review_db_path(repo_root))) as connection:
         row = connection.execute(
             "SELECT card_state, reps FROM cards WHERE id = 'card-1'"
         ).fetchone()
@@ -2235,7 +2238,7 @@ def test_regenerate_only_quiz_marks_existing_run_cards_stale_when_verdict_fails(
     assert len(quiz_publication_calls) == 1
     assert quiz_path.read_text(encoding="utf-8") == '{"new": true}\n'
     assert not cards_path.exists()
-    with connect_review_db(review_db_path(repo_root)) as connection:
+    with managed_sqlite_connection(connect_review_db(review_db_path(repo_root))) as connection:
         row = connection.execute(
             "SELECT card_state, stale_reason FROM cards WHERE id = 'card-1'"
         ).fetchone()
@@ -2261,7 +2264,7 @@ def test_mark_wrong_cli_writes_idempotent_learning_signal(tmp_path: Path) -> Non
     assert first.exit_code == 0
     assert second.exit_code == 0
     assert "Already marked wrong" in second.stdout
-    with connect_review_db(review_db_path(repo_root)) as connection:
+    with managed_sqlite_connection(connect_review_db(review_db_path(repo_root))) as connection:
         rows = connection.execute(
             "SELECT signal_type, payload_json FROM learning_signals"
         ).fetchall()
@@ -2538,7 +2541,7 @@ def test_upgrade_failure_restores_backup(tmp_path: Path) -> None:
     with pytest.raises(Exception, match="rolled back"):
         upgrade_review_db(db_path, migration_hook=failing_migration)
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         leftover = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'should_not_survive'"
         ).fetchone()
@@ -2571,7 +2574,7 @@ def test_db_cli_upgrade_backup_check_and_restore(tmp_path: Path) -> None:
     assert "SQLite quick_check" in check_result.stdout
     assert "Event id unique" in check_result.stdout
 
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         connection.execute(
             "INSERT INTO learning_signals VALUES (?, ?, ?, ?, ?)",
             ("event-1", "key-1", "mark_wrong", "{}", "2026-04-24T00:00:00Z"),
@@ -2582,7 +2585,7 @@ def test_db_cli_upgrade_backup_check_and_restore(tmp_path: Path) -> None:
         catch_exceptions=False,
     )
     assert restore_result.exit_code == 0
-    with connect_review_db(db_path) as connection:
+    with managed_sqlite_connection(connect_review_db(db_path)) as connection:
         count = connection.execute("SELECT COUNT(*) FROM learning_signals").fetchone()[0]
     assert count == 0
 

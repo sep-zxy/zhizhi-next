@@ -10,7 +10,7 @@
 
 安装和检查见 [开发指南](../docs/development.md)，数据语义见 [知识子系统](../docs/subsystems/knowledge.md)。MIT 及上游版权保留在 [LICENSE](LICENSE)。
 
-复习、检索与对应 HTTP/CLI 路径拥有的 SQLite 连接通过 managed_sqlite_connection 保留事务提交/回滚，并在退出作用域时关闭。connect_review_db 的公开返回类型和调用者显式管理连接的方式保持兼容；没有数据库格式迁移。
+复习、检索、用量记账与查询以及对应 HTTP/CLI 路径拥有的 SQLite 连接通过 managed_sqlite_connection 保留事务提交/回滚，并在退出作用域时关闭。connect_review_db 的公开返回类型和调用者显式管理连接的方式保持兼容；没有数据库格式迁移。
 
 文件描述符使用二进制模式，确保 Windows 上的 CRLF 和 Ctrl-Z 原始字节参与哈希、大小边界和导出校验，依据 [Python os.open 约定](https://docs.python.org/3.13/library/os.html#os.open)。保留原有路径身份与符号链接检查，不自动改写或重签历史完整性标记。新对象引用使用 POSIX 相对路径保存，实际数据目录不变。
 
