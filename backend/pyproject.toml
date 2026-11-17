@@ -136,6 +136,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "pinned: deterministic pinned integration fixtures",
+  "performance: fixed timing budgets for the explicit full CI profile",
 ]
 
 [tool.ruff]

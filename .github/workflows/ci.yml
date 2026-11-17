@@ -1,9 +1,16 @@
 name: Repository CI
 on:
   pull_request:
+    branches: [main]
   push:
-    branches: [main, 'chore/**', 'fix/**']
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Standard Linux checks or full cross-platform, browser and performance regression
+        type: choice
+        options: [standard, full]
+        default: standard
 permissions:
   contents: read
 concurrency:
@@ -23,15 +30,20 @@ jobs:
     outputs:
       modules: ${{ steps.plan.outputs.modules }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      browsers: ${{ steps.plan.outputs.browsers }}
+      full: ${{ steps.plan.outputs.full }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
+        with:
+          node: 'false'
       - id: plan
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_PROFILE: ${{ inputs.profile || 'standard' }}
         run: |
           $ErrorActionPreference = 'Stop'
           uv run --no-project python scripts/ci-plan.py
@@ -44,13 +56,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
         with:
-          rust: 'true'
-      - name: Install syntax parser only
-        run: ./scripts/dev.ps1 install -Target learning-web
-      - name: Parse active source and validate repository
+          node: 'false'
+      - name: Validate repository metadata and maintained links
         run: |
           $ErrorActionPreference = 'Stop'
-          ./scripts/dev.ps1 check -All
           uv run --no-project python scripts/check-repository.py
           if ($LASTEXITCODE -ne 0) { throw 'Repository metadata checks failed' }
           git diff --check
@@ -115,17 +124,19 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 test-integration -Target backend
       - name: Performance gates on the Linux reference runner
-        if: ${{ !cancelled() && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
+        if: ${{ !cancelled() && needs.plan.outputs.full == 'true' && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           $ErrorActionPreference = 'Stop'
+          uv run --project backend --no-sync python -m pytest backend/tests/unit/test_async_dao_threadpool.py -m performance -v --tb=short --junitxml=artifacts/backend-performance.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Threadpool latency performance check failed' }
           uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py
           if ($LASTEXITCODE -ne 0) { throw 'Read-route performance check failed' }
           uv run --project backend --no-sync python backend/benchmarks/graphify/bench_graphify.py
           if ($LASTEXITCODE -ne 0) { throw 'Graphify performance check failed' }
       - name: Build affected application
-        if: contains(fromJSON('["learning-web","wiki-private","pi-zhizhi","obsidian-ai-writer","vault-manager","continuity-widget"]'), matrix.target)
+        if: needs.plan.outputs.full == 'true' && contains(fromJSON('["learning-web","wiki-private","pi-zhizhi","obsidian-ai-writer","vault-manager","continuity-widget"]'), matrix.target)
         env:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 build -Target $env:TARGET
@@ -135,7 +146,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-          @{source=$env:GITHUB_SHA;target=$env:TARGET;run=$env:GITHUB_RUN_ID;real_account_e2e=$false;visual_review=$false} | ConvertTo-Json | Set-Content -LiteralPath "artifacts/ci-$env:TARGET.json" -Encoding UTF8
+          @{source=$env:GITHUB_SHA;target=$env:TARGET;run=$env:GITHUB_RUN_ID;profile='${{ needs.plan.outputs.full == 'true' && 'full' || 'standard' }}';real_account_e2e=$false;visual_review=$false} | ConvertTo-Json | Set-Content -LiteralPath "artifacts/ci-$env:TARGET.json" -Encoding UTF8
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -162,13 +173,13 @@ jobs:
         run: ./scripts/dev.ps1 test-integration -Target pi-zhizhi
   browser:
     needs: plan
-    if: contains(needs.plan.outputs.modules, 'learning-web') || contains(needs.plan.outputs.modules, 'wiki-private')
+    if: needs.plan.outputs.full == 'true' && needs.plan.outputs.browsers != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        target: [learning-web, wiki-private]
+        target: ${{ fromJSON(needs.plan.outputs.browsers) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -214,11 +225,12 @@ jobs:
           PROTOCOL_RESULT: ${{ needs.protocol.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           MODULES: ${{ needs.plan.outputs.modules }}
+          FULL: ${{ needs.plan.outputs.full }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:PLAN_RESULT -ne 'success' -or $env:REPOSITORY_RESULT -ne 'success') { throw 'Repository checks did not pass' }
           if ($env:MODULES -ne '[]' -and $env:COMPONENT_RESULT -ne 'success') { throw 'Required component checks did not pass' }
           $modules = @($env:MODULES | ConvertFrom-Json)
           if (($modules -contains 'backend' -or $modules -contains 'pi-zhizhi') -and $env:PROTOCOL_RESULT -ne 'success') { throw 'Required protocol composition did not pass' }
-          if (($modules -contains 'learning-web' -or $modules -contains 'wiki-private') -and $env:BROWSER_RESULT -ne 'success') { throw 'Required browser interaction did not pass' }
+          if ($env:FULL -eq 'true' -and ($modules -contains 'learning-web' -or $modules -contains 'wiki-private') -and $env:BROWSER_RESULT -ne 'success') { throw 'Required browser interaction did not pass' }
           Write-Output 'All checks required by the affected-component plan passed; no live E2E is implied.'

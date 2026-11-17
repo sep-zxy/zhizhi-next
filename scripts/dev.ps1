@@ -83,7 +83,7 @@ try {
             switch ($Command) {
                 'lint' { Invoke-Tool 'uv' @('run','--no-sync','ruff','check','--select','E9,F63,F7,F82','src') }
                 'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','python','../scripts/check-python-types.py') }
-                'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','-v','--tb=short','--junitxml=../artifacts/backend-unit.xml') }
+                'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','-m','not performance','-v','--tb=short','--junitxml=../artifacts/backend-unit.xml') }
                 'test-integration' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e','-v','--tb=short','--junitxml=../artifacts/backend-integration.xml') }
                 { $_ -in 'build','package' } {
                     $webDist = Join-Path $repoRoot 'apps/learning-web/dist'

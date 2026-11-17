@@ -1,6 +1,6 @@
 # 来源与第三方许可
 
-本仓库保留 zhizhi-platform 的 Git 历史，迁移基线与路径记录见 docs/migration/layout.json。目录整理不改变原始版权或依赖许可。
+产品思路与仓库演进见 [README 的来源说明](README.md#来源与贡献)。Git 历史迁移基线与路径记录见 [layout.json](docs/migration/layout.json)。目录整理不改变原始版权或依赖许可。
 
 - Python 知枝底座源于 AhaDiff；MIT 及原版权在 backend/LICENSE。
 - Quartz 与 vendored 插件保留各自 LICENSE、NOTICE、原始锁文件和来源校验材料，位于 apps/public-wiki。

@@ -230,14 +230,23 @@ def test_repository_backend_ci_covers_all_supported_platforms() -> None:
     assert job["strategy"]["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
     import runpy
     planner = runpy.run_path(str(path.parents[2] / "scripts/ci-plan.py"))
-    matrix = planner["component_matrix"](["backend"])
+    standard = planner["component_matrix"](["backend"])
+    assert {item["os"] for item in standard["include"]} == {"ubuntu-24.04"}
+    matrix = planner["component_matrix"](["backend"], full=True)
     assert {item["os"] for item in matrix["include"]} == {
         "ubuntu-24.04", "windows-latest", "macos-15-intel"
     }
     assert workflow["defaults"]["run"]["shell"] == "pwsh"
+    assert workflow["on"]["workflow_dispatch"]["inputs"]["profile"]["options"] == [
+        "standard", "full"
+    ]
     source = path.read_text(encoding="utf-8")
     assert "test-integration -Target backend" in source
     assert "benchmarks/graphify/bench_graphify.py" in source
+    performance = next(step for step in job["steps"]
+                       if step.get("name") == "Performance gates on the Linux reference runner")
+    assert "needs.plan.outputs.full == 'true'" in performance["if"]
+    assert "test_async_dao_threadpool.py -m performance" in performance["run"]
     assert "real_account_e2e=$false" in source
     assert "continue-on-error" not in source
 

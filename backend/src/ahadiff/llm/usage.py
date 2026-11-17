@@ -515,11 +515,11 @@ def _is_retryable_usage_write_error(exc: BaseException, root: BaseException) -> 
 def _ensure_usage_schema(connection: sqlite3.Connection, db_path: Path) -> None:
     db_path_key = str(db_path)
     schema_signature = _usage_schema_signature(db_path)
-    if _SCHEMA_INITIALIZED.get(db_path_key) == schema_signature:
+    if _usage_schema_is_cached(connection, db_path_key, schema_signature):
         return
     with _SCHEMA_INIT_LOCK:
         schema_signature = _usage_schema_signature(db_path)
-        if _SCHEMA_INITIALIZED.get(db_path_key) == schema_signature:
+        if _usage_schema_is_cached(connection, db_path_key, schema_signature):
             return
         connection.execute(
             """
@@ -569,6 +569,18 @@ def _ensure_usage_schema(connection: sqlite3.Connection, db_path: Path) -> None:
             """
         )
         _SCHEMA_INITIALIZED[db_path_key] = _usage_schema_signature(db_path)
+
+
+def _usage_schema_is_cached(
+    connection: sqlite3.Connection, db_path_key: str, signature: _SchemaSignature
+) -> bool:
+    if _SCHEMA_INITIALIZED.get(db_path_key) != signature:
+        return False
+    # Opening a recreated database may write its header and reuse the old inode.
+    # Verify the table on this connection before trusting the file identity cache.
+    return connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'llm_usage'"
+    ).fetchone() is not None
 
 
 def _usage_schema_signature(db_path: Path) -> _SchemaSignature:
