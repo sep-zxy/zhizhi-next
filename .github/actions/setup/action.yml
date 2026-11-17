@@ -1,6 +1,9 @@
 name: Repository toolchains
 description: Read pinned versions and prepare a GitHub-hosted tool environment
 inputs:
+  node:
+    description: Prepare Node.js and JavaScript package managers
+    default: 'true'
   rust:
     description: Prepare the pinned Rust toolchain
     default: 'false'
@@ -20,6 +23,7 @@ runs:
           "$name=$($versions.$name)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
         }
     - uses: actions/setup-node@v4
+      if: inputs.node == 'true'
       with:
         node-version: ${{ steps.versions.outputs.node }}
     - uses: astral-sh/setup-uv@v5
@@ -29,10 +33,12 @@ runs:
         enable-cache: true
         cache-dependency-glob: backend/uv.lock
     - uses: pnpm/action-setup@v4
+      if: inputs.node == 'true'
       with:
         version: ${{ steps.versions.outputs.pnpm }}
         run_install: false
-    - shell: pwsh
+    - if: inputs.node == 'true'
+      shell: pwsh
       env:
         PINNED_NPM: ${{ steps.versions.outputs.npm }}
       run: |
