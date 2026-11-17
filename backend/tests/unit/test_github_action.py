@@ -243,6 +243,10 @@ def test_repository_backend_ci_covers_all_supported_platforms() -> None:
     source = path.read_text(encoding="utf-8")
     assert "test-integration -Target backend" in source
     assert "benchmarks/graphify/bench_graphify.py" in source
+    performance = next(step for step in job["steps"]
+                       if step.get("name") == "Performance gates on the Linux reference runner")
+    assert "needs.plan.outputs.full == 'true'" in performance["if"]
+    assert "test_async_dao_threadpool.py -m performance" in performance["run"]
     assert "real_account_e2e=$false" in source
     assert "continue-on-error" not in source
 

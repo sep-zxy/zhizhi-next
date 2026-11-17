@@ -129,6 +129,8 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           $ErrorActionPreference = 'Stop'
+          uv run --project backend --no-sync python -m pytest backend/tests/unit/test_async_dao_threadpool.py -m performance -v --tb=short --junitxml=artifacts/backend-performance.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Threadpool latency performance check failed' }
           uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py
           if ($LASTEXITCODE -ne 0) { throw 'Read-route performance check failed' }
           uv run --project backend --no-sync python backend/benchmarks/graphify/bench_graphify.py

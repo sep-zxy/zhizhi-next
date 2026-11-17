@@ -76,6 +76,7 @@ async def _warmup(db_path: Path) -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.performance
 @pytest.mark.skipif(sys.platform != "linux", reason="Fixed latency budget uses the Linux CI reference")
 async def test_threadpool_concurrent_reads_latency() -> None:
     """10-way concurrent reads stay within localhost thread-dispatch latency budget."""
@@ -107,6 +108,7 @@ async def test_threadpool_concurrent_reads_latency() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.performance
 @pytest.mark.skipif(sys.platform != "linux", reason="Fixed latency budget uses the Linux CI reference")
 async def test_threadpool_mixed_workload_latency() -> None:
     """10-way mixed reads stay within localhost thread-dispatch latency budget."""
@@ -140,9 +142,8 @@ async def test_threadpool_mixed_workload_latency() -> None:
         assert mean < _THREADPOOL_MEAN_TARGET_MS, f"mean={mean:.1f}ms unexpectedly high"
 
 
-@pytest.mark.anyio
-async def test_threadpool_high_concurrency_no_deadlock() -> None:
-    """20 concurrent readers complete all 200 queries without deadlock."""
+async def _high_concurrency_read_latencies() -> list[float]:
+    """Run the same real concurrent queries for correctness and explicit timing checks."""
     with tempfile.TemporaryDirectory(prefix="ahadiff-1b-bench-") as tmp:
         db_path = Path(tmp) / ".ahadiff" / "review.sqlite"
         db_path.parent.mkdir(parents=True)
@@ -163,9 +164,22 @@ async def test_threadpool_high_concurrency_no_deadlock() -> None:
                 for _ in range(200):
                     tg.start_soon(_one_read)
 
-        assert len(latencies) == 200, "not all queries completed"
-        p99 = sorted(latencies)[int(len(latencies) * 0.99)]
-        if sys.platform == "linux":
-            assert p99 < _THREADPOOL_P99_TARGET_MS, (
-                f"p99={p99:.1f}ms: excessive contention under 20-way concurrency"
-            )
+        return latencies
+
+
+@pytest.mark.anyio
+async def test_threadpool_high_concurrency_no_deadlock() -> None:
+    """20 concurrent readers complete all 200 queries without deadlock."""
+    latencies = await _high_concurrency_read_latencies()
+    assert len(latencies) == 200, "not all queries completed"
+
+
+@pytest.mark.anyio
+@pytest.mark.performance
+@pytest.mark.skipif(sys.platform != "linux", reason="Fixed latency budget uses the Linux CI reference")
+async def test_threadpool_high_concurrency_tail_latency() -> None:
+    latencies = await _high_concurrency_read_latencies()
+    p99 = sorted(latencies)[int(len(latencies) * 0.99)]
+    assert p99 < _THREADPOOL_P99_TARGET_MS, (
+        f"p99={p99:.1f}ms: excessive contention under 20-way concurrency"
+    )
