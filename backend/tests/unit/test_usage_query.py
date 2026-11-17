@@ -144,7 +144,11 @@ def test_query_usage_summary_null_cost(tmp_path: Path) -> None:
     assert result.total_cost_usd == 0.0
 
 
-def test_usage_schema_cache_does_not_skip_recreated_empty_database(tmp_path: Path) -> None:
+def test_usage_schema_cache_does_not_skip_recreated_empty_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Deterministically model an inode/file-signature reuse after recreation.
+    monkeypatch.setattr(usage_module, "_usage_schema_signature", lambda _path: (1, 1, 0))
     db = tmp_path / "usage.sqlite"
     record_usage_event(_make_record(model_id="before", cost_usd=0.01), db_path=db)
     for sqlite_path in (db, db.with_name(f"{db.name}-wal"), db.with_name(f"{db.name}-shm")):

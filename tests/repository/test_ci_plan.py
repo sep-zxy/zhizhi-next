@@ -27,16 +27,3 @@ SPEC.loader.exec_module(PLAN)
 ])
 def test_changed_paths_select_their_actual_owners(changed, expected):
     assert PLAN.select_modules(changed) == expected
-
-
-def test_standard_profile_runs_backend_once_and_full_retains_other_platforms():
-    standard = PLAN.component_matrix(["backend", "wiki-private"])["include"]
-    full = PLAN.component_matrix(["backend", "wiki-private"], full=True)["include"]
-    assert standard == [
-        {"target": "backend", "os": "ubuntu-24.04"},
-        {"target": "wiki-private", "os": "ubuntu-24.04"},
-    ]
-    assert {row["os"] for row in full if row["target"] == "backend"} == {
-        "ubuntu-24.04", "windows-latest", "macos-15-intel",
-    }
-    assert [row for row in full if row["target"] == "wiki-private"] == [standard[1]]

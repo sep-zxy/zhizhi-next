@@ -3,6 +3,7 @@ import json
 import re
 import unittest
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -10,7 +11,10 @@ ROOT = Path(__file__).resolve().parents[2]
 class LayoutTests(unittest.TestCase):
     def test_navigation(self):
         for target in re.findall(r"\]\(([^)]+)\)", (ROOT / "README.md").read_text(encoding="utf-8-sig")):
-            self.assertTrue((ROOT / target).exists(), target)
+            parsed = urlsplit(target)
+            if parsed.scheme or parsed.netloc or not parsed.path:
+                continue
+            self.assertTrue((ROOT / unquote(parsed.path)).exists(), target)
 
     def test_provenance(self):
         data = json.loads((ROOT / "archive/import/provenance.json").read_text(encoding="utf-8-sig"))
