@@ -8,3 +8,5 @@
 | public-wiki | Quartz 净化公开投影 | site 内 npm ci，保留插件独立锁文件 |
 
 业务授权在后端执行。公开站与私有正文分离；桌面版仍使用 growth-companion-desktop 用户目录。完整命令见 [开发指南](../docs/development.md)。
+
+学习界面的「个人 Wiki」入口访问同源 `/wiki/`，由宿主提供页面或重定向到已配置的私有 Wiki。学习界面的离线导航回退不接管 `/wiki` 及其子路径，避免缓存的学习页面覆盖宿主跳转；部署修复时须同时更新已安装的 Service Worker。
