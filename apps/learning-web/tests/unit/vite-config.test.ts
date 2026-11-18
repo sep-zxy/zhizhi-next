@@ -4,14 +4,8 @@ import { resolve } from 'node:path';
 import vm from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import type { UserConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 
 import config from '../../vite.config';
-
-vi.mock('vite-plugin-pwa', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vite-plugin-pwa')>();
-  return { ...actual, VitePWA: vi.fn(actual.VitePWA) };
-});
 
 type ProxyReq = {
   setHeader: (name: string, value: string) => void;
@@ -108,26 +102,6 @@ describe('vite dev API proxy', () => {
     expect(configSource).toContain('clientsClaim: true');
     expect(registerSource).toContain('controllerchange');
     expect(registerSource).toContain('SKIP_WAITING');
-  });
-
-  it.each([
-    ['/wiki', true],
-    ['/wiki/', true],
-    ['/wiki?from=learning', true],
-    ['/wiki/?from=learning', true],
-    ['/wiki/#/catalog', true],
-    ['/wiki/entries/example', true],
-    ['/', false],
-    ['/?from=wiki', false],
-    ['/#/growth?view=today', false],
-    ['/wiki-notes', false],
-    ['/wikimedia/', false],
-  ])('excludes only Wiki navigation from the app-shell fallback: %s', (path, excluded) => {
-    const workbox = vi.mocked(VitePWA).mock.calls[0]?.[0]?.workbox;
-    const denylist = workbox?.navigateFallbackDenylist ?? [];
-    const url = new URL(path, 'http://127.0.0.1:8765');
-
-    expect(denylist.some((rule) => rule.test(url.pathname + url.search))).toBe(excluded);
   });
 
   it('does not lock out a valid controllerchange after a reload cooldown event', () => {

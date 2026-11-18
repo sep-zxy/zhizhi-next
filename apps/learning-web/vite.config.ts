@@ -46,8 +46,6 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: './index.html',
-        // Let the host redirect Wiki navigation instead of serving the learning shell.
-        navigateFallbackDenylist: [/^\/wiki(?:\/|\?|$)/],
         globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest,woff2}'],
       },
     }),
