@@ -392,6 +392,27 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
                 return current
             return self._history_entry(connection, entry_id, actor, revision)
 
+    def create_radar_candidate(
+        self, payload: dict[str, Any], *, actor: Actor, identity: str
+    ) -> dict[str, Any]:
+        """Keep the first candidate for the same question and evidence across entry revisions."""
+        key = "radar-candidate:" + identity
+        try:
+            return self.create_task("radar_suggestion", payload, actor=actor, idempotency_key=key)
+        except DomainError as exc:
+            if exc.code != "IDEMPOTENCY_CONFLICT":
+                raise
+            with self.store.reading() as connection:
+                task = self._receipt(connection, actor, "create_task", key, None)
+                identity_fields = (
+                    "target_entry_ids", "proposed_exercise", "evidence_refs", "question_provenance"
+                )
+                if task is None or task["kind"] != "radar_suggestion" or any(
+                    task["payload"].get(field) != payload.get(field) for field in identity_fields
+                ):
+                    raise
+                return self._protect_read(connection, task, actor)
+
     def list_entry_versions(
         self, entry_id: str, *, actor: Actor, limit: int = 20, offset: int = 0,
     ) -> dict[str, Any]:

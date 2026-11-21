@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, cast
 
 from ahadiff.knowledge_platform.errors import DomainError
 
@@ -61,21 +61,24 @@ class RadarService:
         }
 
     def _read_source(
-        self, entry_id: str, reference: Any, *, actor: Any
+        self, entry_id: str, reference: object, *, actor: Any
     ) -> tuple[dict[str, Any] | None, str]:
         revision = None
+        expected_hash = None
         if reference is not None:
+            if not isinstance(reference, dict):
+                return None, "unavailable"
+            fields = cast(dict[str, object], reference)
+            revision = fields.get("revision")
+            expected_hash = fields.get("expected_content_hash")
             if (
-                not isinstance(reference, dict)
-                or set(reference) != {"entry_id", "revision", "expected_content_hash"}
-                or reference.get("entry_id") != entry_id
-                or type(reference.get("revision")) is not int
-                or reference["revision"] < 1
-                or reference["revision"] > 2**53 - 1
-                or not isinstance(reference.get("expected_content_hash"), str)
+                set(fields) != {"entry_id", "revision", "expected_content_hash"}
+                or fields["entry_id"] != entry_id
+                or type(revision) is not int
+                or not 1 <= revision <= 2**53 - 1
+                or not isinstance(expected_hash, str)
             ):
                 return None, "unavailable"
-            revision = reference["revision"]
         try:
             entry = self.domain.get_practice_source(entry_id, actor=actor, revision=revision)
         except DomainError as exc:
@@ -87,7 +90,7 @@ class RadarService:
         if (
             entry["entry_id"] != entry_id
             or entry["revision"] != revision
-            or entry["content_hash"] != reference["expected_content_hash"]
+            or entry["content_hash"] != expected_hash
         ):
             return None, "unavailable"
         return entry, "available"
@@ -116,7 +119,7 @@ class RadarService:
             raise DomainError(
                 "INVALID_INPUT", "A user-authored response is required", status_code=422
             )
-        metadata = payload.get("metadata") or {}
+        metadata = cast(dict[str, Any], payload["metadata"])
         practice = self.read(metadata["radar_suggestion_id"], actor=actor)
         if practice["suggestion_state"] not in {"accepted", "completed"}:
             raise DomainError("INVALID_STATE", "Suggestion has not been accepted", status_code=409)

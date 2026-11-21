@@ -95,7 +95,7 @@ def test_new_entry_head_does_not_change_accepted_source(domain, owner, writer, s
 def test_old_radar_completion_only_restores_verifiable_source(
     domain, owner, writer, source, saved_reference, expected_status,
 ):
-    from test_entry_versions import commit
+    from test_entry_versions import commit, edit_history
 
     question = "What should be verified about addition?"
     metadata = {"open_questions": [question]}
@@ -141,6 +141,13 @@ def test_old_radar_completion_only_restores_verifiable_source(
         assert practice["title"] == first["title"]
         assert practice["body"] == first["body"]
         assert practice["source_reference"]["revision"] == first["revision"]
+        reader = Actor(owner.owner_id, "personal-reader", "service", frozenset({"knowledge:read"}))
+        assert radar.read(sid, actor=reader)["practice"]["body"] == first["body"]
+        edit_history(domain, first["revision"], data_classification="secret", classification_labels=["secret"])
+        restricted = radar.read(sid, actor=reader)
+        assert restricted["user_text"] == facts["user_text"]
+        assert restricted["practice"]["source_status"] == "unavailable"
+        assert restricted["practice"]["title"] == restricted["practice"]["body"] == ""
         commit(domain, owner, writer, source, second, operation="delete")
         restored = radar.read(sid, actor=owner)
         assert restored["user_text"] == facts["user_text"]

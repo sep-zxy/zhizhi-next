@@ -138,27 +138,6 @@ class TaskMethods:
             actor, "create_task", idempotency_key, {"kind": kind, "payload": payload}, create
         )
 
-    def create_radar_candidate(
-        self, payload: dict[str, Any], *, actor: Actor, identity: str
-    ) -> dict[str, Any]:
-        """Keep the first candidate for the same question and evidence across entry revisions."""
-        key = "radar-candidate:" + identity
-        try:
-            return self.create_task("radar_suggestion", payload, actor=actor, idempotency_key=key)
-        except DomainError as exc:
-            if exc.code != "IDEMPOTENCY_CONFLICT":
-                raise
-            with self.store.reading() as connection:
-                task = self._receipt(connection, actor, "create_task", key, None)
-                identity_fields = (
-                    "target_entry_ids", "proposed_exercise", "evidence_refs", "question_provenance"
-                )
-                if task is None or task["kind"] != "radar_suggestion" or any(
-                    task["payload"].get(field) != payload.get(field) for field in identity_fields
-                ):
-                    raise
-                return self._protect_read(connection, task, actor)
-
     def read_task(self, task_id: str, *, actor: Actor) -> dict[str, Any]:
         """Read an owned task, including durable wait/retry/error information."""
         return self._read("task", task_id, actor)
