@@ -114,6 +114,34 @@ def make_entry(domain, owner, writer, *, concept="concept", questions=None):
     return domain.apply_change(change["change_id"], actor=writer, idempotency_key="apply")
 
 
+def update_radar_entry(domain, owner, writer, entry):
+    revision = entry["revision"]
+    change = domain.propose_change(
+        {
+            "entry_id": entry["entry_id"],
+            "base_revision": revision,
+            "title": f"更新后的架构资料 {revision + 1}",
+            "body": entry["body"] + f"这是第 {revision + 1} 版新增的资料。\n",
+            "metadata": entry["metadata"],
+            "evidence_refs": entry["evidence_refs"],
+        },
+        actor=owner,
+        idempotency_key=f"update-radar-{revision}",
+    )
+    if change["state"] != "ready":
+        challenge = domain.create_decision_challenge(change["change_id"], actor=owner)
+        domain.record_review(
+            change["change_id"],
+            {"decision": "approve", "expected_patch_hash": change["patch_hash"],
+             "decision_nonce": challenge["decision_nonce"], "base_revision": revision},
+            actor=owner,
+            idempotency_key=f"review-radar-{revision}",
+        )
+    return domain.apply_change(
+        change["change_id"], actor=writer, idempotency_key=f"apply-radar-{revision}"
+    )
+
+
 def test_real_remote_outcome_replay_queues_once_without_claiming_knowledge(system):
     domain, owner, _, backend = system
     response = asyncio.run(backend.submit_learning_outcome(facts()))
@@ -268,12 +296,20 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
     assert listed.status_code == 200
     suggestion = listed.json()["suggestions"][0]
     sid = suggestion["suggestion_id"]
+    second = update_radar_entry(domain, owner, writer, entry)
+    assert client.post(prefix + "/runs", headers=headers, json={"limit": 3}).json() == listed.json()
     accepted = client.post(
         prefix + f"/{sid}/decision", headers=headers, json={"decision": "accept"}
     )
     assert accepted.status_code == 200
     assert accepted.json()["suggestion_state"] == "accepted"
-    assert accepted.json()["practice"]["entry_id"] == entry["entry_id"]
+    reference = {"entry_id": entry["entry_id"], "revision": 1,
+                 "expected_content_hash": entry["content_hash"]}
+    practice = accepted.json()["practice"]
+    assert practice["entry_id"] == entry["entry_id"]
+    assert practice["title"] == entry["title"]
+    assert practice["body"] == entry["body"]
+    assert practice["source_reference"] == reference
     assert accepted.json()["user_text"] == ""
     before = domain.list_events(actor=owner, types=["learning.outcome.submitted.v1"])
     assert (
@@ -294,6 +330,7 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
     outcome = domain.get_learning_outcome(submitted.json()["outcome_id"], actor=owner)["payload"]
     assert outcome["user_text"] == user_text
     assert outcome["metadata"]["radar_suggestion_id"] == sid
+    assert outcome["metadata"]["source_reference"] == reference
     assert outcome["entry_id"] == entry["entry_id"]
     assert outcome["result"] == {"practice_kind": "open_response", "graded": False}
     task = domain.read_task(submitted.json()["task_id"], actor=owner)
@@ -310,6 +347,7 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
         ).status_code
         == 409
     )
+    update_radar_entry(domain, owner, writer, second)
     configure_desktop_backend(
         RemoteKnowledgeBackend(
             backend.base_url,
@@ -323,8 +361,10 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
     assert restored.json()["suggestion_state"] == "completed"
     assert restored.json()["user_text"] == user_text
     assert restored.json()["state"] == "submitted"
+    assert restored.json()["practice"] == practice
+    assert client.post(prefix + "/runs", headers=headers, json={"limit": 3}).json()["suggestions"] == []
     assert domain.read_task(accepted.json()["learning_id"], actor=owner)["state"] == "succeeded"
-    assert domain.get_entry(entry["entry_id"], actor=owner)["revision"] == 1
+    assert domain.get_entry(entry["entry_id"], actor=owner)["revision"] == 3
 
 
 def test_radar_rejects_forged_completion_before_outcome_or_generation(system):
@@ -410,6 +450,13 @@ def test_malformed_radar_submission_does_not_reserve_completion(system):
         payload | {"metadata": []},
     ):
         assert asyncio.run(submit(bad)).status_code == 422
+    wrong_source = {"entry_id": entry["entry_id"], "revision": 2,
+                    "expected_content_hash": entry["content_hash"]}
+    conflict = asyncio.run(submit(payload | {"metadata": {
+        **payload["metadata"], "source_reference": wrong_source,
+    }}))
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "CONTENT_CONFLICT"
     assert asyncio.run(submit(payload, "")).status_code == 422
     assert asyncio.run(submit(payload)).status_code == 200
 

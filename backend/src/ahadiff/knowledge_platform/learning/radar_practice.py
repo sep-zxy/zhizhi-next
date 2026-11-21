@@ -32,19 +32,20 @@ async def read_practice(suggestion_id: str) -> dict[str, Any]:
     except BackendError as error:
         if not error.retryable or record is None:
             raise
-        metadata = record["payload"]["metadata"]
         result = {
             "suggestion_id": suggestion_id,
             "suggestion_state": "accepted",
             "practice": {
                 "entry_id": record["payload"]["entry_id"],
-                "title": metadata["title"],
-                "question": metadata["practice_question"],
+                "title": "",
+                "question": "",
                 "body": "",
-                **({"source_reference": metadata["source_reference"]} if "source_reference" in metadata else {}),
+                "source_status": "unavailable",
             },
         }
-    if record:
+    if record and (
+        not result.get("learning_outcome_id") or result["user_text"] == record["payload"]["user_text"]
+    ):
         result["user_text"] = record["payload"]["user_text"]
         if record["state"] != "acknowledged":
             result["state"] = "pending" if record["state"] == "pending" else "rejected"
@@ -74,6 +75,8 @@ async def submit_practice(suggestion_id: str, user_text: str) -> dict[str, Any]:
         if practice["suggestion_state"] != "accepted":
             raise BackendError("INVALID_STATE", "请先接受该学习建议", False, 409)
         target = practice["practice"]
+        if target.get("source_status") == "unavailable":
+            raise BackendError("INVALID_STATE", "当时的资料无法读取。", False, 409)
         labels = {"practice": practice, "input_classification": legacy_input_classification()}
         facts = {
             "device_id": desktop_device_id(),

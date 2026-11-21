@@ -111,6 +111,7 @@ async function serve(
       | 'delayed'
       | 'denied';
     wikiExisting?: boolean;
+    radarSource?: 'unknown' | 'unavailable';
   } = {},
 ) {
   let note = options.noteText ?? '本人已保存的原话';
@@ -726,12 +727,14 @@ async function serve(
     if (url.pathname === root + '/radar/r1')
       return json({
         suggestion_id: 'r1',
-        suggestion_state: 'accepted',
+        suggestion_state: options.radarSource ? 'completed' : 'accepted',
+        ...(options.radarSource ? { user_text: '这是已经提交的本人原话。' } : {}),
         practice: {
           entry_id: 'entry1',
-          title: '幂等边界',
-          body: '已有知识证据',
-          question: '重试何时安全？',
+          title: options.radarSource ? '' : '幂等边界',
+          body: options.radarSource ? '' : '已有知识证据',
+          question: options.radarSource === 'unavailable' ? '' : '重试何时安全？',
+          source_status: options.radarSource ?? 'available',
         },
       });
     if (url.pathname === root + '/radar/r1/complete') {
@@ -870,6 +873,8 @@ test('雷达接受后只提交真实原话，离线显示待发', async ({ page 
   await page.goto('/#/growth?view=radar');
   await page.getByRole('button', { name: '查看学习建议' }).click();
   await page.getByRole('button', { name: '开始练习' }).click();
+  await page.getByText('查阅已有知识与依据').click();
+  await expect(page.getByText('已有知识证据')).toBeVisible();
   await page
     .getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' })
     .fill('我会用请求标识保证重试幂等');
@@ -882,6 +887,23 @@ test('雷达接受后只提交真实原话，离线显示待发', async ({ page 
     { user_text: '我会用请求标识保证重试幂等' },
   ]);
 });
+
+for (const [radarSource, notice] of [
+  ['unknown', '当时的资料版本无法确认。'],
+  ['unavailable', '当时的资料无法读取。'],
+] as const) {
+  test(`回看旧雷达练习时保留原话和提示 ${radarSource}`, async ({ page }) => {
+    const calls = await serve(page, { radarSource });
+    await page.goto('/#/growth?view=radar&radar=r1');
+    await expect(page.getByText(notice)).toBeVisible();
+    const response = page.getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' });
+    await expect(response).toHaveValue('这是已经提交的本人原话。');
+    await expect(response).not.toBeEditable();
+    await expect(page.getByText('查阅已有知识与依据')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '提交学习原话' })).toBeDisabled();
+    expect(calls.completions).toEqual([]);
+  });
+}
 
 test('首页与学习库继续同一卡片的会话和本人草稿', async ({ page }) => {
   const calls = await serve(page, { secondCard: true });

@@ -1,8 +1,11 @@
 """Synthetic exact-source plans using real isolated domain persistence."""
+import hashlib
+import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from ahadiff.knowledge_platform.auth import Actor
 from ahadiff.knowledge_platform.errors import DomainError
 from ahadiff.knowledge_platform.learning.plan import accept_plan, preview_plan
 from ahadiff.knowledge_platform.radar.service import RadarService
@@ -81,3 +84,70 @@ def test_new_entry_head_does_not_change_accepted_source(domain, owner, writer, s
     assert practice["body"] == first["body"]
     assert practice["title"] == first["title"]
     assert practice["source_reference"]["revision"] == 1
+
+
+@pytest.mark.parametrize("saved_reference,expected_status", [
+    ("missing", "unknown"),
+    ("recorded", "available"),
+    ("missing_revision", "unavailable"),
+    ("wrong_hash", "unavailable"),
+])
+def test_old_radar_completion_only_restores_verifiable_source(
+    domain, owner, writer, source, saved_reference, expected_status,
+):
+    from test_entry_versions import commit
+
+    question = "What should be verified about addition?"
+    metadata = {"open_questions": [question]}
+    first = commit(domain, owner, writer, source, metadata=metadata)
+    entry_id = first["entry_id"]
+    identity = hashlib.sha256(json.dumps(
+        {"entry_id": entry_id, "question": question, "evidence_refs": first["evidence_refs"]},
+        ensure_ascii=False, sort_keys=True,
+    ).encode()).hexdigest()
+    task = domain.create_task(
+        "radar_suggestion",
+        {"target_entry_ids": [entry_id], "proposed_exercise": question,
+         "evidence_refs": first["evidence_refs"], "classification": "public"},
+        actor=owner, idempotency_key="radar-candidate:" + identity,
+    )
+    sid = task["task_id"]
+    radar = RadarService(domain)
+    assert radar.run(actor=owner)[0]["suggestion_id"] == sid
+    radar.decide(sid, "accept", actor=owner)
+    facts = {
+        "device_id": "legacy-fixture", "session_id": "radar:" + sid, "version": 1,
+        "entry_id": entry_id, "user_text": "  保持这段原话，包括空格和换行。\n",
+        "metadata": {"radar_suggestion_id": sid, "classification": "personal"},
+    }
+    if saved_reference != "missing":
+        facts["metadata"]["source_reference"] = {
+            "entry_id": entry_id,
+            "revision": 999 if saved_reference == "missing_revision" else first["revision"],
+            "expected_content_hash": "0" * 64 if saved_reference == "wrong_hash" else first["content_hash"],
+        }
+    outcome = domain.submit_learning_outcome(facts, actor=owner, idempotency_key="legacy-outcome")
+    radar.complete(sid, outcome["outcome_id"], actor=owner)
+    second = commit(
+        domain, owner, writer, source, first, title="New title", body=first["body"] + "New text.\n",
+        metadata=metadata,
+    )
+    assert radar.run(actor=owner) == []
+    restored = radar.read(sid, actor=owner)
+    assert restored["user_text"] == facts["user_text"]
+    practice = restored["practice"]
+    assert practice["source_status"] == expected_status
+    if expected_status == "available":
+        assert practice["title"] == first["title"]
+        assert practice["body"] == first["body"]
+        assert practice["source_reference"]["revision"] == first["revision"]
+        commit(domain, owner, writer, source, second, operation="delete")
+        restored = radar.read(sid, actor=owner)
+        assert restored["user_text"] == facts["user_text"]
+        practice = restored["practice"]
+        assert practice["source_status"] == "unavailable"
+    assert practice["title"] == "" and practice["body"] == "" and "source_reference" not in practice
+    viewer = Actor(owner.owner_id, "public-only", "service", frozenset({"knowledge:read"}), frozenset({"public"}))
+    with pytest.raises(DomainError) as denied:
+        radar.read(sid, actor=viewer)
+    assert denied.value.code == "CLASSIFICATION_FORBIDDEN"
