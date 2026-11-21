@@ -9,6 +9,7 @@ import { exportGrowthCards } from '../api/growth';
 import KnowledgeStudy from './KnowledgeStudy';
 import KnowledgeWiki from './KnowledgeWiki';
 import RadarPracticePanel from './RadarPracticePanel';
+import { candidateCommitSource, learningUrl } from './zhizhi-model';
 
 export const MARKS: Record<Mark,string> = { none: '未标记', confused: '仍不理解', revisit: '想再看' };
 export const STAGES: Record<string,string> = { front:'待学习', back:'学习中', understanding:'检查中', understanding_explanation:'检查中', prediction:'检查中', prediction_explanation:'检查中', completed:'已完成' };
@@ -21,11 +22,46 @@ export function MarkMenu({card, onChanged, allowRevision = true}: {card: Knowled
   async function mark(value:Mark) { setBusy(true);setError('');try { await knowledgeSend('/cards/'+card.card_id+'/mark',{mark:value},'PUT');onChanged(); } catch(e){setError(String(e));}finally{setBusy(false);} }
   return <><Menu withinPortal position="bottom-end"><Menu.Target><Button variant="default" loading={busy} rightSection={<ChevronDown size={15}/>}>标记</Button></Menu.Target><Menu.Dropdown className="knowledge-mark-menu">{(["confused","revisit","none"] as Mark[]).map(value=><Menu.Item leftSection={value==="confused"?<CircleHelp size={21}/>:value==="revisit"?<Bookmark size={21}/>:<X size={21}/>} key={value} onClick={()=>void mark(value)}>{value==='none'?'清除标记':MARKS[value]}</Menu.Item>)}{allowRevision&&<><Menu.Divider/><Menu.Item onClick={()=>setRevisionOpen(true)}>修订卡片…</Menu.Item></>}</Menu.Dropdown></Menu><Modal opened={revisionOpen} onClose={()=>setRevisionOpen(false)} title="修订知识卡"><p>更新机制或边界时创建新版本，保留旧版学习记录。</p><Textarea label="修订原因" value={reason} onChange={e=>setReason(e.target.value)} minRows={3}/><Button mt="md" disabled={!reason.trim()} loading={busy} onClick={()=>{setBusy(true);void knowledgeSend('/cards/'+card.card_id+'/revision',{request_id:crypto.randomUUID(),expected_version:card.card_version,reason}).then(()=>{setRevisionOpen(false);onChanged();}).catch(e=>setError(String(e))).finally(()=>setBusy(false));}}>确认创建修订版本</Button></Modal>{error&&<small role="alert">{error}</small>}</>;
 }
-function CommitEvidence({sha,bindingId,projectName,detailed=false}:{sha:string;bindingId?:string;projectName?:string;detailed?:boolean}) {
- const [commit,setCommit]=useState<{title:string;patch:string;authored_at?:string}|null>(null);
- useEffect(()=>{if(bindingId)void knowledgeGet<{title:string;patch:string;authored_at?:string}>('/commits/'+sha+'?binding_id='+bindingId).then(setCommit).catch(()=>setCommit(null));},[sha,bindingId]);
- const code=commit?.patch&&<pre>{commit.patch.split('\n').filter(line=>!line.startsWith('diff ')&&!line.startsWith('index ')).slice(0,15).join('\n')}</pre>;
- return <div className="knowledge-evidence-commit"><Link className={'knowledge-source'+(detailed?' is-detailed':'')} to={'/growth?view=projects&commit='+sha}>{detailed?<Folder size={26}/>:<FileText size={22}/>}{detailed?<span><span>{projectName||'项目提交'} · {sha.slice(0,8)}{commit?.authored_at?' · '+commit.authored_at.slice(5,10):''}</span><strong>{commit?.title??'读取提交标题…'}</strong></span>:<><strong>{commit?.title??sha.slice(0,12)}</strong><code>{sha.slice(0,8)}</code></>}</Link>{code&&(detailed?<details><summary>查看代码片段</summary>{code}</details>:code)}</div>;
+function CommitEvidence({ sha, source, detailed }: {
+  sha: string;
+  source: ReturnType<typeof candidateCommitSource>;
+  detailed: boolean;
+}) {
+  type Commit = {title: string; patch: string; authored_at?: string};
+  const { project, bindingId } = source;
+  const [commit, setCommit] = useState<Commit | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!bindingId) return;
+    let current = true;
+    const path = '/commits/' + encodeURIComponent(sha) + '?' + new URLSearchParams({ binding_id: bindingId });
+    void knowledgeGet<Commit>(path)
+      .then(value => { if (current) setCommit(value); })
+      .catch(() => { if (current) setFailed(true); });
+    return () => { current = false; };
+  }, [sha, bindingId]);
+
+  const title = commit?.title ?? source.title ??
+    (detailed && bindingId && !failed ? '读取提交标题…' : sha.slice(0, 12));
+  const code = commit?.patch && <pre>{commit.patch.split('\n')
+    .filter(line => !line.startsWith('diff ') && !line.startsWith('index ')).slice(0, 15).join('\n')}</pre>;
+  const className = 'knowledge-source' + (detailed ? ' is-detailed' : '');
+  const summary = <>
+    {detailed ? <Folder size={26}/> : <FileText size={22}/>}
+    {detailed ? <span>
+      <span>{project?.name ?? '项目提交'} · {sha.slice(0, 8)}{commit?.authored_at && ' · ' + commit.authored_at.slice(5, 10)}</span>
+      <strong>{title}</strong>
+    </span> : <><strong>{title}</strong><code>{sha.slice(0, 8)}</code></>}
+  </>;
+  return <div className="knowledge-evidence-commit">
+    {project && bindingId ? <Link className={className}
+      to={learningUrl('projects', project.project_id) + '&' + new URLSearchParams({ commit: sha, binding: bindingId })}>
+      {summary}
+    </Link> : <div className={className}>{summary}</div>}
+    {source.reason && <small className="knowledge-muted">{source.reason}</small>}
+    {failed && <small className="knowledge-muted">提交详情暂不可读。</small>}
+    {code && (detailed ? <details><summary>查看代码片段</summary>{code}</details> : code)}
+  </div>;
 }
 export default function KnowledgeWorkspace({view,projectId,state,onChanged}:{view:string;projectId:string;state:GrowthLocalState;onChanged:()=>Promise<void>}) {
   const [params,setParams]=useSearchParams();
@@ -48,7 +84,10 @@ export default function KnowledgeWorkspace({view,projectId,state,onChanged}:{vie
   const shown=cards.filter(card=>(!query||[card.title,card.front_question].join(' ').toLowerCase().includes(query.toLowerCase()))&&(!mark||card.followup_mark===mark)&&(!progress||(card.learning_stage??'front')===progress||(progress==='active'&&!['front','completed'].includes(card.learning_stage??'front'))));
   function linkedTopics(candidate:KnowledgeCandidate){const group=[candidate,...candidates.filter(c=>checked.includes(c.candidate_id)&&c!==candidate)];return [...new Map(group.flatMap(c=>(c.discussions??[]).filter(d=>d.topic_id).map(d=>[d.topic_id!,{value:d.topic_id!,label:(d.suggestion?.title??'已确认探讨主题')+' · '+d.topic_id!.slice(0,8)}] as const))).values()];}
   async function decide(candidate:KnowledgeCandidate,action:string) {const topics=linkedTopics(candidate);const topicId=topicSelections[candidate.candidate_id]??(topics.length===1?topics[0].value:undefined);if(['confirm_new','merge'].includes(action)&&topics.length>1&&!topics.some(t=>t.value===topicId)){setSelected(candidate.candidate_id);setDrawer(!!compact);setTopicRequired(candidate.candidate_id);return;}await act(async()=>{const result=await knowledgeSend<{card?:KnowledgeCard}>('/candidates/'+candidate.candidate_id+'/decision',{request_id:crypto.randomUUID(),action,topic_id:topicId,card_id:mergeTargets[candidate.candidate_id]??candidate.suggested_card_id,additional_candidate_ids:checked.filter(id=>id!==candidate.candidate_id)});if(result.card)open(result.card);});}
-  const evidence=<div className="knowledge-paper knowledge-evidence"><h2>{view==="learning"?"聚合依据与来源":"证据与聚合依据"}</h2>{active?<><h3>{view==="learning"?"为何聚合":"聚合理由"}</h3><p>{active.reason}</p>{active.learning_focus&&<p className="knowledge-muted"><Badge>{focusLabel(active.learning_focus.category)}</Badge> {active.learning_focus.reason}</p>}{!!active.related_candidate_ids?.length&&<p className="knowledge-muted">有 {active.related_candidate_ids.length} 个机制相关候选，仅供核对，不会自动合并历史概念。</p>}{linkedTopics(active).length>0&&<section className="knowledge-linked-topics"><h3>已确认的探讨主题</h3>{linkedTopics(active).length===1?<p>{linkedTopics(active)[0].label}</p>:<Select label="确认后沿用主题" placeholder="选择一个已确认主题" error={topicRequired===active.candidate_id?"请选择归属主题后再确认成卡。":undefined} value={topicSelections[active.candidate_id]??null} data={linkedTopics(active)} onChange={value=>{setTopicSelections(current=>({...current,[active.candidate_id]:value??""}));setTopicRequired("");}}/>}<small className="knowledge-muted">确认成卡沿用所选主题，保留已确认的探讨记录。</small></section>}<hr/>{view==="learning"&&activeTarget&&<section className="knowledge-merge-target"><h3>归并目标</h3><Link to={"/growth?view=cards&card="+activeTarget}><FileText size={26}/><span>{activeTarget.slice(0,8)} · {data?.cards.find(c=>c.card_id===activeTarget)?.title??"查看目标知识卡"}</span></Link></section>}<h3>{view==="learning"?"代表提交":"代表性证据"}</h3>{active.source_commit_shas?.slice(0,evidenceExpanded?undefined:view==="learning"?3:2).map(sha=><CommitEvidence key={sha} sha={sha} detailed={view==="learning"} projectName={(active.sources??active.source_refs)?.find(source=>source.commit_sha===sha)?.project_name??state.projects.find(project=>project.project_id===active.project_ids[0])?.name} bindingId={state.bindings.find(b=>active.project_ids.includes(b.project_id))?.binding_id}/>)}{(active.sources??active.source_refs)?.some(source=>source.excerpt)&&<details className="knowledge-candidate-code" open={view!=="learning"}><summary>支撑机制判断的代码证据</summary>{(active.sources??active.source_refs)?.map(source=><div key={source.source_ref_id??source.commit_sha}><p>{source.commit_title??source.relative_path}</p>{source.excerpt&&<pre>{source.excerpt}</pre>}</div>)}</details>}{(active.source_commit_shas?.length??0)>(view==="learning"?3:2)&&<Button className="knowledge-more-evidence" variant="subtle" onClick={()=>setEvidenceExpanded(v=>!v)}>{evidenceExpanded?"收起提交列表":"查看全部 "+active.source_commit_shas.length+" 条提交"}</Button>}{view==="learning"?<Alert className="knowledge-candidate-next" color="orange" icon={<CircleAlert size={25}/>} title="确认仅形成或更新知识卡">先学卡，再生成 Wiki 草稿。</Alert>:<><hr/><h3>确认后的下一步</h3><p className="knowledge-muted">确认后先学卡，再提炼 Wiki。已有卡只增加重复证据时，无需重学。</p></>}</>:<p className="knowledge-muted">选择候选后，在这里核对共同问题与提交证据。</p>}</div>;
+  const evidence=<div className="knowledge-paper knowledge-evidence"><h2>{view==="learning"?"聚合依据与来源":"证据与聚合依据"}</h2>{active?<><h3>{view==="learning"?"为何聚合":"聚合理由"}</h3><p>{active.reason}</p>{active.learning_focus&&<p className="knowledge-muted"><Badge>{focusLabel(active.learning_focus.category)}</Badge> {active.learning_focus.reason}</p>}{!!active.related_candidate_ids?.length&&<p className="knowledge-muted">有 {active.related_candidate_ids.length} 个机制相关候选，仅供核对，不会自动合并历史概念。</p>}{linkedTopics(active).length>0&&<section className="knowledge-linked-topics"><h3>已确认的探讨主题</h3>{linkedTopics(active).length===1?<p>{linkedTopics(active)[0].label}</p>:<Select label="确认后沿用主题" placeholder="选择一个已确认主题" error={topicRequired===active.candidate_id?"请选择归属主题后再确认成卡。":undefined} value={topicSelections[active.candidate_id]??null} data={linkedTopics(active)} onChange={value=>{setTopicSelections(current=>({...current,[active.candidate_id]:value??""}));setTopicRequired("");}}/>}<small className="knowledge-muted">确认成卡沿用所选主题，保留已确认的探讨记录。</small></section>}<hr/>{view==="learning"&&activeTarget&&<section className="knowledge-merge-target"><h3>归并目标</h3><Link to={"/growth?view=cards&card="+activeTarget}><FileText size={26}/><span>{activeTarget.slice(0,8)} · {data?.cards.find(c=>c.card_id===activeTarget)?.title??"查看目标知识卡"}</span></Link></section>}<h3>{view==="learning"?"代表提交":"代表性证据"}</h3>{active.source_commit_shas?.slice(0, evidenceExpanded ? undefined : view === "learning" ? 3 : 2).map(sha => {
+    const source = candidateCommitSource(active, sha, state);
+    return <CommitEvidence key={sha + ':' + (source.bindingId ?? '')} sha={sha} source={source} detailed={view === "learning"}/>;
+  })}{(active.sources??active.source_refs)?.some(source=>source.excerpt)&&<details className="knowledge-candidate-code" open={view!=="learning"}><summary>支撑机制判断的代码证据</summary>{(active.sources??active.source_refs)?.map(source=><div key={source.source_ref_id??source.commit_sha}><p>{source.commit_title??source.relative_path}</p>{source.excerpt&&<pre>{source.excerpt}</pre>}</div>)}</details>}{(active.source_commit_shas?.length??0)>(view==="learning"?3:2)&&<Button className="knowledge-more-evidence" variant="subtle" onClick={()=>setEvidenceExpanded(v=>!v)}>{evidenceExpanded?"收起提交列表":"查看全部 "+active.source_commit_shas.length+" 条提交"}</Button>}{view==="learning"?<Alert className="knowledge-candidate-next" color="orange" icon={<CircleAlert size={25}/>} title="确认仅形成或更新知识卡">先学卡，再生成 Wiki 草稿。</Alert>:<><hr/><h3>确认后的下一步</h3><p className="knowledge-muted">确认后先学卡，再提炼 Wiki。已有卡只增加重复证据时，无需重学。</p></>}</>:<p className="knowledge-muted">选择候选后，在这里核对共同问题与提交证据。</p>}</div>;
   return <div className={'knowledge-workspace'+(view==='learning'?' knowledge-pending':'' )}>{error&&<Alert color="red" title="读取或保存失败">{error}<Button variant="subtle" onClick={()=>void refresh()}>重试</Button></Alert>}{!data&&!error&&<p role="status">正在读取知识工作区…</p>}
     {data?.knowledge_mode==='unified' && view==='cards' && <RadarPracticePanel
       activeId={params.get('radar')}

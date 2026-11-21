@@ -7,6 +7,7 @@ import type {
   WikiLearningSubmission,
 } from '../../src/api/wiki-learning';
 import type { UnderstandingSubmission } from '../../src/api/understanding';
+import type { KnowledgeCandidate } from '../../src/api/knowledge';
 
 test.use({
   launchOptions: {
@@ -83,6 +84,35 @@ const baseState = {
   local_topic_projects: [],
   local_explorations: [],
 };
+const candidateState = {
+  ...baseState,
+  projects: [
+    ...baseState.projects,
+    { ...baseState.projects[0], project_id: 'p2', name: '第二合成项目' },
+    { ...baseState.projects[0], project_id: 'p3', name: '未授权项目', local_processing: false },
+  ],
+  bindings: [
+    ...baseState.bindings,
+    { ...baseState.bindings[0], project_id: 'p2', binding_id: 'b-default', canonical_local_path: '/fixture-default' },
+    { ...baseState.bindings[0], project_id: 'p2', binding_id: 'b2', canonical_local_path: '/fixture-second' },
+    { ...baseState.bindings[0], project_id: 'p3', binding_id: 'b3', canonical_local_path: '/fixture-denied' },
+  ],
+  features: [...baseState.features, { ...baseState.features[0], project_id: 'p2', feature_id: 'f2' }],
+};
+const commitCandidate: KnowledgeCandidate = {
+  candidate_id: 'source-candidate',
+  title: '多项目合成候选',
+  reason: '两处改动都用于比较边界',
+  status: 'pending',
+  evidence_count: 3,
+  project_ids: ['p1', 'p2', 'p3'],
+  source_commit_shas: ['abc123', 'def456', 'aaa789'],
+  sources: [
+    { commit_sha: 'abc123', project_id: 'p1', binding_id: 'b1' },
+    { commit_sha: 'def456', project_id: 'p2', binding_id: 'b2' },
+    { commit_sha: 'aaa789', project_id: 'p3', binding_id: 'b3', commit_title: '不可读取的提交摘要' },
+  ],
+};
 async function serve(
   page: Page,
   options: {
@@ -100,6 +130,7 @@ async function serve(
       | 'delayed';
     noteText?: string;
     secondCard?: boolean;
+    candidateEvidence?: boolean;
     entryContext?: 'empty' | 'conflict' | 'lost' | 'denied';
     wiki?:
       | 'candidate'
@@ -167,7 +198,9 @@ async function serve(
     [root + '/wiki/drafts/d1']: ['PUT'],
     [root + '/wiki/drafts/d1/publish']: ['POST'],
     '/api/growth/local/bindings/b1/commits': ['GET'],
+    '/api/growth/local/bindings/b2/commits': ['GET'],
     [root + '/commits/abc123']: ['GET'],
+    [root + '/commits/def456']: ['GET'],
     [root + '/cards/' + otherCardId + '/understanding/submissions']: ['GET'],
     [submissionsPath]: ['GET', 'POST'],
     [submissionsPath + '/' + submissionId]: ['GET'],
@@ -230,7 +263,7 @@ async function serve(
                   },
                 ],
               }
-            : baseState,
+            : options.candidateEvidence ? candidateState : baseState,
       );
     if (url.pathname === root)
       return options.failIndex
@@ -249,7 +282,7 @@ async function serve(
                     card,
                   ]
                 : [card],
-            candidates: [],
+            candidates: options.candidateEvidence ? [commitCandidate] : [],
             wiki_articles: [],
             vault_path: '',
           });
@@ -701,8 +734,18 @@ async function serve(
         next_cursor: null,
         authors: [],
       });
-    if (url.pathname === root + '/commits/abc123')
+    if (url.pathname === '/api/growth/local/bindings/b2/commits') {
+      expect(url.searchParams.get('feature_id')).toBe('f2');
+      return json({ commits: [], base_sha: 'base', next_cursor: null, authors: [] });
+    }
+    if (url.pathname === root + '/commits/abc123') {
+      expect(url.searchParams.get('binding_id')).toBe('b1');
       return json({ title: '明确事务边界', patch: '-旧实现\n+新的事务边界' });
+    }
+    if (url.pathname === root + '/commits/def456') {
+      expect(url.searchParams.get('binding_id')).toBe('b2');
+      return json({ title: '第二项目的队列改动', patch: '+第二仓库的队列实现' });
+    }
     if (url.pathname === root + '/radar/runs')
       return json({
         suggestions: [
@@ -857,6 +900,11 @@ test('正式候选提交只显示待复核，不冒称已公开', async ({ page 
 });
 test('项目读取限定范围，不发起全历史扫描或模型发送', async ({ page }) => {
   const calls = await serve(page);
+  await page.goto('/#/growth?view=projects');
+  await expect(page.getByRole('heading', { name: '选择已授权的工程项目' })).toBeVisible();
+  await page.getByRole('link', { name: '隔离测试项目' }).click();
+  await expect(page).toHaveURL(/view=projects&project=p1$/);
+  await expect(page.getByText('先选择一条具体提交。')).toBeVisible();
   await page.goto('/#/growth?view=projects&project=p1&commit=abc123');
   await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
   expect(calls.requests.some((url) => url.includes('scan=true'))).toBe(false);
@@ -865,6 +913,50 @@ test('项目读取限定范围，不发起全历史扫描或模型发送', async
     page.getByRole('button', { name: '职责演进图（接口待接入）' }),
   ).toBeDisabled();
 });
+
+for (const entry of ['learning', 'pending']) {
+  test(`候选入口 ${entry} 的代表提交与片段使用各自的项目和仓库`, async ({ page }) => {
+    const calls = await serve(page, { candidateEvidence: true });
+    await page.goto('/#/growth?view=' + entry);
+    await expect(page.getByRole('heading', { name: '聚合依据与来源' })).toBeVisible();
+    const first = page.getByRole('link', { name: /明确事务边界/ });
+    const second = page.getByRole('link', { name: /第二项目的队列改动/ });
+    const firstUrl = '#/growth?view=projects&project=p1&commit=abc123&binding=b1';
+    const secondUrl = '#/growth?view=projects&project=p2&commit=def456&binding=b2';
+    await expect(first).toHaveAttribute('href', firstUrl);
+    await expect(second).toHaveAttribute('href', secondUrl);
+    await page.locator('.knowledge-evidence-commit').filter({ has: first }).getByText('查看代码片段').click();
+    await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
+    await page.locator('.knowledge-evidence-commit').filter({ has: second }).getByText('查看代码片段').click();
+    await expect(page.getByText('第二仓库的队列实现', { exact: false })).toBeVisible();
+    await expect(page.getByText('不可读取的提交摘要')).toBeVisible();
+    await expect(page.getByText('此提交所属的项目当前未授权读取代码。')).toBeVisible();
+    await expect(page.getByRole('link', { name: /不可读取的提交摘要/ })).toHaveCount(0);
+    const detailRequests = () => calls.requests.filter(url => url.startsWith(root + '/commits/'));
+    expect([...new Set(detailRequests())].sort()).toEqual([
+      root + '/commits/abc123?binding_id=b1',
+      root + '/commits/def456?binding_id=b2',
+    ]);
+
+    if (entry === 'learning') {
+      await second.click();
+      await expect(page).toHaveURL(url => url.hash === secondUrl);
+      await expect(page.getByRole('heading', { name: '第二项目的队列改动' })).toBeVisible();
+      await expect(page.getByText('第二仓库的队列实现', { exact: false })).toBeVisible();
+
+      const previousRequests = detailRequests().length;
+      await page.goto('/' + secondUrl.replace('binding=b2', 'binding=expired'));
+      await expect(page.getByRole('alert')).toContainText('此提交所属的仓库当前未绑定或未授权。');
+      await expect(page.getByText('第二仓库的队列实现', { exact: false })).toHaveCount(0);
+      expect(detailRequests()).toHaveLength(previousRequests);
+    } else {
+      await first.click();
+      await expect(page).toHaveURL(url => url.hash === firstUrl);
+      await expect(page.getByRole('heading', { name: '明确事务边界' })).toBeVisible();
+      await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
+    }
+  });
+}
 test('雷达接受后只提交真实原话，离线显示待发', async ({ page }) => {
   const calls = await serve(page);
   await page.goto('/#/growth?view=radar');

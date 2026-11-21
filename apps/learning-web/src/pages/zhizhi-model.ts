@@ -1,4 +1,5 @@
-import type { KnowledgeCard, KnowledgeIndex, WikiDraft } from '../api/knowledge';
+import type { GrowthLocalState, GrowthProject } from '../api/growth';
+import type { KnowledgeCandidate, KnowledgeCard, KnowledgeIndex, WikiDraft } from '../api/knowledge';
 export type ZhizhiView = 'home' | 'projects' | 'library' | 'session' | 'understanding' | 'writeback' | 'radar' | 'candidates' | 'exercise' | 'cli' | 'topic-management' | 'entry-context' | 'wiki-learning';
 const aliases: Record<string, ZhizhiView> = {today:'home',overview:'home',cards:'library',learning:'candidates',pending:'candidates',wiki:'writeback',review:'library',discuss:'library',topics:'topic-management',settings:'topic-management'};
 export function zhizhiView(value: string | null): ZhizhiView {
@@ -41,4 +42,42 @@ export function resumeLearningCard(cards: KnowledgeCard[], lastCardId: string): 
 export function projectCommitLearning(cards: KnowledgeCard[], projectId: string, commitSha: string): KnowledgeCard[] {
   if (!projectId || !commitSha) return [];
   return cards.filter(card => card.project_ids?.includes(projectId) && card.source_commit_shas?.includes(commitSha));
+}
+
+type CandidateCommitSource = { title?: string } & (
+  | { project: GrowthProject; bindingId: string; reason?: undefined }
+  | { project?: undefined; bindingId?: undefined; reason: string }
+);
+
+export function candidateCommitSource(
+  candidate: KnowledgeCandidate,
+  sha: string,
+  { projects, bindings }: Pick<GrowthLocalState, 'projects' | 'bindings'>,
+): CandidateCommitSource {
+  const sources = [...(candidate.sources ?? []), ...(candidate.source_refs ?? [])]
+    .filter(source => source.commit_sha === sha);
+  const title = sources.find(source => source.commit_title)?.commit_title;
+  const candidateProjects = [...new Set(candidate.project_ids?.filter(Boolean))];
+  const sourceProjects = [...new Set(sources.flatMap(source => source.project_id ? [source.project_id] : []))];
+  const projectIds = sourceProjects.length ? sourceProjects : candidateProjects;
+  const [projectId] = projectIds;
+  if (projectIds.length !== 1 || (candidateProjects.length && !candidateProjects.includes(projectId))) {
+    return { title, reason: '无法确定此提交所属的项目。' };
+  }
+  const project = projects.find(item => item.project_id === projectId);
+  if (!project?.local_processing) {
+    return { title, reason: '此提交所属的项目当前未授权读取代码。' };
+  }
+
+  const sourceBindings = [...new Set(sources.flatMap(source => source.binding_id ? [source.binding_id] : []))];
+  const matchingBindings = bindings.filter(binding =>
+    binding.project_id === projectId && (!sourceBindings.length || sourceBindings.includes(binding.binding_id)),
+  );
+  if (sourceBindings.length > 1 || matchingBindings.length > 1) {
+    return { title, reason: '无法确定此提交所属的仓库。' };
+  }
+  if (!matchingBindings.length) {
+    return { title, reason: '此提交所属的仓库当前未绑定或未授权。' };
+  }
+  return { title, project, bindingId: matchingBindings[0].binding_id };
 }

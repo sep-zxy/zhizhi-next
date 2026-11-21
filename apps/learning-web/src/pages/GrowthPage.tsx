@@ -398,7 +398,7 @@ export default function GrowthPage() {
         )}
         {view === 'projects' && state && (
           <ZhizhiProjects
-            key={projectId}
+            key={JSON.stringify([projectId, params.get('commit'), params.get('binding')])}
             state={state}
             projectId={projectId}
             cards={index?.cards ?? []}
