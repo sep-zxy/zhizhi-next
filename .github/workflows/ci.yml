@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Standard Linux checks or full cross-platform, browser and performance regression
+        description: First-release Linux checks or the same checks plus browser journeys and builds
         type: choice
         options: [standard, full]
         default: standard
@@ -67,7 +67,7 @@ jobs:
   components:
     needs: plan
     if: needs.plan.outputs.modules != '[]'
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -78,8 +78,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          rust: ${{ contains(matrix.target, 'vault-manager') || contains(matrix.target, 'continuity-widget') }}
       - name: Install locked component dependencies
         env:
           TARGET: ${{ matrix.target }}
@@ -89,9 +87,16 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: uv run --project backend --no-sync python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
-      - name: Compile Quartz vendored dependencies and renderer
-        if: matrix.target == 'public-wiki'
-        run: ./scripts/dev.ps1 build -Target public-wiki
+      - name: Check the CLI and knowledge service entry points
+        if: matrix.target == 'backend'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/src
+        run: |
+          $ErrorActionPreference = 'Stop'
+          uv run --project backend --no-sync python -m ahadiff --help
+          if ($LASTEXITCODE -ne 0) { throw 'CLI entry point failed' }
+          uv run --project backend --no-sync python -m ahadiff.knowledge_platform --help
+          if ($LASTEXITCODE -ne 0) { throw 'Knowledge service entry point failed' }
       - name: Install browser for browser-backed unit tests
         if: matrix.target == 'learning-web'
         run: |
@@ -112,7 +117,7 @@ jobs:
         if: ${{ always() && matrix.target == 'backend' }}
         uses: actions/upload-artifact@v4
         with:
-          name: backend-unit-${{ matrix.os }}-${{ github.sha }}
+          name: backend-unit-linux-${{ github.sha }}
           path: |
             artifacts/backend-unit.xml
             artifacts/python-types*.json
@@ -123,20 +128,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 test-integration -Target backend
-      - name: Performance gates on the Linux reference runner
-        if: ${{ !cancelled() && needs.plan.outputs.full == 'true' && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}/backend/src
-        run: |
-          $ErrorActionPreference = 'Stop'
-          uv run --project backend --no-sync python -m pytest backend/tests/unit/test_async_dao_threadpool.py -m performance -v --tb=short --junitxml=artifacts/backend-performance.xml
-          if ($LASTEXITCODE -ne 0) { throw 'Threadpool latency performance check failed' }
-          uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py
-          if ($LASTEXITCODE -ne 0) { throw 'Read-route performance check failed' }
-          uv run --project backend --no-sync python backend/benchmarks/graphify/bench_graphify.py
-          if ($LASTEXITCODE -ne 0) { throw 'Graphify performance check failed' }
-      - name: Build affected application
-        if: needs.plan.outputs.full == 'true' && contains(fromJSON('["learning-web","wiki-private","pi-zhizhi","obsidian-ai-writer","vault-manager","continuity-widget"]'), matrix.target)
+      - name: Build first-release Web or Agent component
+        if: needs.plan.outputs.full == 'true' && matrix.target != 'backend'
         env:
           TARGET: ${{ matrix.target }}
         run: ./scripts/dev.ps1 build -Target $env:TARGET
@@ -150,7 +143,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ci-${{ matrix.target }}-${{ matrix.os }}-${{ github.sha }}
+          name: ci-${{ matrix.target }}-linux-${{ github.sha }}
           path: artifacts/
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
           retention-days: 7

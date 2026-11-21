@@ -3,11 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Component to build; no release or deployment
+        description: First-release component to build on Linux
         type: choice
         required: true
         default: backend
-        options: [backend, learning-web, wiki-private, desktop, public-wiki, pi-zhizhi, vault-manager, continuity-widget, obsidian-ai-writer]
+        options: [backend, learning-web, wiki-private, pi-zhizhi]
   workflow_call:
     inputs:
       target:
@@ -21,53 +21,49 @@ defaults:
 env:
   POWERSHELL_TELEMETRY_OPTOUT: '1'
 jobs:
-  plan:
+  build:
     runs-on: ubuntu-24.04
-    outputs:
-      matrix: ${{ steps.matrix.outputs.value }}
+    timeout-minutes: 45
     steps:
-      - id: matrix
+      - name: Validate first-release build target
         env:
           TARGET: ${{ inputs.target }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:TARGET -eq 'desktop') {
-            $matrix = @{include=@(@{os='windows-latest';platform='windows-x64'},@{os='macos-15';platform='macos-arm64'})}
-          } else { $matrix = @{include=@(@{os='ubuntu-24.04';platform='linux-x64'})} }
-          "value=$($matrix | ConvertTo-Json -Compress -Depth 5)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
-  build:
-    needs: plan
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 75
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    steps:
+          if ($env:TARGET -cnotin @('backend','learning-web','wiki-private','pi-zhizhi')) {
+            throw 'Unsupported Next first-release build target'
+          }
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          rust: ${{ inputs.target == 'vault-manager' || inputs.target == 'continuity-widget' }}
-      - name: Install target and required build inputs
+      - name: Install target and build wheel assets when needed
         env:
           TARGET: ${{ inputs.target }}
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 install -Target $env:TARGET
-          if ($env:TARGET -in 'backend','desktop') {
+          if ($env:TARGET -eq 'backend') {
             ./scripts/dev.ps1 install -Target learning-web
             ./scripts/dev.ps1 build -Target learning-web
-          }
-          if ($env:TARGET -eq 'desktop') {
-            ./scripts/dev.ps1 install -Target backend
-            ./scripts/dev.ps1 build -Target backend
           }
       - name: Build selected target
         env:
           TARGET: ${{ inputs.target }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: ./scripts/dev.ps1 package -Target $env:TARGET
+      - name: Smoke-test the packaged CLI and service entry points
+        if: inputs.target == 'backend'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $wheel = Get-ChildItem -LiteralPath 'artifacts/backend' -Filter '*.whl' | Select-Object -First 1
+          if (-not $wheel) { throw 'Missing backend wheel' }
+          Set-Location 'backend'
+          uv pip install --no-deps $wheel.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Backend wheel installation failed' }
+          uv run --no-sync ahadiff --help
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI entry point failed' }
+          uv run --no-sync python -m ahadiff.knowledge_platform --help
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged knowledge service entry point failed' }
       - name: Collect immutable artifacts
         env:
           TARGET: ${{ inputs.target }}
@@ -78,25 +74,13 @@ jobs:
           switch ($env:TARGET) {
             'backend' { Copy-Item -Path 'artifacts/backend/*.whl' -Destination $out }
             'learning-web' { Copy-Item -LiteralPath 'apps/learning-web/dist' -Destination "$out/learning-web" -Recurse }
-            'wiki-private' { Copy-Item -LiteralPath 'apps/wiki-private/dist' -Destination "$out/wiki-private" -Recurse }
-            'desktop' {
-              $packages = @(Get-ChildItem -LiteralPath 'dist/desktop' -File | Where-Object Extension -In '.exe','.dmg')
-              if (-not $packages) { throw 'No desktop installer produced' }
-              $packages | Copy-Item -Destination $out
-            }
-            'public-wiki' {
-              Copy-Item -LiteralPath 'apps/public-wiki/site/portable/runtime.generated.mjs' -Destination $out
-              'Render-only runtime; site publication requires verified manifest, template assets and domain eligibility.' | Set-Content -LiteralPath "$out/LIMITATIONS.txt" -Encoding UTF8
-            }
+            'wiki-private' { Copy-Item -LiteralPath 'apps/wiki-private/dist' -Destination $out }
             'pi-zhizhi' { Copy-Item -LiteralPath 'integrations/pi-zhizhi/dist' -Destination "$out/pi-extension" -Recurse }
-            'vault-manager' { Copy-Item -LiteralPath 'optional/vault-manager/target/release/vault-manager' -Destination $out; Copy-Item -LiteralPath 'optional/vault-manager/target/release/vault-manager-cli' -Destination $out }
-            'continuity-widget' { Copy-Item -LiteralPath 'optional/continuity-widget/target/release/continuity-cli' -Destination $out; Copy-Item -LiteralPath 'optional/continuity-widget/dist' -Destination "$out/continuity-ui" -Recurse; 'Core CLI and UI assets; native Tauri distribution is a separate platform build.' | Set-Content -LiteralPath "$out/LIMITATIONS.txt" -Encoding UTF8 }
-            'obsidian-ai-writer' { foreach ($name in @('main.js','manifest.json','styles.css')) { Copy-Item -LiteralPath "optional/obsidian-ai-writer/$name" -Destination $out } }
           }
           ./scripts/build-receipt.ps1 -Target $env:TARGET -Output $out
       - uses: actions/upload-artifact@v4
         with:
-          name: build-${{ inputs.target }}-${{ matrix.platform }}-${{ github.sha }}
+          name: build-${{ inputs.target }}-linux-x64-${{ github.sha }}
           path: artifacts/distribution/
           if-no-files-found: error
           retention-days: 7

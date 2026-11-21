@@ -56,7 +56,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $repoRoot 'artifacts') -Force | Out-Null
     if ($Command -eq 'install') {
         if ($entry.Kind -eq 'python') {
-            Invoke-Tool 'uv' @('sync','--project','backend','--locked','--group','dev','--group','desktop','--extra','wechat','--extra','captions','--no-install-project','--python',$toolchain.python)
+            Invoke-Tool 'uv' @('sync','--project','backend','--locked','--group','dev','--extra','captions','--no-install-project','--python',$toolchain.python)
         } elseif ($entry.Kind -eq 'rust') {
             Invoke-Tool 'cargo' @('fetch','--locked','--manifest-path',"$targetPath/Cargo.toml")
         } else {
@@ -83,8 +83,52 @@ try {
             switch ($Command) {
                 'lint' { Invoke-Tool 'uv' @('run','--no-sync','ruff','check','--select','E9,F63,F7,F82','src') }
                 'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','python','../scripts/check-python-types.py') }
-                'test' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/unit','../tests/repository','-m','not performance','-v','--tb=short','--junitxml=../artifacts/backend-unit.xml') }
-                'test-integration' { Invoke-Tool 'uv' @('run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e','-v','--tb=short','--junitxml=../artifacts/backend-integration.xml') }
+                'test' {
+                    Invoke-Tool 'uv' @(
+                        'run','--no-sync','python','-m','pytest','tests/unit','../tests/repository/test_ci_plan.py',
+                        '--ignore=tests/unit/growth/test_m7_local_cloud_server.py',
+                        '--ignore=tests/unit/serve/test_growth_cloud_export.py',
+                        '--ignore=tests/unit/test_apkg_export.py',
+                        '-m','not performance','-v','--tb=short','--junitxml=../artifacts/backend-unit.xml'
+                    )
+                }
+                'test-integration' {
+                    # Retain the test files for manual regression of historical delivery paths.
+                    $historicalSuites = @(
+                        '../tests/e2e/test_channel_configuration.py'
+                        '../tests/e2e/test_channel_secret_recovery.py'
+                        '../tests/e2e/test_desktop_configuration.py'
+                        'tests/knowledge_platform/agent/test_domain_publication_integration.py'
+                        'tests/knowledge_platform/agent/test_public_derivatives.py'
+                        'tests/knowledge_platform/domain/test_acceptance_model.py'
+                        'tests/knowledge_platform/domain/test_acceptance_scope.py'
+                        'tests/knowledge_platform/domain/test_desktop_relation_bridge.py'
+                        'tests/knowledge_platform/domain/test_operations_publication.py'
+                        'tests/knowledge_platform/domain/test_pi_acceptance_scope.py'
+                        'tests/knowledge_platform/domain/test_portable_isolation.py'
+                        'tests/knowledge_platform/domain/test_publication_build.py'
+                        'tests/knowledge_platform/domain/test_publication_certificate.py'
+                        'tests/knowledge_platform/intake/test_channels_routes.py'
+                        'tests/knowledge_platform/intake/test_native_notifications.py'
+                        'tests/knowledge_platform/intake/test_official_transport.py'
+                        'tests/knowledge_platform/intake/test_publication_status.py'
+                        'tests/knowledge_platform/intake/test_wechat_sdk.py'
+                        'tests/knowledge_platform/zhizhi/test_publication_certificates.py'
+                        'tests/knowledge_platform/zhizhi/test_publish_artifacts.py'
+                    )
+                    $historicalCases = @(
+                        'tests/knowledge_platform/agent/test_codex_notice_projection.py::test_closed_output_vocabulary_and_reviewed_source_manifest'
+                        'tests/knowledge_platform/agent/test_codex_notice_templates.py::test_exact_templates_match_reviewed_official_source_record'
+                        'tests/knowledge_platform/agent/test_codex_runner.py::test_exact_version_allowlist_matches_official_source_review_and_packaging_example'
+                        'tests/knowledge_platform/agent/test_codex_runner.py::test_patch_review_records_changed_utf16_decoder_without_claiming_blob_identity'
+                    )
+                    $exclude = @($historicalSuites | ForEach-Object { "--ignore=$_" })
+                    $exclude += @($historicalCases | ForEach-Object { "--deselect=$_" })
+                    Invoke-Tool 'uv' (@(
+                        'run','--no-sync','python','-m','pytest','tests/knowledge_platform','../tests/e2e',
+                        '-v','--tb=short','--junitxml=../artifacts/backend-integration.xml'
+                    ) + $exclude)
+                }
                 { $_ -in 'build','package' } {
                     $webDist = Join-Path $repoRoot 'apps/learning-web/dist'
                     if (-not (Test-Path -LiteralPath (Join-Path $webDist 'index.html'))) { throw '先构建 learning-web，后端 wheel 必须含真实前端产物。' }

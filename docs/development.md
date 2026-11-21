@@ -25,6 +25,6 @@ Python 按 uv.lock 安装，不安装缺少前端成品的本项目；测试从 
 
 ## 构建与发行
 
-ci.yml 执行源码、仓库与组件验证，并对受影响应用做构建检查。build.yml 可手动构建选定目标，保存源码 SHA、校验值和产物。desktop 在 Windows/macOS 原生 runner 打包。release.yml 仅发布已经保存且源码匹配的产物，不重新构建，不部署站点。
+从 `build.yml` 手动构建首期目标，保存源码 SHA、校验值和对应产物。`release.yml` 只接受首期范围内、源码与校验记录匹配的 Linux 构建产物，发布需要单独授权。首期目标和 CI 边界见 [验证规则](testing.md)。
 
 真实模型、渠道与安装验收由 live-acceptance.yml 单独登记和预检；没有获准的范围、素材和凭据时必须标 blocked，不能使用 fixture 假装通过。详细证据含义见 [测试规则](testing.md)。

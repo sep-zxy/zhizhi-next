@@ -119,13 +119,13 @@
 
 ### 获取应用或部署服务
 
-当前新仓库尚未发布正式 Release。维护者或 Fork 仓库可以在 [Build artifacts](https://github.com/sep-zxy/zhizhi-next/actions/workflows/build.yml) 中选择 `desktop`、`backend`、`wiki-private` 等目标，在 GitHub Actions 构建并下载对应产物。
+当前新仓库尚未发布正式 Release。维护者或 Fork 仓库可以用 [Build artifacts](https://github.com/sep-zxy/zhizhi-next/actions/workflows/build.yml) 构建 [首期产物](docs/testing.md#首期交付范围)。
 
 桌面包与源码不附带模型服务或账号额度。使用远程模型、消息渠道或独立知识服务前，需要配置自己的服务与身份；默认不会自动启用模型、渠道或公开发布。
 
 - [使用入口](docs/user/quickstart.md)：应用与产物说明。
 - [配置参考](docs/configuration.md)：模型、身份、渠道与桌面配置。
-- [桌面宿主](apps/desktop/README.md) / [私有 Wiki](apps/wiki-private/README.md)：各入口的运行方式与限制。
+- [云端知识服务](deploy/knowledge-platform/README.md) / [私有 Wiki](apps/wiki-private/README.md) 提供各入口的运行说明。
 
 ### 阅读源码与参与开发
 
@@ -191,7 +191,7 @@ Markdown/Git 保存正式知识正文与修订历史，SQLite 保存任务和审
 
 | 仓库 | 在项目演进中的角色 |
 |---|---|
-| [zhizhi](https://github.com/sep-zxy/zhizhi) | 最初的知枝项目，也是当前工程学习实践与产品思路的起点；保留代码证据、知识卡、学习与 Wiki 的基础闭环。 |
+| [zhizhi](https://github.com/sep-zxy/zhizhi) | 原知枝的历史备份，供追溯产品思路和早期工程学习实践。当前功能开发和发行集中在 `zhizhi-next`。 |
 | [zhizhi-platform](https://github.com/sep-zxy/zhizhi-platform) | 中间阶段的开发与集成仓库，用于推进统一知识平台、验证组件协作和积累实现；属于阶段性开发记录。 |
 | [zhizhi-next](https://github.com/sep-zxy/zhizhi-next) | 当前继续开发的仓库，在已有实践上整理工程结构，推进材料、项目、个人理解与知识关联的统一工作流。 |
 
