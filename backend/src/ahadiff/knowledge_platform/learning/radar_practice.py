@@ -131,6 +131,10 @@ def create_desktop_learning_routes() -> list[Route]:
                 record = desktop_backend().outbox.get("learning-plan:" + digest)
                 result = {"plan_hash": digest, "delivery_state": record["state"] if record else "not_submitted",
                           "receipt": record.get("response", {}).get("data") if record else None}
+            elif request.method == "GET" and request.url.path == prefix + "/snoozed":
+                result = (await desktop_backend().list_snoozed_radar(
+                    before=request.query_params.get("before")
+                ))["data"]
             elif request.method == "GET":
                 result = await read_practice(suggestion_id)
             else:
@@ -181,6 +185,7 @@ def create_desktop_learning_routes() -> list[Route]:
         Route(prefix + "/plans/{plan_hash}", endpoint, methods=["GET"]),
         Route(prefix + "/plans/accept", endpoint, methods=["POST"]),
         Route(prefix + "/runs", endpoint, methods=["POST"]),
+        Route(prefix + "/snoozed", endpoint, methods=["GET"]),
         Route(prefix + "/{suggestion_id}/decision", endpoint, methods=["POST"]),
         Route(prefix + "/{suggestion_id}/complete", endpoint, methods=["POST"]),
         Route(prefix + "/{suggestion_id}", endpoint, methods=["GET"]),

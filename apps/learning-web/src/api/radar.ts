@@ -8,6 +8,10 @@ export interface RadarSuggestion {
   expected_artifact?: string;
   suggestion_state: string;
 }
+export interface SnoozedRadarPage {
+  suggestions: RadarSuggestion[];
+  next_cursor: string|null;
+}
 export interface RadarPractice {
   suggestion_id: string;
   suggestion_state: string;
@@ -30,6 +34,15 @@ export async function getRadarSuggestions(): Promise<RadarSuggestion[]> {
   });
   if (!Array.isArray(result.suggestions)) throw new Error('学习建议响应无效。');
   return result.suggestions;
+}
+export async function getSnoozedRadarSuggestions(before?: string): Promise<SnoozedRadarPage> {
+  const query = before ? '?' + new URLSearchParams({before}) : '';
+  const result = await apiFetch<SnoozedRadarPage>(root + '/snoozed' + query, {cache: 'no-store'});
+  if (!Array.isArray(result.suggestions) ||
+      (result.next_cursor !== null && typeof result.next_cursor !== 'string')) {
+    throw new Error('稍后再学列表响应无效。');
+  }
+  return result;
 }
 export function readRadarPractice(id: string): Promise<RadarPractice> {
   return apiFetch(root + '/' + encodeURIComponent(id));

@@ -196,6 +196,34 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
                     break
         return {"items": visible[:limit], "has_more": len(visible) > limit}
 
+    def list_snoozed_radar_tasks(
+        self, *, actor: Actor, before: str | None, limit: int
+    ) -> list[dict[str, Any]]:
+        """Read a page of ordinary radar tasks with a currently snoozed decision."""
+        authenticated(actor, "knowledge:read")
+        if actor.kind != "user":
+            raise DomainError("FORBIDDEN", "Snoozed suggestions belong to the user", status_code=403)
+        self._validate_page(limit, 0)
+        with self.store.reading() as connection:
+            rows = connection.execute(
+                """
+                SELECT task.data FROM kp_records AS channel
+                JOIN kp_records AS task ON task.kind='task' AND task.owner_id=channel.owner_id
+                    AND task.id=json_extract(channel.data, '$.state.suggestion_id')
+                WHERE channel.kind='channel' AND channel.owner_id=?
+                    AND json_extract(channel.data, '$.channel')='radar:' || task.id
+                    AND json_extract(channel.data, '$.state.suggestion_state')='snoozed'
+                    AND json_extract(task.data, '$.kind')='radar_suggestion'
+                    AND json_extract(task.data, '$.payload.plan_hash') IS NULL
+                    AND (? IS NULL OR task.rowid < (
+                        SELECT rowid FROM kp_records WHERE kind='task' AND owner_id=? AND id=?
+                    ))
+                ORDER BY task.rowid DESC LIMIT ?
+                """,
+                (actor.owner_id, before, actor.owner_id, before, limit),
+            )
+            return self._visible_records(connection, [json.loads(row["data"]) for row in rows], actor)
+
     @staticmethod
     def _receipt(
         connection: sqlite3.Connection, actor: Actor, operation: str, key: str, input_hash: str
