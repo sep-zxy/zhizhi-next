@@ -35,7 +35,11 @@ export default function ZhizhiProjects({
   const features = state.features.filter(
     (item) => item.project_id === projectId,
   );
-  const [bindingId, setBindingId] = useState(bindings[0]?.binding_id ?? '');
+  const requestedBinding = params.get('binding') || undefined;
+  const [selectedBindingId, setSelectedBindingId] = useState(requestedBinding ?? bindings[0]?.binding_id ?? '');
+  const bindingId = bindings.some(item => item.binding_id === selectedBindingId) &&
+    (!requestedBinding || project?.local_processing) ? selectedBindingId : '';
+  const unavailableBinding = !!requestedBinding && !bindingId;
   const [featureId, setFeatureId] = useState(features[0]?.feature_id ?? '');
   const [commits, setCommits] = useState<GrowthCommit[]>([]);
   const [selected, setSelected] = useState(params.get('commit') ?? '');
@@ -191,7 +195,7 @@ export default function ZhizhiProjects({
               disabled={busy}
               value={bindingId}
               onChange={(event) => {
-                setBindingId(event.target.value);
+                setSelectedBindingId(event.target.value);
                 setSelected('');
               }}
             >
@@ -230,9 +234,9 @@ export default function ZhizhiProjects({
           </div>
         )}
       </section>
-      {error && (
+      {(error || unavailableBinding) && (
         <p role="alert" className="zz-notice error">
-          {error}
+          {unavailableBinding ? '此提交所属的仓库当前未绑定或未授权。' : error}
         </p>
       )}
       {status && (
@@ -313,14 +317,14 @@ export default function ZhizhiProjects({
           ) : (
             <>
               <span className="zz-badge">commit {selected.slice(0, 12)}</span>
-              <h3>{evidence?.title ?? commit?.title ?? '提交证据'}</h3>
-              {evidence ? (
+              <h3>{unavailableBinding ? '提交证据' : evidence?.title ?? commit?.title ?? '提交证据'}</h3>
+              {evidence && !unavailableBinding ? (
                 <pre className="zz-code">
                   {evidence.patch || '该提交没有可显示的文本差异。'}
                 </pre>
               ) : (
                 <p role="status">
-                  {error ? '来源尚未读取成功。' : '正在读取精确提交证据…'}
+                  {error || unavailableBinding ? '来源尚未读取成功。' : '正在读取精确提交证据…'}
                 </p>
               )}
               {!snapshot && (
