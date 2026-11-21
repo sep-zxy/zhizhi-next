@@ -65,20 +65,4 @@ uv run python -m ahadiff.knowledge_platform `
 
 ## 5. 验收
 
-```powershell
-$env:PYTHONPATH = "$(Get-Location)/src$([IO.Path]::PathSeparator)$(Get-Location)"
-uv run python -m pytest tests/unit tests/knowledge_platform ../../tests/e2e
-pnpm --dir viewer install --frozen-lockfile
-pnpm --dir viewer typecheck
-pnpm --dir viewer test
-```
-
-本次云构建已获得任务级例外，不伪造 CI 环境变量。正常默认仍要求 GitHub 托管构建。根 `archive/delivery/platform-workflows/knowledge-platform.yml` 是隔离测试流水线，尚未推送或运行远端 Actions。
-
-启动 PowerShell 前使用 `POWERSHELL_TELEMETRY_OPTOUT=1` 关闭非必要遥测，方法见 [Microsoft 官方说明](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_telemetry?view=powershell-7.6)。不要以新网络目的地或代理绕过执行环境拒绝。
-
-最终门槛仍按设计 E01–E20/J01–J05：真实账号渠道、真实订阅、真实平台素材、桌面安装版和实际 Quartz 站点。Mock/fixture、未认证负例、编译成功均不代替真实正向旅程。任何必要 BLOCKED/FAIL/SKIPPED 必须列出，不得改筛选器隐藏。
-
-## 6. 尚需部署方动作的真实门槛
-
-微信主体/API 资格、Telegram Bot 的绑定授权、订阅账号安全登录、OpenBao 初始化及最小权限身份、允许使用的真实素材和可执行浏览器/桌面安装测试的环境。所有这些在实际操作前逐项核验；当前代码不声称已经完成它们。
+首期在 GitHub 托管 runner 验证云端 CLI 和知识服务、Web 客户端与 Agent 协议。CI 检查范围、构建目标和真实验收分别见 [验证规则](../../docs/testing.md)。部署方使用模型或秘密服务前，需要准备获准的账号、凭据和最小权限身份。

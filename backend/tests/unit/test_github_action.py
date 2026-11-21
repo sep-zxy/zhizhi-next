@@ -221,33 +221,21 @@ def _current_platform_workflow() -> Path:
     return Path(__file__).resolve().parents[3] / ".github/workflows/ci.yml"
 
 
-def test_repository_backend_ci_covers_all_supported_platforms() -> None:
+def test_repository_ci_requires_all_first_release_jobs() -> None:
     path = _current_platform_workflow()
     workflow = _load_workflow(path)
-    job = workflow["jobs"]["components"]
-    assert job["runs-on"] == "${{ matrix.os }}"
-    assert job["strategy"]["fail-fast"] is False
-    assert job["strategy"]["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
-    import runpy
-    planner = runpy.run_path(str(path.parents[2] / "scripts/ci-plan.py"))
-    standard = planner["component_matrix"](["backend"])
-    assert {item["os"] for item in standard["include"]} == {"ubuntu-24.04"}
-    matrix = planner["component_matrix"](["backend"], full=True)
-    assert {item["os"] for item in matrix["include"]} == {
-        "ubuntu-24.04", "windows-latest", "macos-15-intel"
-    }
+    jobs = workflow["jobs"]
     assert workflow["defaults"]["run"]["shell"] == "pwsh"
-    assert workflow["on"]["workflow_dispatch"]["inputs"]["profile"]["options"] == [
-        "standard", "full"
-    ]
+    assert jobs["backend"]["runs-on"] == "ubuntu-24.04"
+    assert jobs["web"]["strategy"]["matrix"]["target"] == ["learning-web", "wiki-private"]
+    assert jobs["package"]["uses"] == "./.github/workflows/build.yml"
+    assert jobs["package"]["with"]["target"] == "backend"
+    assert jobs["required"]["name"] == "Required checks"
+    assert set(jobs["required"]["needs"]) == {"repository", "backend", "web", "agent", "package"}
+
     source = path.read_text(encoding="utf-8")
     assert "test-integration -Target backend" in source
-    assert "benchmarks/graphify/bench_graphify.py" in source
-    performance = next(step for step in job["steps"]
-                       if step.get("name") == "Performance gates on the Linux reference runner")
-    assert "needs.plan.outputs.full == 'true'" in performance["if"]
-    assert "test_async_dao_threadpool.py -m performance" in performance["run"]
-    assert "real_account_e2e=$false" in source
+    assert "test-integration -Target pi-zhizhi" in source
     assert "continue-on-error" not in source
 
 
@@ -257,7 +245,7 @@ def test_current_sqlite_gate_executes_and_rejects_unsupported_versions(
 ) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     workflow = _load_workflow(_current_platform_workflow())
-    step = next(step for step in workflow["jobs"]["components"]["steps"]
+    step = next(step for step in workflow["jobs"]["backend"]["steps"]
                 if step.get("name") == "Verify supported SQLite runtime")
     command = shlex.split(step["run"])
     assert command[:7] == ["uv", "run", "--project", "backend", "--no-sync", "python", "-c"]
@@ -283,7 +271,7 @@ def test_repository_ci_does_not_enable_unrequested_paid_nightly_calls() -> None:
     assert "persist-credentials: false" in source
 
 
-def test_repository_release_requires_successful_matching_desktop_artifacts() -> None:
+def test_repository_release_requires_successful_matching_first_release_artifacts() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     workflow_path = repo_root / ".github/workflows/release.yml"
     workflow = _load_workflow(workflow_path)
@@ -291,16 +279,23 @@ def test_repository_release_requires_successful_matching_desktop_artifacts() -> 
     assert {"build_run", "expected_source", "artifact_name", "tag", "publish"} <= set(workflow["on"]["workflow_dispatch"]["inputs"])
     assert workflow["on"]["workflow_dispatch"]["inputs"]["publish"]["default"] is False
     source = workflow_path.read_text(encoding="utf-8")
-    assert "$run.conclusion -ne 'success'" in source
-    assert "$run.path -ne '.github/workflows/build.yml'" in source
-    assert "$run.head_sha -ne $env:SOURCE" in source
+    assert "$build.conclusion -ne 'success'" in source
+    assert "$build.path -ne '.github/workflows/build.yml'" in source
+    assert "$build.head_sha -ne $env:SOURCE" in source
+    assert "event=push&head_sha=$env:SOURCE&status=success" in source
     assert "$receipt.source -ne $env:SOURCE" in source
+    assert "$receipt.run_attempt -ne $build.run_attempt" in source
     assert "-Algorithm SHA256" in source
     assert "continue-on-error" not in source
+    assert workflow["jobs"]["verify"]["permissions"]["contents"] == "read"
+    assert workflow["jobs"]["publish"]["needs"] == "verify"
+    assert workflow["jobs"]["publish"]["permissions"]["contents"] == "write"
+
     build = _load_workflow(repo_root / ".github/workflows/build.yml")
-    matrix_source = build["jobs"]["plan"]["steps"][0]["run"]
-    assert "windows-x64" in matrix_source
-    assert "macos-arm64" in matrix_source
+    assert build["jobs"]["build"]["runs-on"] == "ubuntu-24.04"
+    assert build["on"]["workflow_dispatch"]["inputs"]["target"]["options"] == [
+        "backend", "learning-web", "wiki-private", "pi-zhizhi",
+    ]
 
 
 def test_repository_does_not_publish_pages_implicitly_on_push() -> None:

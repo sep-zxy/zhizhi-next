@@ -1,71 +1,51 @@
-"""Select affected component owners; always keep a repository check and final verdict."""
+"""Decide whether a pull request touches the first-release code or tooling."""
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
-ALL = ["backend", "learning-web", "wiki-private", "desktop", "public-wiki", "pi-zhizhi", "vault-manager", "continuity-widget", "obsidian-ai-writer"]
-OWNERS = {
-    "backend/": {"backend"},
-    "apps/learning-web/": {"learning-web"},
-    "apps/wiki-private/": {"wiki-private"},
-    "apps/desktop/": {"desktop"},
-    "apps/public-wiki/": {"public-wiki"},
-    "integrations/pi-zhizhi/": {"pi-zhizhi"},
-    "optional/vault-manager/": {"vault-manager"},
-    "optional/continuity-widget/": {"continuity-widget"},
-    "optional/obsidian-ai-writer/": {"obsidian-ai-writer"},
-    "knowledge-contracts/": {"backend", "wiki-private", "public-wiki", "vault-manager", "continuity-widget"},
-    "tests/": {"backend"},
+ACTIVE_DIRS = (
+    ".github/", "scripts/", "backend/", "apps/learning-web/", "apps/wiki-private/",
+    "deploy/knowledge-platform/", "integrations/pi-zhizhi/", "knowledge-contracts/",
+    "tests/e2e/", "tests/repository/",
+)
+ACTIVE_FILES = {
+    ".gitattributes", "config/toolchains.json", "config/examples/platform.example.json",
+    "config/examples/models.example.json",
 }
-DOCUMENT_NAMES = {"README.md", "AGENTS.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "LICENSE.md"}
+REFERENCE_TESTS = {
+    "tests/repository/test_design_coverage_matrix.py",
+    "tests/repository/test_layout.py",
+    "tests/e2e/test_channel_configuration.py",
+    "tests/e2e/test_channel_secret_recovery.py",
+    "tests/e2e/test_desktop_configuration.py",
+}
 
 
-def select_modules(changed: list[str]) -> list[str]:
-    """Select owners, not every client; shared knowledge contracts keep consumer coverage."""
-    selected: set[str] = set()
-    for name in changed:
+def needs_product_checks(paths: list[str]) -> bool:
+    for name in paths:
         path = PurePosixPath(name)
-        if path.name in DOCUMENT_NAMES or path.parts[0] in {"docs", ".agents", "archive"} or "docs" in path.parts:
+        if path.name in {"README.md", "AGENTS.md"} or "docs" in path.parts or name in REFERENCE_TESTS:
             continue
-        if name.startswith(("scripts/", ".github/", "config/")):
-            selected.update(ALL)
-        for prefix, owners in OWNERS.items():
-            if name.startswith(prefix):
-                selected.update(owners)
-    return [name for name in ALL if name in selected]
-
-
-def component_matrix(modules: list[str], full: bool = False) -> dict:
-    return {"include": [
-        {"target": module, "os": runner}
-        for module in modules
-        for runner in (["ubuntu-24.04", "windows-latest", "macos-15-intel"] if full and module == "backend" else ["ubuntu-24.04"])
-    ]}
+        if name in ACTIVE_FILES or name.startswith(ACTIVE_DIRS):
+            return True
+    return False
 
 
 def main() -> None:
-    base = os.environ.get("BASE_SHA", "")
-    head = os.environ.get("GITHUB_SHA", "HEAD")
-    event = os.environ.get("GITHUB_EVENT_NAME", "")
-    full = event == "workflow_dispatch" and os.environ.get("CI_PROFILE") == "full"
-    if event == "workflow_dispatch" or not base or set(base) == {"0"}:
-        modules = list(ALL)
-    else:
-        changed = subprocess.check_output(["git", "diff", "--name-only", base, head], cwd=ROOT, text=True).splitlines()
-        modules = select_modules(changed)
-    browsers = [name for name in modules if name in {"learning-web", "wiki-private"}]
-    output = os.environ.get("GITHUB_OUTPUT")
-    if output:
-        with Path(output).open("a", encoding="utf-8") as stream:
-            stream.write("modules=" + json.dumps(modules, separators=(",", ":")) + "\n")
-            stream.write("matrix=" + json.dumps(component_matrix(modules, full), separators=(",", ":")) + "\n")
-            stream.write("browsers=" + json.dumps(browsers, separators=(",", ":")) + "\n")
-            stream.write("full=" + str(full).lower() + "\n")
-    print(json.dumps({"selected": modules, "profile": "full" if full else "standard", "real_model_calls": False}))
+    verify = True
+    base = os.environ.get("BASE_SHA")
+    if os.environ["GITHUB_EVENT_NAME"] == "pull_request" and base:
+        changed = subprocess.check_output(
+            ["git", "diff", "--no-renames", "--name-only", "-z", base, "HEAD"], cwd=ROOT,
+        ).decode("utf-8").split("\0")
+        verify = needs_product_checks([path for path in changed if path])
+    scope = "product" if verify else "metadata"
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+        stream.write(f"scope={scope}\n")
+    print(f"CI scope: {scope}")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,9 @@ import { installServeMock } from '../fixtures/serve-mock';
 import { assertHarnessSources } from '../fixtures/harness-sources';
 
 const TEST_PATH = '/__active-exercise-test.html';
+const HARNESS_READY_TIMEOUT_MS = 8_000;
+// A cold Vite start and the full reveal-to-rating flow share this case budget.
+const PRACTICE_FLOW_TIMEOUT_MS = 20_000;
 const QUESTION = 'Complete a similar example:\nif request_fails:\n    ____';
 const REFERENCE = 'if request_fails:\n    retry_later()';
 const QUIZ = {
@@ -165,7 +168,7 @@ beforeEach(async () => {
 async function openHarness(): Promise<void> {
   await page.goto(`${baseUrl}${TEST_PATH}`);
   await Promise.race([
-    page.waitForFunction(() => window.__activeReady),
+    page.waitForFunction(() => window.__activeReady, undefined, { timeout: HARNESS_READY_TIMEOUT_MS }),
     harnessFailure.then(message => { throw new Error(message); }),
   ]);
 }
@@ -204,7 +207,7 @@ describe('active transfer practice', () => {
     expect(requests.find(request => request.path.endsWith('/srs-review'))?.body).toMatchObject({
       card_id: 'card_exercise_synthetic', answer: 'good', peeked_this_session: false,
     });
-  });
+  }, PRACTICE_FLOW_TIMEOUT_MS);
 
   it('keeps an unsuccessful reveal private and retryable without losing the attempt', async () => {
     let available = false;
