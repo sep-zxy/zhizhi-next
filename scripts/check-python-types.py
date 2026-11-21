@@ -1,4 +1,4 @@
-"""Reject new strict diagnostics against the immutable pre-migration source.
+"""Reject new strict diagnostics against an immutable Zhizhi Next commit.
 
 The full existing debt is reported, never suppressed or rewritten into a mutable
 allowlist. Both trees use the same locked pyright, interpreter and strict rules.
@@ -17,7 +17,7 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = "62397c2ffed74d4938149f5d40e4d7a1b88c7c29"
+BASELINE = "a8749ee3c8de8ef0622e46e6d0e83507b197d2e6"
 
 
 def run_types(project: Path, configuration: dict, output: Path) -> dict:
@@ -59,14 +59,14 @@ def diagnostics(report: dict, project: Path) -> Counter:
 def main() -> int:
     artifacts = ROOT / "artifacts"
     artifacts.mkdir(exist_ok=True)
-    archive = subprocess.check_output(["git", "archive", BASELINE, "projects/growth/src", "projects/growth/pyproject.toml"], cwd=ROOT)
+    archive = subprocess.check_output(["git", "archive", BASELINE, "backend/src", "backend/pyproject.toml"], cwd=ROOT)
     # Keep the baseline and its relative Pyright include on one drive. Hosted
     # Windows checks out on D: while the default temporary directory is on C:.
     with tempfile.TemporaryDirectory(prefix="zhizhi-type-baseline-", dir=artifacts) as temporary:
         baseline_root = Path(temporary)
         with tarfile.open(fileobj=io.BytesIO(archive)) as source:
             source.extractall(baseline_root, filter="data")
-        original = baseline_root / "projects/growth"
+        original = baseline_root / "backend"
         configuration = tomllib.loads((original / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["pyright"]
         if configuration["typeCheckingMode"] != "strict":
             raise RuntimeError("Immutable baseline is not strict")
