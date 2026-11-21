@@ -74,7 +74,7 @@ jobs:
           switch ($env:TARGET) {
             'backend' { Copy-Item -Path 'artifacts/backend/*.whl' -Destination $out }
             'learning-web' { Copy-Item -LiteralPath 'apps/learning-web/dist' -Destination "$out/learning-web" -Recurse }
-            'wiki-private' { Copy-Item -LiteralPath 'apps/wiki-private/dist' -Destination $out }
+            'wiki-private' { Copy-Item -LiteralPath 'apps/wiki-private/dist' -Destination "$out/wiki-private" -Recurse }
             'pi-zhizhi' { Copy-Item -LiteralPath 'integrations/pi-zhizhi/dist' -Destination "$out/pi-extension" -Recurse }
           }
           ./scripts/build-receipt.ps1 -Target $env:TARGET -Output $out
