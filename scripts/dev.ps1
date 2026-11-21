@@ -85,7 +85,7 @@ try {
                 'typecheck' { Invoke-Tool 'uv' @('run','--no-sync','python','../scripts/check-python-types.py') }
                 'test' {
                     Invoke-Tool 'uv' @(
-                        'run','--no-sync','python','-m','pytest','tests/unit','../tests/repository/test_ci_plan.py',
+                        'run','--no-sync','python','-m','pytest','tests/unit',
                         '--ignore=tests/unit/growth/test_m7_local_cloud_server.py',
                         '--ignore=tests/unit/serve/test_growth_cloud_export.py',
                         '--ignore=tests/unit/test_apkg_export.py',

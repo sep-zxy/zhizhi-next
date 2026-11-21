@@ -58,11 +58,11 @@ jobs:
           $wheel = Get-ChildItem -LiteralPath 'artifacts/backend' -Filter '*.whl' | Select-Object -First 1
           if (-not $wheel) { throw 'Missing backend wheel' }
           Set-Location 'backend'
-          uv pip install --no-deps $wheel.FullName
+          uv pip install --python './.venv/bin/python' --no-deps $wheel.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Backend wheel installation failed' }
-          uv run --no-sync ahadiff --help
+          & './.venv/bin/ahadiff' --help
           if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI entry point failed' }
-          uv run --no-sync python -m ahadiff.knowledge_platform --help
+          & './.venv/bin/python' -m ahadiff.knowledge_platform --help
           if ($LASTEXITCODE -ne 0) { throw 'Packaged knowledge service entry point failed' }
       - name: Collect immutable artifacts
         env:
@@ -80,7 +80,8 @@ jobs:
           ./scripts/build-receipt.ps1 -Target $env:TARGET -Output $out
       - uses: actions/upload-artifact@v4
         with:
-          name: build-${{ inputs.target }}-linux-x64-${{ github.sha }}
+          name: build-${{ inputs.target }}-linux-x64-${{ github.sha }}-attempt-${{ github.run_attempt }}
           path: artifacts/distribution/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

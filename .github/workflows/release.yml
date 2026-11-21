@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       build_run:
-        description: Successful Build artifacts run ID
+        description: Successful standalone Build artifacts run ID from main
         required: true
         type: string
       artifact_name:
-        description: Exact artifact name from that run
+        description: Exact artifact name from the successful build attempt
         required: true
         type: string
       expected_source:
-        description: Full source SHA reviewed for release
+        description: Full source SHA verified on main
         required: true
         type: string
       tag:
@@ -19,26 +19,32 @@ on:
         required: true
         type: string
       publish:
-        description: Explicitly publish these artifacts
+        description: Publish after verification
         type: boolean
         default: false
 permissions:
   contents: read
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: pwsh
+
 jobs:
-  release:
-    if: inputs.publish && github.ref == 'refs/heads/main'
+  verify:
+    name: Verify the build and CI evidence
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
-      contents: write
       actions: read
-    defaults:
-      run:
-        shell: pwsh
+      contents: read
+    outputs:
+      sha256: ${{ steps.bundle.outputs.sha256 }}
+      name: ${{ steps.bundle.outputs.name }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Verify source, workflow and artifact receipt
+      - id: bundle
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RUN: ${{ inputs.build_run }}
@@ -47,23 +53,93 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:BUILD_RUN -notmatch '^\d+$' -or $env:SOURCE -notmatch '^[0-9a-f]{40}$' -or $env:RELEASE_TAG -notmatch '^v[0-9][A-Za-z0-9._-]*$') { throw 'Invalid immutable release input' }
-          $runPath = "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN"
-          $run = gh api $runPath | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $run.conclusion -ne 'success' -or $run.head_sha -ne $env:SOURCE -or $run.path -ne '.github/workflows/build.yml') { throw 'Build run identity mismatch' }
+          if ($env:BUILD_RUN -notmatch '^\d+$' -or $env:SOURCE -cnotmatch '^[0-9a-f]{40}$' -or
+              $env:RELEASE_TAG -cnotmatch '^v[0-9][A-Za-z0-9._-]*$') { throw 'Invalid release input' }
+          $repo = "repos/$env:GITHUB_REPOSITORY"
+          $build = gh api "$repo/actions/runs/$env:BUILD_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $build.conclusion -ne 'success' -or $build.head_sha -ne $env:SOURCE -or
+              $build.path -ne '.github/workflows/build.yml' -or $build.head_branch -ne 'main' -or
+              $build.event -ne 'workflow_dispatch') { throw 'Build run does not match the approved source' }
+          $allowedTargets = 'backend|learning-web|wiki-private|pi-zhizhi'
+          if ($env:ARTIFACT -cnotmatch "^build-($allowedTargets)-linux-x64-$env:SOURCE-attempt-$($build.run_attempt)$") {
+            throw 'Artifact does not match a first-release target from the successful attempt'
+          }
+          $target = $Matches[1]
+
+          $ciPath = "$repo/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=$env:SOURCE&status=success&per_page=1"
+          $ci = gh api $ciPath | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $ci.total_count -lt 1) { throw 'No successful main CI run for this source' }
+
           gh run download $env:BUILD_RUN --repo $env:GITHUB_REPOSITORY --name $env:ARTIFACT --dir release-input
           if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
-          $receipt = Get-Content -LiteralPath 'release-input/build-receipt.json' -Encoding UTF8 -Raw | ConvertFrom-Json
-          if ($receipt.source -ne $env:SOURCE -or $receipt.repository -ne $env:GITHUB_REPOSITORY -or $receipt.run_id -ne $env:BUILD_RUN) { throw 'Receipt identity mismatch' }
-          if ($receipt.target -cnotin @('backend','learning-web','wiki-private','pi-zhizhi') -or
-              $env:ARTIFACT -cne "build-$($receipt.target)-linux-x64-$env:SOURCE") { throw 'Artifact is outside the Next first-release scope' }
-          foreach ($line in Get-Content -LiteralPath 'release-input/SHA256SUMS.txt' -Encoding UTF8) {
-            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw 'Invalid checksum line' }
-            $expectedHash = $Matches[1]
-            $root = (Resolve-Path -LiteralPath 'release-input').Path
-            $file = [IO.Path]::GetFullPath((Join-Path $root $Matches[2]))
-            if (-not $file.StartsWith($root + [IO.Path]::DirectorySeparatorChar) -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedHash) { throw 'Artifact checksum mismatch' }
+          $root = (Resolve-Path -LiteralPath 'release-input').Path
+          $receiptPath = Join-Path $root 'build-receipt.json'
+          $checksumsPath = Join-Path $root 'SHA256SUMS.txt'
+          $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($receipt.schema_version -ne 1 -or $receipt.source -ne $env:SOURCE -or
+              $receipt.repository -ne $env:GITHUB_REPOSITORY -or $receipt.run_id -ne $env:BUILD_RUN -or
+              $receipt.run_attempt -ne $build.run_attempt -or $receipt.target -ne $target) {
+            throw 'Build receipt identity mismatch'
           }
-          Compress-Archive -Path 'release-input/*' -DestinationPath 'zhizhi-artifact.zip'
-          gh release create $env:RELEASE_TAG 'zhizhi-artifact.zip' --repo $env:GITHUB_REPOSITORY --target $env:SOURCE --title $env:RELEASE_TAG --notes '发布已验证构建产物；未执行站点部署或真实账号验收。'
+
+          $files = @(Get-ChildItem -LiteralPath $root -File -Recurse -Force |
+            Where-Object FullName -NotIn @($receiptPath, $checksumsPath))
+          $remaining = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+          foreach ($file in $files) { $null = $remaining.Add([IO.Path]::GetRelativePath($root, $file.FullName)) }
+          if ($files.Count -eq 0 -or $files.Count -ne $receipt.files) { throw 'Build receipt file count mismatch' }
+          foreach ($line in Get-Content -LiteralPath $checksumsPath -Encoding UTF8) {
+            if ($line -cnotmatch '^([a-f0-9]{64})  (.+)$') { throw 'Malformed checksum entry' }
+            $hash = $Matches[1]
+            $relativePath = $Matches[2]
+            if (-not $remaining.Remove($relativePath) -or
+                (Get-FileHash -LiteralPath (Join-Path $root $relativePath) -Algorithm SHA256).Hash -ine $hash) {
+              throw 'Artifact file set or checksum does not match'
+            }
+          }
+          if ($remaining.Count) { throw 'Artifact contains files without checksums' }
+
+          $zip = Join-Path (Get-Location).Path 'zhizhi-artifact.zip'
+          [IO.Compression.ZipFile]::CreateFromDirectory($root, $zip)
+          $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          @("sha256=$digest", "name=release-bundle-$env:GITHUB_RUN_ATTEMPT") |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+          "Verified $target from build $env:BUILD_RUN and main CI $($ci.workflow_runs[0].id)." |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        if: inputs.publish
+        with:
+          name: ${{ steps.bundle.outputs.name }}
+          path: zhizhi-artifact.zip
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    name: Publish the verified bundle
+    if: inputs.publish && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.verify.outputs.name }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA256: ${{ needs.verify.outputs.sha256 }}
+          SOURCE: ${{ inputs.expected_source }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'zhizhi-artifact.zip'
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $env:EXPECTED_SHA256) {
+            throw 'Verified release bundle digest mismatch'
+          }
+          $tagRef = "refs/tags/$env:RELEASE_TAG"
+          $tagMatches = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or ($tagMatches | Where-Object ref -CEQ $tagRef)) {
+            throw 'Cannot verify that the release tag is new'
+          }
+          gh release create $env:RELEASE_TAG $zip --repo $env:GITHUB_REPOSITORY --target $env:SOURCE --title $env:RELEASE_TAG --notes '发布已验证的知枝 Next 构建产物。'
           if ($LASTEXITCODE -ne 0) { throw 'Release failed' }
