@@ -5,16 +5,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      profile:
-        description: Standard Linux checks or full cross-platform, browser and performance regression
-        type: choice
-        options: [standard, full]
-        default: standard
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 defaults:
   run:
@@ -24,14 +18,14 @@ env:
   PYTHONDONTWRITEBYTECODE: '1'
   PYTHONUTF8: '1'
   PYTHONUNBUFFERED: '1'
+
 jobs:
-  plan:
+  repository:
+    name: Repository policy
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
-      modules: ${{ steps.plan.outputs.modules }}
-      matrix: ${{ steps.plan.outputs.matrix }}
-      browsers: ${{ steps.plan.outputs.browsers }}
-      full: ${{ steps.plan.outputs.full }}
+      scope: ${{ steps.scope.outputs.scope }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,123 +34,130 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           node: 'false'
-      - id: plan
+      - id: scope
+        name: Select checks for the source under review
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          CI_PROFILE: ${{ inputs.profile || 'standard' }}
         run: |
           $ErrorActionPreference = 'Stop'
           uv run --no-project python scripts/ci-plan.py
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot determine affected components' }
-  repository:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-        with:
-          node: 'false'
-      - name: Validate repository metadata and maintained links
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot determine CI scope' }
+      - name: Check maintained metadata and CI scope rules
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           $ErrorActionPreference = 'Stop'
           uv run --no-project python scripts/check-repository.py
           if ($LASTEXITCODE -ne 0) { throw 'Repository metadata checks failed' }
-          git diff --check
-          if ($LASTEXITCODE -ne 0) { throw 'Whitespace errors' }
-  components:
-    needs: plan
-    if: needs.plan.outputs.modules != '[]'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+          uv run --no-project python -m unittest discover -s tests/repository -p test_ci_plan.py
+          if ($LASTEXITCODE -ne 0) { throw 'CI scope tests failed' }
+          $paths = @('.github','scripts','backend','apps/learning-web','apps/wiki-private','integrations/pi-zhizhi','knowledge-contracts')
+          if ($env:BASE_SHA -match '^[0-9a-f]{40}$' -and $env:BASE_SHA -ne ('0' * 40)) {
+            git diff --check $env:BASE_SHA HEAD -- @paths
+          } else {
+            git show --format= --check HEAD -- @paths
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Source whitespace check failed' }
+
+  backend:
+    name: Cloud CLI and API
+    needs: repository
+    if: needs.repository.outputs.scope == 'product'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          rust: ${{ contains(matrix.target, 'vault-manager') || contains(matrix.target, 'continuity-widget') }}
-      - name: Install locked component dependencies
-        env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/dev.ps1 install -Target $env:TARGET
+      - id: deps
+        name: Install locked backend dependencies
+        run: ./scripts/dev.ps1 install -Target backend
       - name: Verify supported SQLite runtime
-        if: matrix.target == 'backend'
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: uv run --project backend --no-sync python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
-      - name: Compile Quartz vendored dependencies and renderer
-        if: matrix.target == 'public-wiki'
-        run: ./scripts/dev.ps1 build -Target public-wiki
-      - name: Install browser for browser-backed unit tests
-        if: matrix.target == 'learning-web'
-        run: |
-          $ErrorActionPreference = 'Stop'
-          node apps/learning-web/node_modules/@playwright/test/cli.js install --with-deps chromium
-          if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed' }
-      - name: Types
-        env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/dev.ps1 typecheck -Target $env:TARGET
-      - name: Unit behavior
-        id: unit
-        if: ${{ !cancelled() }}
-        env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/dev.ps1 test -Target $env:TARGET
-      - name: Save backend unit diagnostics before integration
-        if: ${{ always() && matrix.target == 'backend' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-unit-${{ matrix.os }}-${{ github.sha }}
-          path: |
-            artifacts/backend-unit.xml
-            artifacts/python-types*.json
-          if-no-files-found: ${{ steps.unit.outcome == 'success' && 'error' || 'ignore' }}
-          retention-days: 7
-      - name: Real isolated backend composition
-        if: ${{ !cancelled() && matrix.target == 'backend' }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          ./scripts/dev.ps1 test-integration -Target backend
-      - name: Performance gates on the Linux reference runner
-        if: ${{ !cancelled() && needs.plan.outputs.full == 'true' && matrix.target == 'backend' && matrix.os == 'ubuntu-24.04' }}
+      - name: Verify CLI and knowledge service entry points
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           $ErrorActionPreference = 'Stop'
-          uv run --project backend --no-sync python -m pytest backend/tests/unit/test_async_dao_threadpool.py -m performance -v --tb=short --junitxml=artifacts/backend-performance.xml
-          if ($LASTEXITCODE -ne 0) { throw 'Threadpool latency performance check failed' }
-          uv run --project backend --no-sync python backend/benchmarks/scripts/bench_serve_read_routes.py
-          if ($LASTEXITCODE -ne 0) { throw 'Read-route performance check failed' }
-          uv run --project backend --no-sync python backend/benchmarks/graphify/bench_graphify.py
-          if ($LASTEXITCODE -ne 0) { throw 'Graphify performance check failed' }
-      - name: Build affected application
-        if: needs.plan.outputs.full == 'true' && contains(fromJSON('["learning-web","wiki-private","pi-zhizhi","obsidian-ai-writer","vault-manager","continuity-widget"]'), matrix.target)
-        env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/dev.ps1 build -Target $env:TARGET
-      - name: Record exact scope
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-          @{source=$env:GITHUB_SHA;target=$env:TARGET;run=$env:GITHUB_RUN_ID;profile='${{ needs.plan.outputs.full == 'true' && 'full' || 'standard' }}';real_account_e2e=$false;visual_review=$false} | ConvertTo-Json | Set-Content -LiteralPath "artifacts/ci-$env:TARGET.json" -Encoding UTF8
+          uv run --project backend --no-sync python -m ahadiff --help
+          if ($LASTEXITCODE -ne 0) { throw 'CLI entry point failed' }
+          uv run --project backend --no-sync python -m ahadiff.knowledge_platform --help
+          if ($LASTEXITCODE -ne 0) { throw 'Knowledge service entry point failed' }
+      - name: Check Python types
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: ./scripts/dev.ps1 typecheck -Target backend
+      - name: Run backend unit tests
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: ./scripts/dev.ps1 test -Target backend
+      - name: Run the API with isolated services and data
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: ./scripts/dev.ps1 test-integration -Target backend
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ci-${{ matrix.target }}-${{ matrix.os }}-${{ github.sha }}
-          path: artifacts/
+          name: cloud-api-reports-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            artifacts/backend-unit.xml
+            artifacts/backend-integration.xml
+            artifacts/python-types*.json
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
           retention-days: 7
-  protocol:
-    needs: plan
-    if: contains(needs.plan.outputs.modules, 'backend') || contains(needs.plan.outputs.modules, 'pi-zhizhi')
+
+  web:
+    name: Web / ${{ matrix.target }}
+    needs: repository
+    if: needs.repository.outputs.scope == 'product'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [learning-web, wiki-private]
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Install locked dependencies
+        run: ./scripts/dev.ps1 install -Target $env:TARGET
+      - name: Install Chromium
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node "apps/$env:TARGET/node_modules/@playwright/test/cli.js" install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed' }
+      - name: Check Web types
+        run: ./scripts/dev.ps1 typecheck -Target $env:TARGET
+      - name: Run Web unit tests
+        run: ./scripts/dev.ps1 test -Target $env:TARGET
+      - name: Run Web journeys with API fixtures
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location "apps/$env:TARGET"
+          $argsForPlaywright = @('node_modules/@playwright/test/cli.js','test','--config','playwright.ci.config.ts')
+          if ($env:TARGET -eq 'learning-web') { $argsForPlaywright += 'tests/e2e/zhizhi-domain.spec.ts' }
+          node @argsForPlaywright
+          if ($LASTEXITCODE -ne 0) { throw 'Browser fixture interaction failed' }
+      - name: Build private Wiki
+        if: matrix.target == 'wiki-private'
+        run: ./scripts/dev.ps1 build -Target $env:TARGET
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-${{ matrix.target }}-reports-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: artifacts/browser-*.xml
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
+          retention-days: 7
+
+  agent:
+    name: Agent tool protocol
+    needs: repository
+    if: needs.repository.outputs.scope == 'product'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -164,73 +165,50 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - name: Install locked Python and Pi dependencies
+      - name: Install locked Python and Agent dependencies
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/dev.ps1 install -Target backend
           ./scripts/dev.ps1 install -Target pi-zhizhi
-      - name: Python and TypeScript protocol composition, zero real model calls
+      - name: Check Agent types
+        run: ./scripts/dev.ps1 typecheck -Target pi-zhizhi
+      - name: Run Agent unit tests
+        run: ./scripts/dev.ps1 test -Target pi-zhizhi
+      - name: Exercise the Python bridge without real model calls
         run: ./scripts/dev.ps1 test-integration -Target pi-zhizhi
-  browser:
-    needs: plan
-    if: needs.plan.outputs.full == 'true' && needs.plan.outputs.browsers != '[]'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        target: ${{ fromJSON(needs.plan.outputs.browsers) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/dev.ps1 install -Target $env:TARGET
-      - name: Install Chromium
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          node "apps/$env:TARGET/node_modules/@playwright/test/cli.js" install --with-deps chromium
-          if ($LASTEXITCODE -ne 0) { throw 'Browser installation failed' }
-      - name: Synthetic interaction, no screenshots or visual comparison
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Set-Location "apps/$env:TARGET"
-          if ($env:TARGET -eq 'learning-web') {
-            node node_modules/@playwright/test/cli.js test --config playwright.ci.config.ts tests/e2e/zhizhi-domain.spec.ts
-          } else { node node_modules/@playwright/test/cli.js test --config playwright.ci.config.ts }
-          if ($LASTEXITCODE -ne 0) { throw 'Browser fixture interaction failed' }
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-${{ matrix.target }}-${{ github.sha }}
-          path: artifacts/browser-*.xml
-          if-no-files-found: ${{ job.status == 'success' && 'error' || 'ignore' }}
-          retention-days: 7
+      - name: Build Agent integration
+        run: ./scripts/dev.ps1 build -Target pi-zhizhi
+
+  package:
+    name: Cloud CLI package
+    needs: repository
+    if: needs.repository.outputs.scope == 'product'
+    uses: ./.github/workflows/build.yml
+    with:
+      target: backend
+
   required:
     name: Required checks
     if: always()
-    needs: [plan, repository, components, protocol, browser]
+    needs: [repository, backend, web, agent, package]
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - env:
-          PLAN_RESULT: ${{ needs.plan.result }}
-          REPOSITORY_RESULT: ${{ needs.repository.result }}
-          COMPONENT_RESULT: ${{ needs.components.result }}
-          PROTOCOL_RESULT: ${{ needs.protocol.result }}
-          BROWSER_RESULT: ${{ needs.browser.result }}
-          MODULES: ${{ needs.plan.outputs.modules }}
-          FULL: ${{ needs.plan.outputs.full }}
+      - name: Verify every job required by this scope
+        env:
+          SCOPE: ${{ needs.repository.outputs.scope }}
+          RESULTS: ${{ toJSON(needs) }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:PLAN_RESULT -ne 'success' -or $env:REPOSITORY_RESULT -ne 'success') { throw 'Repository checks did not pass' }
-          if ($env:MODULES -ne '[]' -and $env:COMPONENT_RESULT -ne 'success') { throw 'Required component checks did not pass' }
-          $modules = @($env:MODULES | ConvertFrom-Json)
-          if (($modules -contains 'backend' -or $modules -contains 'pi-zhizhi') -and $env:PROTOCOL_RESULT -ne 'success') { throw 'Required protocol composition did not pass' }
-          if ($env:FULL -eq 'true' -and ($modules -contains 'learning-web' -or $modules -contains 'wiki-private') -and $env:BROWSER_RESULT -ne 'success') { throw 'Required browser interaction did not pass' }
-          Write-Output 'All checks required by the affected-component plan passed; no live E2E is implied.'
+          $results = $env:RESULTS | ConvertFrom-Json -AsHashtable
+          $summary = @("Source: $env:GITHUB_SHA", "Scope: $env:SCOPE", '', '| Job | Result |', '| --- | --- |')
+          foreach ($job in $results.GetEnumerator()) {
+            $summary += "| $($job.Key) | $($job.Value.result) |"
+          }
+          $summary | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+          if ($results.repository.result -ne 'success') { throw 'Repository policy did not pass' }
+          if ($env:SCOPE -notin 'metadata','product') { throw 'Unknown CI scope' }
+          $expected = if ($env:SCOPE -eq 'product') { 'success' } else { 'skipped' }
+          foreach ($name in 'backend','web','agent','package') {
+            if ($results[$name].result -ne $expected) { throw "$name expected $expected, got $($results[$name].result)" }
+          }

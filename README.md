@@ -24,7 +24,7 @@
 
 ## 目标构想
 
-日常通过微信、Telegram 或电脑入口向知识 Agent 分享资料、提出问题；复杂的审阅和图谱操作放在 Web 工作台；长期知识在 Obsidian 中编辑，通过 Markdown/Git 保留版本。
+首期由云端 CLI 和知识服务处理材料、知识库与学习任务。Web 与安卓使用同一套服务接口，提供资料提交、学习、Wiki 和对话入口；桌面侧只规划轻量 Git 采集。当前验证范围见 [首期交付范围](docs/testing.md#首期交付范围)。
 
 ![知枝目标构想：材料与项目实践汇入同一套个人知识体系](docs/assets/vision/target-overview.png)
 
@@ -35,7 +35,7 @@
 | 积累同一个主题 | 用主题 Wiki 组织原子知识卡；新来源和学习成果优先补旧卡，保留边界与修订历史 |
 | 建立知识之间的联系 | 看清两个知识点为什么有关，关联到具体依据，并区分候选关系与确认关系 |
 | 决定接下来学什么 | 用地图查看已有知识，用雷达发现值得探索的缺口，采纳后进入学习任务 |
-| 保留并分享自己的知识 | 在 Obsidian 中维护正文；经过独立公开检查的内容可生成只读 Wiki 站点 |
+| 保留并分享自己的知识 | 在 Obsidian 中维护正文；在私有 Wiki 中查阅正文、出处和修订历史 |
 
 ### 同一主题，区分知识整理与我的理解
 
@@ -103,15 +103,15 @@
 
 ## 当前阶段
 
-仓库已有材料收件与预览、来源保留、知识提案、分级复核、Git 写入、检索、工程学习、私有 Wiki、Pi 集成和 Quartz 公开投影等基础代码。工程学习已有候选聚合、旧卡匹配和知识焦点筛选等基础；上述原子卡统一模型、主题引用和完整每日预算仍是目标设计。
+仓库已有材料收件与预览、来源保留、知识提案、分级复核、Git 写入、检索、工程学习、私有 Wiki、Pi 集成等基础代码。工程学习已有候选聚合、旧卡匹配和知识焦点筛选等基础；上述原子卡统一模型、主题引用和完整每日预算仍是目标设计。
 
 接下来优先补齐：
 
-1. **Obsidian 主编辑闭环**：本地与平台同步、冲突检测、保留双方修改及明确合并。
+1. **云端 CLI 与共享服务**：收敛服务启动入口，让 Web 与安卓共用 API。
 2. **原子卡与主题组织**：明确卡片正文、主题引用和学习记录的归属，同主题呈现知识整理与个人理解。
 3. **候选与学习预算**：先聚合、匹配与筛选，再生成；控制正式新增和学习时间，避免积压压力。
 4. **关联与学习反馈**：让卡间候选关系有理由、有证据、有确认过程，学习成果优先补充旧卡。
-5. **真实使用与交付**：逐项验证消息渠道、模型账号、桌面安装和公开站点的完整旅程。
+5. **真实使用与交付**：验证云端 CLI、Web 与安卓共用服务的使用流程，再单独验证真实模型与设备。
 
 设计图中的平台适配、统一知识 Agent、双向同步和完整学习反馈，不能仅凭代码存在视为已经可用。当前技术职责见[实现架构](docs/architecture.md)，验证范围见[测试规则](docs/testing.md)。
 
@@ -119,13 +119,13 @@
 
 ### 获取应用或部署服务
 
-当前新仓库尚未发布正式 Release。维护者或 Fork 仓库可以在 [Build artifacts](https://github.com/sep-zxy/zhizhi-next/actions/workflows/build.yml) 中选择 `desktop`、`backend`、`wiki-private` 等目标，在 GitHub Actions 构建并下载对应产物。
+当前新仓库尚未发布正式 Release。维护者或 Fork 仓库可以用 [Build artifacts](https://github.com/sep-zxy/zhizhi-next/actions/workflows/build.yml) 构建 [首期产物](docs/testing.md#首期交付范围)。
 
-桌面包与源码不附带模型服务或账号额度。使用远程模型、消息渠道或独立知识服务前，需要配置自己的服务与身份；默认不会自动启用模型、渠道或公开发布。
+构建产物和源码不附带模型服务或账号额度。使用远程模型或云端知识服务需要配置服务与身份。
 
 - [使用入口](docs/user/quickstart.md)：应用与产物说明。
-- [配置参考](docs/configuration.md)：模型、身份、渠道与桌面配置。
-- [桌面宿主](apps/desktop/README.md) / [私有 Wiki](apps/wiki-private/README.md)：各入口的运行方式与限制。
+- [配置参考](docs/configuration.md) 提供模型和身份配置。
+- [云端知识服务](deploy/knowledge-platform/README.md) / [私有 Wiki](apps/wiki-private/README.md) 提供各入口的运行说明。
 
 ### 阅读源码与参与开发
 
@@ -150,11 +150,8 @@ zhizhi-next/
 │       └── growth/              # 既有工程学习、知识卡和本地模式
 ├── apps/
 │   ├── learning-web/          # 学习与练习界面
-│   ├── wiki-private/          # 私有知识工作台
-│   ├── desktop/               # Electron 桌面宿主
-│   └── public-wiki/           # Quartz 只读公开站
+│   └── wiki-private/          # 私有知识工作台
 ├── integrations/pi-zhizhi/    # Pi 工具、本人命令与模型桥
-├── optional/                 # 可选工具与插件
 ├── knowledge-contracts/      # 知识格式、Schema 与模板
 ├── config/                   # 工具链登记与配置示例
 ├── docs/                     # 当前使用、架构与开发说明
@@ -163,23 +160,15 @@ zhizhi-next/
 └── archive/                  # 历史设计、验收与退役交付材料
 ```
 
-技术基础为 Python / Starlette、SQLite、Markdown / Git、React / TypeScript / Vite 与 Electron；公开站复用 Quartz。正文、素材、流程状态和索引各有自己的存储职责，正式长期成果统一到 Wiki。
-
-可选组件保留独立安装和运行方式：
-
-| 组件 | 用途 |
-|---|---|
-| [Vault Manager](optional/vault-manager/README.md) | Obsidian 属性管理与校验 |
-| [Continuity Widget](optional/continuity-widget/README.md) | 项目工作区、任务状态与快照 CLI |
-| [Obsidian AI Writer](optional/obsidian-ai-writer/README.md) | 独立写作插件；平台双向同步另行建设 |
+技术基础为 Python / Starlette、SQLite、Markdown / Git 与 React / TypeScript / Vite。正文、素材、流程状态和索引各有自己的存储职责，正式长期成果统一到 Wiki。
 
 ## 数据、隐私与审核
 
 Markdown/Git 保存正式知识正文与修订历史，SQLite 保存任务和审核等流程状态，原始媒体与附件可以保存在独立的私有对象目录，检索与关系索引可以重建。
 
-普通、有依据的增补可以按规则自动通过；个人观点、核心结论、重要合并删除和隐私范围放宽需要本人确认。公开站只读取通过公开资格检查的内容，原始材料、私人学习过程和个人表达各自保留权限。
+普通、有依据的增补可以按规则自动通过；个人观点、核心结论、重要合并删除和隐私范围放宽需要本人确认。原始材料、私人学习过程和个人表达各自保留访问权限。
 
-接入远程模型或消息服务会涉及相应的数据发送与账号配置。提交 Issue 时，请附上复现步骤和脱敏日志，并先移除凭据、私人知识与工作区数据库。
+接入远程模型会涉及相应的数据发送与账号配置。提交 Issue 时，请附上复现步骤和脱敏日志，并先移除凭据、私人知识与工作区数据库。
 
 ## 来源与贡献
 
@@ -191,11 +180,11 @@ Markdown/Git 保存正式知识正文与修订历史，SQLite 保存任务和审
 
 | 仓库 | 在项目演进中的角色 |
 |---|---|
-| [zhizhi](https://github.com/sep-zxy/zhizhi) | 最初的知枝项目，也是当前工程学习实践与产品思路的起点；保留代码证据、知识卡、学习与 Wiki 的基础闭环。 |
+| [zhizhi](https://github.com/sep-zxy/zhizhi) | 原知枝的历史备份，供追溯产品思路和早期工程学习实践。当前功能开发和发行集中在 `zhizhi-next`。 |
 | [zhizhi-platform](https://github.com/sep-zxy/zhizhi-platform) | 中间阶段的开发与集成仓库，用于推进统一知识平台、验证组件协作和积累实现；属于阶段性开发记录。 |
 | [zhizhi-next](https://github.com/sep-zxy/zhizhi-next) | 当前继续开发的仓库，在已有实践上整理工程结构，推进材料、项目、个人理解与知识关联的统一工作流。 |
 
-本仓库沿用了阶段性开发仓库的 Git 历史，以保留实现过程和变更追溯；这层历史继承与产品思路的来源分别说明。路径迁移基线见 [迁移记录](docs/migration/layout.json)。Python 包与 CLI 仍使用 `ahadiff`，桌面既有数据目录保持兼容，避免仓库重组影响已有工作区。
+本仓库沿用了阶段性开发仓库的 Git 历史，以保留实现过程和变更追溯；这层历史继承与产品思路的来源分别说明。路径迁移基线见 [迁移记录](docs/migration/layout.json)。Python 包与 CLI 继续使用 `ahadiff`。
 
 ### 参与贡献与第三方来源
 

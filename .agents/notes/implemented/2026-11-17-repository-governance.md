@@ -12,7 +12,7 @@ Status: implemented
 
 本地默认仅语法解析；类型、测试和构建在 GitHub 托管 runner 执行，真实验收、发行分别手动触发。工具链统一登记，各组件保留既有依赖管理方式。
 
-日常 CI 按组件所有权运行 Linux 标准检查；文档改动只校验维护元数据，知识契约变动覆盖实际消费者。后端或 Pi 改动保留协议组合；原有后端单元与隔离集成继续执行。跨平台重复回归、独立浏览器旅程、性能基准和应用构建由同一工作流的手动 full 模式承接，具体入口与证据边界以 [验证规则](../../../docs/testing.md) 为准。
+首期 CI 按云端 CLI 与 API、Web、Agent 协议和可安装产物设置独立任务。纯文档和历史参考的 PR 只做仓库元数据校验，合入 main 后执行完整首期检查。具体范围见 [验证规则](../../../docs/testing.md)。
 
 参考 DeepSeek Harness 的 [主 CI](https://github.com/deepseek-ai/deepseek-harness/blob/master/.github/workflows/ci.yml) 与 [Python CI](https://github.com/deepseek-ai/deepseek-harness/blob/master/.github/workflows/ci-python.yml) 的分层与稳定汇总方式，范围按本仓库的组件和发布阶段确定。main 通过 PR 与 Required checks 保护，禁止强推和删除，要求解决审阅对话；个人维护不强制额外审批人数。
 
@@ -26,4 +26,4 @@ Status: implemented
 
 相对路径、打包资源和 CI 需要同步迁移。源文档在 archive 保留原始证据，不能直接作为当前验收结论。检查结果以对应提交的 Actions 为准。
 
-标准检查不证明 Windows/macOS 兼容性、浏览器旅程、性能或产物可安装；相应发布或跨平台改动需主动触发完整回归和目标构建。Required checks 成功只代表本次计划范围内的任务通过。
+Required checks 成功表示所选范围内的检查通过。首期验证的环境及真实验收证据按验证规则单独记录。

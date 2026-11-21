@@ -62,10 +62,10 @@ dependencies = [
 ahadiff = "ahadiff.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/sep-zxy/zhizhi"
-Repository = "https://github.com/sep-zxy/zhizhi"
-Documentation = "https://github.com/sep-zxy/zhizhi/blob/main/docs/USER_GUIDE.md"
-Issues = "https://github.com/sep-zxy/zhizhi/issues"
+Homepage = "https://github.com/sep-zxy/zhizhi-next"
+Repository = "https://github.com/sep-zxy/zhizhi-next"
+Documentation = "https://github.com/sep-zxy/zhizhi-next/blob/main/docs/user/quickstart.md"
+Issues = "https://github.com/sep-zxy/zhizhi-next/issues"
 
 [project.optional-dependencies]
 captions = ["webvtt-py==0.5.1"]
@@ -136,7 +136,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "pinned: deterministic pinned integration fixtures",
-  "performance: fixed timing budgets for the explicit full CI profile",
+  "performance: fixed timing budgets for explicit performance runs",
 ]
 
 [tool.ruff]
