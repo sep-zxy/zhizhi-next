@@ -114,6 +114,7 @@ try {
                         'tests/knowledge_platform/intake/test_publication_status.py'
                         'tests/knowledge_platform/intake/test_wechat_sdk.py'
                         'tests/knowledge_platform/zhizhi/test_publication_certificates.py'
+                        'tests/knowledge_platform/zhizhi/test_publish.py'
                         'tests/knowledge_platform/zhizhi/test_publish_artifacts.py'
                     )
                     $historicalCases = @(

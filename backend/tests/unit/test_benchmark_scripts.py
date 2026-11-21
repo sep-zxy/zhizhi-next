@@ -167,10 +167,12 @@ def test_serve_read_route_benchmark_fails_http_errors() -> None:
     assert "http_status_500" in result["validation_errors"]
 
 
-def test_current_checks_workflow_runs_graphify_perf_gate() -> None:
+def test_current_ci_keeps_performance_budgets_out_of_product_checks() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "benchmarks/graphify/bench_graphify.py" in workflow
+    assert "bench_graphify.py" not in workflow
+    assert "bench_serve_read_routes.py" not in workflow
+    assert " -m performance" not in workflow
 
 
 def test_graph_present_fixture_is_manifested_and_parseable() -> None:

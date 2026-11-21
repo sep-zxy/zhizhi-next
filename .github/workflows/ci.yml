@@ -74,13 +74,15 @@ jobs:
       - id: deps
         name: Install locked backend dependencies
         run: ./scripts/dev.ps1 install -Target backend
-      - name: Verify supported SQLite and CLI entry points
+      - name: Verify supported SQLite runtime
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/src
+        run: uv run --project backend --no-sync python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
+      - name: Verify CLI and knowledge service entry points
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           $ErrorActionPreference = 'Stop'
-          uv run --project backend --no-sync python -c "import sqlite3; from ahadiff.core.sqlite_util import assert_sqlite_runtime_supported; print(sqlite3.sqlite_version); assert_sqlite_runtime_supported()"
-          if ($LASTEXITCODE -ne 0) { throw 'Unsupported SQLite runtime' }
           uv run --project backend --no-sync python -m ahadiff --help
           if ($LASTEXITCODE -ne 0) { throw 'CLI entry point failed' }
           uv run --project backend --no-sync python -m ahadiff.knowledge_platform --help
