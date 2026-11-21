@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Textarea } from '@mantine/core';
 import {
-  decideRadar, getRadarSuggestions, radarSubmissionLabel, readRadarPractice,
-  submitRadarPractice, type RadarPractice, type RadarSuggestion,
+  decideRadar, getRadarSuggestions, getSnoozedRadarSuggestions, radarSubmissionLabel,
+  readRadarPractice, submitRadarPractice, type RadarPractice, type RadarSuggestion,
+  type SnoozedRadarPage,
 } from '../api/radar';
 
 export default function RadarPracticePanel({activeId, onSelect}: {
   activeId: string|null; onSelect: (id: string|null) => void;
 }) {
   const [suggestions, setSuggestions] = useState<RadarSuggestion[]>([]);
+  const [showSnoozed, setShowSnoozed] = useState(false);
+  const [snoozed, setSnoozed] = useState<SnoozedRadarPage|null>(null);
   const [current, setCurrent] = useState<RadarPractice|null>(null);
   const [text, setText] = useState('');
   const [status, setStatus] = useState('');
@@ -38,32 +41,58 @@ export default function RadarPracticePanel({activeId, onSelect}: {
     finally { working.current = false; setBusy(false); }
   }
 
+  async function loadSnoozed(previous?: SnoozedRadarPage) {
+    setShowSnoozed(true);
+    setStatus('');
+    setSnoozed(null);
+    const page = await getSnoozedRadarSuggestions(previous?.next_cursor ?? undefined);
+    setSnoozed(previous ? {...page, suggestions: [...previous.suggestions, ...page.suggestions]} : page);
+  }
+
+  const visibleSuggestions = showSnoozed ? (snoozed?.suggestions ?? []) : suggestions;
+
   return <section className="knowledge-paper" aria-label="架构学习雷达">
     <h2>架构学习雷达</h2>
     <p>从已有条目的待验证问题出发，补齐技术特点、设计取舍与适用边界。接受建议不代表已经掌握。</p>
     {error && <p role="alert">{error}</p>}
     {status && <p role="status">{status}</p>}
     {!activeId && <>
-      <Button variant="default" loading={busy} onClick={() => void act(async () => {
+      <Button variant="default" loading={busy && !showSnoozed} disabled={busy}
+        onClick={() => void act(async () => {
+        setShowSnoozed(false);
+        setSnoozed(null);
+        setStatus('');
         const next = await getRadarSuggestions(); setSuggestions(next);
         setStatus(next.length ? '' : '当前没有有据可查的待验证问题。');
       })}>查看学习建议</Button>
-      <ul>{suggestions.map(item => <li key={item.suggestion_id}>
+      {' '}<Button variant="default" loading={busy && showSnoozed} disabled={busy}
+        onClick={() => void act(() => loadSnoozed())}>稍后再学</Button>
+      {showSnoozed && snoozed && !snoozed.suggestions.length && !snoozed.next_cursor &&
+        <p role="status">当前没有可以继续练习的暂缓建议。</p>}
+      <ul>{visibleSuggestions.map(item => <li key={item.suggestion_id}>
         <h3>{item.proposed_exercise}</h3><p>{item.reason}</p>
         {item.expected_artifact && <p>练习产出：{item.expected_artifact}</p>}
         <Button disabled={busy} onClick={() => void act(async () => {
           const value = await decideRadar(item.suggestion_id, 'accept');
+          setSuggestions(items => items.filter(row => row.suggestion_id !== item.suggestion_id));
+          setSnoozed(page => page && {...page,
+            suggestions: page.suggestions.filter(row => row.suggestion_id !== item.suggestion_id)});
           setCurrent(value); onSelect(item.suggestion_id);
-        })}>开始练习</Button>{' '}
-        <Button variant="subtle" disabled={busy} onClick={() => void act(async () => {
-          await decideRadar(item.suggestion_id, 'snooze');
-          setSuggestions(items => items.filter(row => row.suggestion_id !== item.suggestion_id));
-        })}>稍后</Button>{' '}
-        <Button variant="subtle" disabled={busy} onClick={() => void act(async () => {
-          await decideRadar(item.suggestion_id, 'reject');
-          setSuggestions(items => items.filter(row => row.suggestion_id !== item.suggestion_id));
-        })}>不采用</Button>
+        })}>开始练习</Button>
+        {!showSnoozed && <>{' '}
+          <Button variant="subtle" disabled={busy} onClick={() => void act(async () => {
+            await decideRadar(item.suggestion_id, 'snooze');
+            setSuggestions(items => items.filter(row => row.suggestion_id !== item.suggestion_id));
+            setStatus('已移到「稍后再学」。');
+          })}>稍后</Button>{' '}
+          <Button variant="subtle" disabled={busy} onClick={() => void act(async () => {
+            await decideRadar(item.suggestion_id, 'reject');
+            setSuggestions(items => items.filter(row => row.suggestion_id !== item.suggestion_id));
+          })}>不采用</Button>
+        </>}
       </li>)}</ul>
+      {showSnoozed && snoozed?.next_cursor && <Button variant="subtle" disabled={busy}
+        onClick={() => void act(() => loadSnoozed(snoozed))}>查看更多</Button>}
     </>}
     {activeId && !current && !error && <p role="status">正在恢复练习…</p>}
     {current?.practice && <>

@@ -89,6 +89,7 @@ async function serve(
     failIndex?: boolean;
     empty?: boolean;
     failSave?: boolean;
+    failSnoozedOnce?: boolean;
     writeback?: boolean;
     streamInterrupted?: boolean;
     bridge?:
@@ -119,6 +120,13 @@ async function serve(
   const requests: string[] = [];
   const decisions: unknown[] = [];
   const completions: unknown[] = [];
+  const radarSuggestion = {
+    suggestion_id: 'r1',
+    proposed_exercise: '解释幂等边界',
+    reason: '真实待验证问题',
+  };
+  let radarState = 'proposed';
+  let failSnoozed = options.failSnoozedOnce;
   const chats: Record<string, unknown>[] = [];
   const wikiPath = root + '/entry-learning-contexts';
   const wikiSubPath = wikiPath + '/' + wikiId + '/understanding/submissions';
@@ -181,6 +189,7 @@ async function serve(
     [root + '/cards/' + cardId + '/entry-contexts']: ['GET'],
     [root + '/cards/' + otherCardId + '/entry-contexts']: ['GET'],
     [root + '/radar/runs']: ['POST'],
+    [root + '/radar/snoozed']: ['GET'],
     [root + '/radar/r1/decision']: ['POST'],
     [root + '/radar/r1']: ['GET'],
     [root + '/radar/r1/complete']: ['POST'],
@@ -705,22 +714,31 @@ async function serve(
       return json({ title: '明确事务边界', patch: '-旧实现\n+新的事务边界' });
     if (url.pathname === root + '/radar/runs')
       return json({
-        suggestions: [
-          {
-            suggestion_id: 'r1',
-            proposed_exercise: '解释幂等边界',
-            reason: '真实待验证问题',
-            suggestion_state: 'proposed',
-          },
-        ],
+        suggestions: radarState === 'proposed'
+          ? [{ ...radarSuggestion, suggestion_state: radarState }]
+          : [],
       });
+    if (url.pathname === root + '/radar/snoozed') {
+      if (failSnoozed) {
+        failSnoozed = false;
+        return json({ error: '暂时无法读取暂缓建议' }, 503);
+      }
+      return json({
+        suggestions: radarState === 'snoozed'
+          ? [{ ...radarSuggestion, suggestion_state: radarState }]
+          : [],
+        next_cursor: null,
+      });
+    }
     if (url.pathname === root + '/radar/r1/decision') {
-      decisions.push(request.postDataJSON());
-      expect(request.postDataJSON()).toEqual({ decision: 'accept' });
+      const { decision } = request.postDataJSON();
+      decisions.push({ decision });
+      expect(['accept', 'snooze']).toContain(decision);
+      radarState = decision === 'snooze' ? 'snoozed' : 'accepted';
       return json({
         suggestion_id: 'r1',
-        suggestion_state: 'accepted',
-        learning_id: 'learning1',
+        suggestion_state: radarState,
+        ...(radarState === 'accepted' ? { learning_id: 'learning1' } : {}),
       });
     }
     if (url.pathname === root + '/radar/r1')
@@ -881,6 +899,34 @@ test('雷达接受后只提交真实原话，离线显示待发', async ({ page 
   expect(calls.completions).toEqual([
     { user_text: '我会用请求标识保证重试幂等' },
   ]);
+});
+
+test('雷达暂缓后刷新仍能找回同一建议并继续练习', async ({ page }) => {
+  const calls = await serve(page, { failSnoozedOnce: true });
+  await page.goto('/#/growth?view=radar');
+  const radar = page.getByRole('region', { name: '架构学习雷达' });
+  const saved = radar.getByRole('button', { name: '稍后再学', exact: true });
+  const empty = radar.getByText('当前没有可以继续练习的暂缓建议。', { exact: true });
+  const question = radar.getByRole('heading', { name: '解释幂等边界', exact: true });
+  await radar.getByRole('button', { name: '查看学习建议' }).click();
+  await expect(question).toBeVisible();
+  await radar.getByRole('button', { name: '稍后', exact: true }).click();
+  await expect(radar.getByText('已移到「稍后再学」。')).toBeVisible();
+  await expect(question).toHaveCount(0);
+
+  await page.reload();
+  await saved.click();
+  await expect(radar.getByRole('alert')).toContainText('暂时无法读取暂缓建议');
+  await expect(empty).toHaveCount(0);
+  await saved.click();
+  await expect(question).toBeVisible();
+  await expect(radar.getByRole('button', { name: '不采用' })).toHaveCount(0);
+  await radar.getByRole('button', { name: '开始练习' }).click();
+  await expect(radar.getByText('重试何时安全？')).toBeVisible();
+  await radar.getByRole('button', { name: '返回学习建议' }).click();
+  await saved.click();
+  await expect(empty).toBeVisible();
+  expect(calls.decisions).toEqual([{ decision: 'snooze' }, { decision: 'accept' }]);
 });
 
 test('首页与学习库继续同一卡片的会话和本人草稿', async ({ page }) => {

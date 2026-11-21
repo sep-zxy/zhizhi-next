@@ -445,6 +445,12 @@ class RemoteKnowledgeBackend:
             payload={"limit": limit},
         )
 
+    async def list_snoozed_radar(self, *, before: str | None) -> dict[str, Any]:
+        path = "/api/knowledge/v1/radar/snoozed"
+        if before is not None:
+            path += "?" + urlencode({"before": before})
+        return await self._request("GET", path)
+
     async def preview_learning_plan(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Read an exact-source deterministic plan, with no persistent enrollment."""
         return await self._request("POST", "/api/knowledge/v1/radar/plans/preview", payload=payload)
@@ -468,9 +474,15 @@ class RemoteKnowledgeBackend:
         if decision not in {"accept", "reject", "snooze"}:
             raise BackendError("INVALID_INPUT", "Invalid radar decision")
         async with self._delivery_lock:
+            legacy_key = "radar-decision:" + suggestion_id
+            legacy = self.outbox.get(legacy_key)
+            # Retry an existing request under its original key. New decisions get their own key.
+            key = f"{legacy_key}:{decision}"
+            if legacy and legacy["payload"].get("decision") == decision and legacy["state"] != "rejected":
+                key = legacy_key
             return await self._deliver(
                 self.outbox.enqueue(
-                    "radar-decision:" + suggestion_id,
+                    key,
                     self._radar_path(suggestion_id) + "/decision",
                     {"decision": decision},
                 )

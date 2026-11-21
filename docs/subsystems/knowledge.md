@@ -8,4 +8,6 @@
 
 Git 保存正文与版本化元数据，SQLite 保存目录、任务、审核及恢复账本。搜索采用中文 n-gram 与 SQLite FTS5。关系分 navigation、candidate、confirmed，不因路径连通或学习完成推断掌握。
 
+学习雷达点「稍后」后，可从「稍后再学」找回本人仍可练习的建议。这个列表也读取旧的暂缓记录，跳过已关闭或资料不可用的建议。从列表点「开始练习」沿用原建议，重试不会创建第二份学习任务。知识服务通过 `GET /api/knowledge/v1/radar/snoozed` 分页读取，后续页将返回的 `next_cursor` 作为 `before` 参数传入。
+
 历史详细协议保留于 [领域 API 基线](../../archive/acceptance/implementation/DOMAIN_API.md)，阅读时需结合现有源码；该记录不证明新目录或当前版本已完成真实账号验收。
