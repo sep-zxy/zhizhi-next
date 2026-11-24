@@ -138,6 +138,11 @@ def create_read_routes(domain: Any, model_runner: Any = None) -> list[Route]:
             radar.decide, request.path_params["suggestion_id"], payload["decision"], actor=actor
         )
 
+    async def radar_snoozed_handler(request: Request, actor: Any, trace_id: str) -> dict[str, Any]:
+        return await run_in_threadpool(
+            radar.list_snoozed, actor=actor, before=request.query_params.get("before")
+        )
+
     async def radar_read_handler(request: Request, actor: Any, trace_id: str) -> dict[str, Any]:
         return await run_in_threadpool(
             radar.read, request.path_params["suggestion_id"], actor=actor
@@ -162,6 +167,7 @@ def create_read_routes(domain: Any, model_runner: Any = None) -> list[Route]:
         Route("/api/knowledge/v1/growth", endpoint(growth_handler), methods=["GET"]),
         Route("/api/knowledge/v1/learning/outcomes", endpoint(outcome_handler), methods=["POST"]),
         Route("/api/knowledge/v1/radar/runs", endpoint(radar_handler), methods=["POST"]),
+        Route("/api/knowledge/v1/radar/snoozed", endpoint(radar_snoozed_handler), methods=["GET"]),
         Route(
             "/api/knowledge/v1/radar/{suggestion_id}", endpoint(radar_read_handler), methods=["GET"]
         ),

@@ -9,6 +9,35 @@ from typing import Any, cast
 from ahadiff.knowledge_platform.errors import DomainError
 
 
+def _open_questions(entry: dict[str, Any]) -> list[tuple[str, dict[str, Any] | None]]:
+    metadata: dict[str, Any] = entry.get("metadata") or {}
+    legacy = metadata.get("open_questions", [])
+    questions = cast("list[Any]", legacy) if isinstance(legacy, list) else []
+    records = metadata.get("open_question_records")
+    provenance: dict[str, dict[str, Any]] = {}
+    closed: set[str] = set()
+    if isinstance(records, list):
+        for item in cast("list[Any]", records):
+            if not isinstance(item, dict):
+                continue
+            record = cast("dict[str, Any]", item)
+            text = record.get("text")
+            if not isinstance(text, str):
+                continue
+            if record.get("state") == "open":
+                provenance[text] = record
+            elif record.get("state") in {"resolved", "dismissed"}:
+                closed.add(text)
+        questions = list(dict.fromkeys([
+            *(question for question in questions if isinstance(question, str)), *provenance,
+        ]))
+    return [
+        (question, provenance.get(question))
+        for question in questions
+        if isinstance(question, str) and question.strip() and question not in closed
+    ]
+
+
 class RadarService:
     """Recommend explicit unresolved questions, not speculative ability scores."""
 
@@ -206,59 +235,16 @@ class RadarService:
         suggestions = []
         for entry in SearchService(self.domain).entries(actor):
             enforce_read_classification(actor, entry)
-            metadata = entry.get("metadata") or {}
-            questions = metadata.get("open_questions", [])
-            if not isinstance(questions, list):
-                questions = []
-            records = metadata.get("open_question_records")
-            question_records = (
-                {
-                    item["text"]: item
-                    for item in records
-                    if isinstance(item, dict)
-                    and isinstance(item.get("text"), str)
-                    and item.get("state") == "open"
-                }
-                if isinstance(records, list)
-                else None
-            )
-            if question_records is not None:
-                closed = {
-                    item.get("text")
-                    for item in records
-                    if isinstance(item, dict)
-                    and isinstance(item.get("text"), str)
-                    and item.get("state") in {"resolved", "dismissed"}
-                }
-                question_records = {
-                    text: item for text, item in question_records.items() if text not in closed
-                }
-                questions = list(
-                    dict.fromkeys(
-                        [
-                            *(
-                                item
-                                for item in questions
-                                if isinstance(item, str) and item not in closed
-                            ),
-                            *question_records,
-                        ]
-                    )
-                )
-            for question in questions:
-                if (
-                    not isinstance(question, str)
-                    or not question.strip()
-                    or not entry.get("evidence_refs")
-                ):
-                    continue
+            if not entry.get("evidence_refs"):
+                continue
+            for question, provenance in _open_questions(entry):
                 identity_payload = {
                     "entry_id": entry["entry_id"],
                     "question": question,
                     "evidence_refs": entry["evidence_refs"],
                 }
-                if question in (question_records or {}):
-                    identity_payload["question_provenance"] = question_records[question]
+                if provenance is not None:
+                    identity_payload["question_provenance"] = provenance
                 identity = hashlib.sha256(
                     json.dumps(
                         identity_payload,
@@ -282,8 +268,8 @@ class RadarService:
                     "classification": classify_record(entry),
                     "classification_labels": sorted(classification_labels(entry)),
                 }
-                if question_records is not None and question in question_records:
-                    payload["question_provenance"] = question_records[question]
+                if provenance is not None:
+                    payload["question_provenance"] = provenance
                 task = self.domain.create_radar_candidate(payload, actor=actor, identity=identity)
                 state = self.domain.get_channel_state("radar:" + task["task_id"], actor=actor).get(
                     "suggestion_state", "proposed"
@@ -302,6 +288,58 @@ class RadarService:
                     return suggestions
         return suggestions
 
+    def _require_snoozed_target(self, payload: dict[str, Any], *, actor: Any) -> None:
+        entry_id = payload["target_entry_ids"][0]
+        entry: dict[str, Any] = self.domain.get_practice_source(entry_id, actor=actor, revision=None)
+        if (
+            entry.get("deleted")
+            or not entry.get("evidence_refs")
+            or not any(question == payload["proposed_exercise"] for question, _ in _open_questions(entry))
+        ):
+            raise DomainError(
+                "SUGGESTION_UNAVAILABLE", "The saved question is no longer open", status_code=409
+            )
+        reference = payload.get("source_reference")
+        if reference is not None and self._read_source(entry_id, reference, actor=actor)[0] is None:
+            raise DomainError(
+                "SUGGESTION_UNAVAILABLE", "当时的资料无法读取。", status_code=409
+            )
+
+    def list_snoozed(self, *, actor: Any, before: str | None = None) -> dict[str, Any]:
+        """List saved suggestions without generating candidates or enrolling the user."""
+        from ahadiff.knowledge_platform.auth import classification_labels, classify_record
+        from ahadiff.knowledge_platform.errors import invalid
+
+        if before is not None and (not before.startswith("tsk_") or len(before) > 100):
+            raise invalid("Invalid snoozed suggestion cursor")
+        page_size = 20
+        tasks: list[dict[str, Any]] = self.domain.list_snoozed_radar_tasks(
+            actor=actor, before=before, limit=page_size + 1
+        )
+        suggestions: list[dict[str, Any]] = []
+        for task in tasks[:page_size]:
+            payload = task["payload"]
+            try:
+                self._require_snoozed_target(payload, actor=actor)
+            except DomainError as error:
+                if error.code in {"NOT_FOUND", "CLASSIFICATION_FORBIDDEN", "SUGGESTION_UNAVAILABLE"}:
+                    continue
+                raise
+            suggestions.append({
+                "suggestion_id": task["task_id"],
+                "suggestion_state": "snoozed",
+                "proposed_exercise": payload["proposed_exercise"],
+                "reason": payload["reason"],
+                "expected_artifact": payload.get("expected_artifact"),
+                "classification": classify_record(task),
+                "classification_labels": sorted(classification_labels(task)),
+            })
+        return {
+            "suggestions": suggestions,
+            "next_cursor": tasks[page_size - 1]["task_id"] if len(tasks) > page_size else None,
+            **({"data_classification": "public"} if not suggestions else {}),
+        }
+
     def decide(self, suggestion_id: str, decision: str, *, actor: Any) -> dict[str, Any]:
         """Accept once, preserving rejection until the evidence changes."""
         if actor.kind != "user":
@@ -316,12 +354,16 @@ class RadarService:
         previous = self.domain.get_channel_state("radar:" + suggestion_id, actor=actor)
         state = previous.get("suggestion_state", "proposed")
         target_state = {"accept": "accepted", "reject": "rejected", "snooze": "snoozed"}[decision]
-        if state != "proposed":
-            if state == target_state:
-                return previous
+        ordinary = "plan_hash" not in suggestion["payload"]
+        resuming = ordinary and state == "snoozed" and decision == "accept"
+        if state == target_state:
+            return previous
+        if state != "proposed" and not resuming:
             raise DomainError(
                 "INVALID_STATE", "Suggestion already has a different decision", status_code=409
             )
+        if resuming:
+            self._require_snoozed_target(suggestion["payload"], actor=actor)
         from ahadiff.knowledge_platform.auth import classification_labels, classify_record
 
         result: dict[str, Any] = {
@@ -330,14 +372,25 @@ class RadarService:
             "classification": classify_record(suggestion),
             "classification_labels": sorted(classification_labels(suggestion)),
         }
-        # The immutable decision claim serializes accept/reject across processes.
-        # If interrupted later, replay of this same decision resumes safely.
-        self.domain.create_task(
-            "radar_decision",
-            {"suggestion_id": suggestion_id, "decision": decision},
-            actor=actor,
-            idempotency_key="radar-decision-claim:" + suggestion_id,
-        )
+        # Keep historical first decisions immutable. A saved snooze opens a separate accept claim.
+        claim_key = "radar-decision-claim:" + suggestion_id
+        if resuming:
+            claim_key += ":after-snooze"
+        try:
+            self.domain.create_task(
+                "radar_decision",
+                {"suggestion_id": suggestion_id, "decision": decision},
+                actor=actor,
+                idempotency_key=claim_key,
+            )
+        except DomainError as error:
+            if (
+                ordinary and state == "proposed" and decision == "accept"
+                and error.code == "IDEMPOTENCY_CONFLICT"
+            ):
+                # A competing first decision may still be saving its state.
+                raise DomainError(error.code, str(error), retryable=True, status_code=409) from error
+            raise
         if decision == "accept":
             learning = self.domain.create_task(
                 "learning",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -365,6 +366,185 @@ def test_existing_desktop_radar_accept_response_and_restart_are_real_http(system
     assert client.post(prefix + "/runs", headers=headers, json={"limit": 3}).json()["suggestions"] == []
     assert domain.read_task(accepted.json()["learning_id"], actor=owner)["state"] == "succeeded"
     assert domain.get_entry(entry["entry_id"], actor=owner)["revision"] == 3
+
+
+def test_desktop_radar_snooze_reloads_and_submits_original_practice(system, tmp_path, monkeypatch):
+    domain, owner, writer, backend = system
+    questions = [f"待验证问题 {number}" for number in range(5)]
+    entry = make_entry(domain, owner, writer, questions=questions)
+    app = create_app(ServeState(state_dir=tmp_path / "desktop", token="local-token"))
+    client = TestClient(app, base_url="http://localhost:8765")
+    headers = {"Origin": "http://localhost:8765", "X-AhaDiff-Token": "local-token"}
+    prefix = "/api/growth/local/knowledge/radar"
+    assert client.get(prefix + "/snoozed").status_code == 401
+    initial = client.get(prefix + "/snoozed", headers=headers)
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["suggestions"] == []
+    proposed = client.post(prefix + "/runs", headers=headers, json={"limit": 100}).json()[
+        "suggestions"
+    ]
+    assert len(proposed) == 3
+    sid = proposed[0]["suggestion_id"]
+    reference = {
+        "entry_id": entry["entry_id"],
+        "revision": 1,
+        "expected_content_hash": entry["content_hash"],
+    }
+    assert proposed[0]["source_reference"] == reference
+    decision = prefix + f"/{sid}/decision"
+    snoozed = client.post(decision, headers=headers, json={"decision": "snooze"})
+    assert snoozed.status_code == 200, snoozed.text
+    assert snoozed.json()["suggestion_state"] == "snoozed"
+    rejected = client.post(
+        prefix + f"/{proposed[1]['suggestion_id']}/decision",
+        headers=headers, json={"decision": "reject"},
+    )
+    assert rejected.status_code == 200 and rejected.json()["suggestion_state"] == "rejected"
+    second = update_radar_entry(domain, owner, writer, entry)
+    assert second["revision"] == 2 and second["body"] != entry["body"]
+    remaining = client.post(prefix + "/runs", headers=headers, json={}).json()["suggestions"]
+    assert [item["proposed_exercise"] for item in remaining] == questions[2:]
+    assert remaining[0]["suggestion_id"] == proposed[2]["suggestion_id"]
+    assert remaining[0]["source_reference"] == reference
+
+    configure_desktop_backend(
+        RemoteKnowledgeBackend(
+            backend.base_url,
+            token_provider=backend.token_provider,
+            outbox=DurableOutbox(backend.outbox.directory),
+            client=backend.client,
+        ),
+        device_id="stable-device",
+    )
+    read_practice_source = domain.get_practice_source
+
+    def without_original_revision(entry_id, *, actor, revision):
+        if revision == 1:
+            raise DomainError("NOT_FOUND", "Original source revision is unavailable", status_code=404)
+        return read_practice_source(entry_id, actor=actor, revision=revision)
+
+    with monkeypatch.context() as restricted:
+        restricted.setattr(domain, "get_practice_source", without_original_revision)
+        assert client.get(prefix + "/snoozed", headers=headers).json()["suggestions"] == []
+        with pytest.raises(DomainError) as unavailable:
+            RadarService(domain).decide(sid, "accept", actor=owner)
+        assert unavailable.value.code == "SUGGESTION_UNAVAILABLE"
+        assert not any(task["kind"] == "learning" for task in domain.list_tasks(actor=owner)["items"])
+
+    saved = client.get(prefix + "/snoozed", headers=headers).json()["suggestions"]
+    assert [item["suggestion_id"] for item in saved] == [sid]
+    assert saved[0]["proposed_exercise"] == questions[0]
+    accepted = client.post(decision, headers=headers, json={"decision": "accept"})
+    assert accepted.status_code == 200, accepted.text
+    practice = accepted.json()["practice"]
+    assert practice["entry_id"] == entry["entry_id"]
+    assert practice["question"] == questions[0]
+    assert practice["source_status"] == "available"
+    assert practice["source_reference"] == reference
+    assert practice["title"] == entry["title"]
+    assert practice["body"] == entry["body"]
+    assert client.post(decision, headers=headers, json={"decision": "accept"}).json() == accepted.json()
+    assert client.get(prefix + "/snoozed", headers=headers).json()["suggestions"] == []
+    user_text = "我会用一条具体的重试记录核对行为。"
+    submitted = client.post(prefix + f"/{sid}/complete", headers=headers, json={"user_text": user_text})
+    assert submitted.status_code == 200, submitted.text
+    outcome = domain.get_learning_outcome(submitted.json()["outcome_id"], actor=owner)
+    assert outcome["payload"]["user_text"] == user_text
+    assert outcome["payload"]["metadata"]["source_reference"] == reference
+    restored = client.get(prefix + f"/{sid}", headers=headers).json()
+    assert restored["suggestion_state"] == "completed"
+    assert restored["user_text"] == user_text
+    assert restored["practice"] == practice
+    tasks = domain.list_tasks(actor=owner)["items"]
+    assert sorted(
+        task["payload"]["proposed_exercise"] for task in tasks if task["kind"] == "radar_suggestion"
+    ) == questions
+    assert [task["task_id"] for task in tasks if task["kind"] == "learning"] == [
+        accepted.json()["learning_id"]
+    ]
+
+
+def test_radar_legacy_snooze_replays_and_resumes_once(system):
+    domain, owner, writer, backend = system
+    question = "共有的合成问题"
+    entry = make_entry(domain, owner, writer, questions=[question])
+    radar = RadarService(domain)
+    identity = hashlib.sha256(json.dumps(
+        {"entry_id": entry["entry_id"], "question": question, "evidence_refs": entry["evidence_refs"]},
+        ensure_ascii=False, sort_keys=True,
+    ).encode()).hexdigest()
+    sid = domain.create_task(
+        "radar_suggestion",
+        {"target_entry_ids": [entry["entry_id"]], "proposed_exercise": question,
+         "evidence_refs": entry["evidence_refs"], "reason": "旧建议", "classification": "personal"},
+        actor=owner, idempotency_key="radar-candidate:" + identity,
+    )["task_id"]
+    domain.create_task(
+        "radar_decision", {"suggestion_id": sid, "decision": "snooze"},
+        actor=owner, idempotency_key="radar-decision-claim:" + sid,
+    )
+    old_state = {
+        "suggestion_id": sid, "suggestion_state": "snoozed",
+        "classification": "personal", "classification_labels": ["personal"],
+    }
+    domain.set_channel_state(
+        "radar:" + sid, old_state, actor=owner, idempotency_key=f"radar-decision:{sid}:snooze"
+    )
+    old_key = "radar-decision:" + sid
+    backend.outbox.enqueue(old_key, f"/api/knowledge/v1/radar/{sid}/decision", {"decision": "snooze"})
+    asyncio.run(backend.decide_radar(sid, "snooze"))
+    assert backend.outbox.get(old_key)["state"] == "acknowledged"
+    assert radar.run(actor=owner) == []
+    assert [item["suggestion_id"] for item in radar.list_snoozed(actor=owner)["suggestions"]] == [sid]
+    other = Actor("another-owner", "person", "user", frozenset({"*"}))
+    assert radar.list_snoozed(actor=other)["suggestions"] == []
+    with pytest.raises(DomainError, match="not found"):
+        radar.decide(sid, "accept", actor=other)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        accepted = list(pool.map(lambda _: radar.decide(sid, "accept", actor=owner), range(2)))
+    delivered = asyncio.run(backend.decide_radar(sid, "accept"))["data"]
+    assert delivered["learning_id"] == accepted[0]["learning_id"] == accepted[1]["learning_id"]
+    practice = radar.read(sid, actor=owner)["practice"]
+    assert practice["source_status"] == "unknown"
+    assert practice["question"] == question and practice["body"] == ""
+    assert "source_reference" not in practice
+    assert backend.outbox.get(old_key)["payload"] == {"decision": "snooze"}
+    with pytest.raises(DomainError) as late_snooze:
+        radar.decide(sid, "snooze", actor=owner)
+    assert late_snooze.value.code == "INVALID_STATE"
+    tasks = domain.list_tasks(actor=owner)["items"]
+    assert [task["task_id"] for task in tasks if task["kind"] == "learning"] == [
+        delivered["learning_id"]
+    ]
+
+
+def test_radar_snoozed_pages_keep_older_items_after_an_accept(system, monkeypatch):
+    domain, owner, writer, _ = system
+    questions = [f"合成分页问题 {number}" for number in range(21)]
+    entry = make_entry(domain, owner, writer, questions=questions)
+    radar = RadarService(domain)
+    ids = []
+    for _ in range(7):
+        for item in radar.run(actor=owner):
+            sid = item["suggestion_id"]
+            radar.decide(sid, "snooze", actor=owner)
+            ids.append(sid)
+    first = radar.list_snoozed(actor=owner)
+    assert [item["suggestion_id"] for item in first["suggestions"]] == ids[:0:-1]
+    assert first["next_cursor"] == ids[1]
+    radar.decide(ids[1], "accept", actor=owner)
+    older = radar.list_snoozed(actor=owner, before=first["next_cursor"])
+    assert [item["suggestion_id"] for item in older["suggestions"]] == ids[:1]
+    assert older["next_cursor"] is None
+
+    closed = {"text": questions[0], "state": "resolved"}
+    current = {**entry, "metadata": {**entry["metadata"], "open_question_records": [closed]}}
+    monkeypatch.setattr(domain, "get_practice_source", lambda *_args, **_kwargs: current)
+    assert radar.list_snoozed(actor=owner, before=first["next_cursor"])["suggestions"] == []
+    with pytest.raises(DomainError) as unavailable:
+        radar.decide(ids[0], "accept", actor=owner)
+    assert unavailable.value.code == "SUGGESTION_UNAVAILABLE"
 
 
 def test_radar_rejects_forged_completion_before_outcome_or_generation(system):

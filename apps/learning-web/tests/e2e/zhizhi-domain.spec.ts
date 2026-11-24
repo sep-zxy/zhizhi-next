@@ -119,6 +119,7 @@ async function serve(
     failIndex?: boolean;
     empty?: boolean;
     failSave?: boolean;
+    failSnoozedOnce?: boolean;
     writeback?: boolean;
     streamInterrupted?: boolean;
     bridge?:
@@ -143,6 +144,7 @@ async function serve(
       | 'denied';
     wikiExisting?: boolean;
     radarSource?: 'unknown' | 'unavailable';
+    versionedRadar?: boolean;
   } = {},
 ) {
   let note = options.noteText ?? '本人已保存的原话';
@@ -151,6 +153,16 @@ async function serve(
   const requests: string[] = [];
   const decisions: unknown[] = [];
   const completions: unknown[] = [];
+  const radarSuggestion = {
+    suggestion_id: 'r1',
+    proposed_exercise: '解释幂等边界',
+    reason: '真实待验证问题',
+  };
+  let radarState = 'proposed';
+  let currentRadarRevision = 1;
+  let pinnedRadarRevision: number | undefined;
+  let radarResponse = '';
+  let failSnoozed = options.failSnoozedOnce;
   const chats: Record<string, unknown>[] = [];
   const wikiPath = root + '/entry-learning-contexts';
   const wikiSubPath = wikiPath + '/' + wikiId + '/understanding/submissions';
@@ -215,6 +227,7 @@ async function serve(
     [root + '/cards/' + cardId + '/entry-contexts']: ['GET'],
     [root + '/cards/' + otherCardId + '/entry-contexts']: ['GET'],
     [root + '/radar/runs']: ['POST'],
+    [root + '/radar/snoozed']: ['GET'],
     [root + '/radar/r1/decision']: ['POST'],
     [root + '/radar/r1']: ['GET'],
     [root + '/radar/r1/complete']: ['POST'],
@@ -747,41 +760,64 @@ async function serve(
       expect(url.searchParams.get('binding_id')).toBe('b2');
       return json({ title: '第二项目的队列改动', patch: '+第二仓库的队列实现' });
     }
-    if (url.pathname === root + '/radar/runs')
+    if (url.pathname === root + '/radar/runs') {
+      if (radarState === 'proposed') pinnedRadarRevision ??= currentRadarRevision;
       return json({
-        suggestions: [
-          {
-            suggestion_id: 'r1',
-            proposed_exercise: '解释幂等边界',
-            reason: '真实待验证问题',
-            suggestion_state: 'proposed',
-          },
-        ],
-      });
-    if (url.pathname === root + '/radar/r1/decision') {
-      decisions.push(request.postDataJSON());
-      expect(request.postDataJSON()).toEqual({ decision: 'accept' });
-      return json({
-        suggestion_id: 'r1',
-        suggestion_state: 'accepted',
-        learning_id: 'learning1',
+        suggestions: radarState === 'proposed'
+          ? [{ ...radarSuggestion, suggestion_state: radarState }]
+          : [],
       });
     }
-    if (url.pathname === root + '/radar/r1')
+    if (url.pathname === root + '/radar/snoozed') {
+      if (failSnoozed) {
+        failSnoozed = false;
+        return json({ error: '暂时无法读取暂缓建议' }, 503);
+      }
+      return json({
+        suggestions: radarState === 'snoozed'
+          ? [{ ...radarSuggestion, suggestion_state: radarState }]
+          : [],
+        next_cursor: null,
+      });
+    }
+    if (url.pathname === root + '/radar/r1/decision') {
+      const { decision } = request.postDataJSON();
+      decisions.push({ decision });
+      expect(['accept', 'snooze']).toContain(decision);
+      radarState = decision === 'snooze' ? 'snoozed' : 'accepted';
       return json({
         suggestion_id: 'r1',
-        suggestion_state: options.radarSource ? 'completed' : 'accepted',
+        suggestion_state: radarState,
+        ...(radarState === 'accepted' ? { learning_id: 'learning1' } : {}),
+      });
+    }
+    if (url.pathname === root + '/radar/r1') {
+      const body = options.versionedRadar
+        ? `第 ${pinnedRadarRevision ?? currentRadarRevision} 版的合成资料`
+        : '已有知识证据';
+      const suggestionState = options.versionedRadar ? radarState : 'accepted';
+      return json({
+        suggestion_id: 'r1',
+        suggestion_state: options.radarSource ? 'completed' : suggestionState,
         ...(options.radarSource ? { user_text: '这是已经提交的本人原话。' } : {}),
+        ...(options.versionedRadar ? { user_text: radarResponse } : {}),
         practice: {
           entry_id: 'entry1',
           title: options.radarSource ? '' : '幂等边界',
-          body: options.radarSource ? '' : '已有知识证据',
+          body: options.radarSource ? '' : body,
           question: options.radarSource === 'unavailable' ? '' : '重试何时安全？',
           source_status: options.radarSource ?? 'available',
         },
       });
+    }
     if (url.pathname === root + '/radar/r1/complete') {
-      completions.push(request.postDataJSON());
+      const response = request.postDataJSON();
+      completions.push(response);
+      if (options.versionedRadar) {
+        radarResponse = response.user_text;
+        radarState = 'completed';
+        return json({ state: 'submitted', published: false, suggestion_id: 'r1' });
+      }
       return json({ state: 'pending', published: false, suggestion_id: 'r1' });
     }
     return json(
@@ -799,6 +835,7 @@ async function serve(
     requests,
     decisions,
     completions,
+    advanceRadarSource: () => { currentRadarRevision += 1; },
     chats,
     submissionBodies,
     contextBodies,
@@ -978,6 +1015,65 @@ test('雷达接受后只提交真实原话，离线显示待发', async ({ page 
   expect(calls.completions).toEqual([
     { user_text: '我会用请求标识保证重试幂等' },
   ]);
+});
+
+test('雷达暂缓后刷新仍能找回同一建议并继续练习', async ({ page }) => {
+  const calls = await serve(page, { failSnoozedOnce: true });
+  await page.goto('/#/growth?view=radar');
+  const radar = page.getByRole('region', { name: '架构学习雷达' });
+  const saved = radar.getByRole('button', { name: '稍后再学', exact: true });
+  const empty = radar.getByText('当前没有可以继续练习的暂缓建议。', { exact: true });
+  const question = radar.getByRole('heading', { name: '解释幂等边界', exact: true });
+  await radar.getByRole('button', { name: '查看学习建议' }).click();
+  await expect(question).toBeVisible();
+  await radar.getByRole('button', { name: '稍后', exact: true }).click();
+  await expect(radar.getByText('已移到「稍后再学」。')).toBeVisible();
+  await expect(question).toHaveCount(0);
+
+  await page.reload();
+  await saved.click();
+  await expect(radar.getByRole('alert')).toContainText('暂时无法读取暂缓建议');
+  await expect(empty).toHaveCount(0);
+  await saved.click();
+  await expect(question).toBeVisible();
+  await expect(radar.getByRole('button', { name: '不采用' })).toHaveCount(0);
+  await radar.getByRole('button', { name: '开始练习' }).click();
+  await expect(radar.getByText('重试何时安全？')).toBeVisible();
+  await radar.getByRole('button', { name: '返回学习建议' }).click();
+  await saved.click();
+  await expect(empty).toBeVisible();
+  expect(calls.decisions).toEqual([{ decision: 'snooze' }, { decision: 'accept' }]);
+});
+
+test('雷达暂缓期间资料更新后仍按第 1 版练习、提交和回看', async ({ page }) => {
+  const calls = await serve(page, { versionedRadar: true });
+  await page.goto('/#/growth?view=radar');
+  const radar = page.getByRole('region', { name: '架构学习雷达' });
+  await radar.getByRole('button', { name: '查看学习建议' }).click();
+  await radar.getByRole('button', { name: '稍后', exact: true }).click();
+  await expect(radar.getByText('已移到「稍后再学」。')).toBeVisible();
+  calls.advanceRadarSource();
+  await page.reload();
+  await radar.getByRole('button', { name: '稍后再学' }).click();
+  await expect(radar.getByRole('heading', { name: '解释幂等边界' })).toHaveCount(1);
+  await radar.getByRole('button', { name: '开始练习' }).click();
+  await radar.getByText('查阅已有知识与依据').click();
+  await expect(radar.getByText('第 1 版的合成资料')).toBeVisible();
+  await expect(radar.getByText('第 2 版的合成资料')).toHaveCount(0);
+  const userText = '我会用合成的第 1 版资料解释重试条件。';
+  const answer = radar.getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' });
+  await answer.fill(userText);
+  await radar.getByRole('button', { name: '提交学习原话' }).click();
+  await expect(radar.getByText('学习原话已提交，知识条目仍待生成与复核。')).toBeVisible();
+
+  await page.reload();
+  await expect(answer).toHaveValue(userText);
+  await expect(answer).not.toBeEditable();
+  await radar.getByText('查阅已有知识与依据').click();
+  await expect(radar.getByText('第 1 版的合成资料')).toBeVisible();
+  await expect(radar.getByText('第 2 版的合成资料')).toHaveCount(0);
+  expect(calls.decisions).toEqual([{ decision: 'snooze' }, { decision: 'accept' }]);
+  expect(calls.completions).toEqual([{ user_text: userText }]);
 });
 
 for (const [radarSource, notice] of [
