@@ -7,6 +7,7 @@ import type {
   WikiLearningSubmission,
 } from '../../src/api/wiki-learning';
 import type { UnderstandingSubmission } from '../../src/api/understanding';
+import type { KnowledgeCandidate } from '../../src/api/knowledge';
 
 test.use({
   launchOptions: {
@@ -83,6 +84,35 @@ const baseState = {
   local_topic_projects: [],
   local_explorations: [],
 };
+const candidateState = {
+  ...baseState,
+  projects: [
+    ...baseState.projects,
+    { ...baseState.projects[0], project_id: 'p2', name: '第二合成项目' },
+    { ...baseState.projects[0], project_id: 'p3', name: '未授权项目', local_processing: false },
+  ],
+  bindings: [
+    ...baseState.bindings,
+    { ...baseState.bindings[0], project_id: 'p2', binding_id: 'b-default', canonical_local_path: '/fixture-default' },
+    { ...baseState.bindings[0], project_id: 'p2', binding_id: 'b2', canonical_local_path: '/fixture-second' },
+    { ...baseState.bindings[0], project_id: 'p3', binding_id: 'b3', canonical_local_path: '/fixture-denied' },
+  ],
+  features: [...baseState.features, { ...baseState.features[0], project_id: 'p2', feature_id: 'f2' }],
+};
+const commitCandidate: KnowledgeCandidate = {
+  candidate_id: 'source-candidate',
+  title: '多项目合成候选',
+  reason: '两处改动都用于比较边界',
+  status: 'pending',
+  evidence_count: 3,
+  project_ids: ['p1', 'p2', 'p3'],
+  source_commit_shas: ['abc123', 'def456', 'aaa789'],
+  sources: [
+    { commit_sha: 'abc123', project_id: 'p1', binding_id: 'b1' },
+    { commit_sha: 'def456', project_id: 'p2', binding_id: 'b2' },
+    { commit_sha: 'aaa789', project_id: 'p3', binding_id: 'b3', commit_title: '不可读取的提交摘要' },
+  ],
+};
 async function serve(
   page: Page,
   options: {
@@ -101,6 +131,7 @@ async function serve(
       | 'delayed';
     noteText?: string;
     secondCard?: boolean;
+    candidateEvidence?: boolean;
     entryContext?: 'empty' | 'conflict' | 'lost' | 'denied';
     wiki?:
       | 'candidate'
@@ -112,6 +143,8 @@ async function serve(
       | 'delayed'
       | 'denied';
     wikiExisting?: boolean;
+    radarSource?: 'unknown' | 'unavailable';
+    versionedRadar?: boolean;
   } = {},
 ) {
   let note = options.noteText ?? '本人已保存的原话';
@@ -126,6 +159,9 @@ async function serve(
     reason: '真实待验证问题',
   };
   let radarState = 'proposed';
+  let currentRadarRevision = 1;
+  let pinnedRadarRevision: number | undefined;
+  let radarResponse = '';
   let failSnoozed = options.failSnoozedOnce;
   const chats: Record<string, unknown>[] = [];
   const wikiPath = root + '/entry-learning-contexts';
@@ -175,7 +211,9 @@ async function serve(
     [root + '/wiki/drafts/d1']: ['PUT'],
     [root + '/wiki/drafts/d1/publish']: ['POST'],
     '/api/growth/local/bindings/b1/commits': ['GET'],
+    '/api/growth/local/bindings/b2/commits': ['GET'],
     [root + '/commits/abc123']: ['GET'],
+    [root + '/commits/def456']: ['GET'],
     [root + '/cards/' + otherCardId + '/understanding/submissions']: ['GET'],
     [submissionsPath]: ['GET', 'POST'],
     [submissionsPath + '/' + submissionId]: ['GET'],
@@ -239,7 +277,7 @@ async function serve(
                   },
                 ],
               }
-            : baseState,
+            : options.candidateEvidence ? candidateState : baseState,
       );
     if (url.pathname === root)
       return options.failIndex
@@ -258,7 +296,7 @@ async function serve(
                     card,
                   ]
                 : [card],
-            candidates: [],
+            candidates: options.candidateEvidence ? [commitCandidate] : [],
             wiki_articles: [],
             vault_path: '',
           });
@@ -710,14 +748,26 @@ async function serve(
         next_cursor: null,
         authors: [],
       });
-    if (url.pathname === root + '/commits/abc123')
+    if (url.pathname === '/api/growth/local/bindings/b2/commits') {
+      expect(url.searchParams.get('feature_id')).toBe('f2');
+      return json({ commits: [], base_sha: 'base', next_cursor: null, authors: [] });
+    }
+    if (url.pathname === root + '/commits/abc123') {
+      expect(url.searchParams.get('binding_id')).toBe('b1');
       return json({ title: '明确事务边界', patch: '-旧实现\n+新的事务边界' });
-    if (url.pathname === root + '/radar/runs')
+    }
+    if (url.pathname === root + '/commits/def456') {
+      expect(url.searchParams.get('binding_id')).toBe('b2');
+      return json({ title: '第二项目的队列改动', patch: '+第二仓库的队列实现' });
+    }
+    if (url.pathname === root + '/radar/runs') {
+      if (radarState === 'proposed') pinnedRadarRevision ??= currentRadarRevision;
       return json({
         suggestions: radarState === 'proposed'
           ? [{ ...radarSuggestion, suggestion_state: radarState }]
           : [],
       });
+    }
     if (url.pathname === root + '/radar/snoozed') {
       if (failSnoozed) {
         failSnoozed = false;
@@ -741,19 +791,33 @@ async function serve(
         ...(radarState === 'accepted' ? { learning_id: 'learning1' } : {}),
       });
     }
-    if (url.pathname === root + '/radar/r1')
+    if (url.pathname === root + '/radar/r1') {
+      const body = options.versionedRadar
+        ? `第 ${pinnedRadarRevision ?? currentRadarRevision} 版的合成资料`
+        : '已有知识证据';
+      const suggestionState = options.versionedRadar ? radarState : 'accepted';
       return json({
         suggestion_id: 'r1',
-        suggestion_state: 'accepted',
+        suggestion_state: options.radarSource ? 'completed' : suggestionState,
+        ...(options.radarSource ? { user_text: '这是已经提交的本人原话。' } : {}),
+        ...(options.versionedRadar ? { user_text: radarResponse } : {}),
         practice: {
           entry_id: 'entry1',
-          title: '幂等边界',
-          body: '已有知识证据',
-          question: '重试何时安全？',
+          title: options.radarSource ? '' : '幂等边界',
+          body: options.radarSource ? '' : body,
+          question: options.radarSource === 'unavailable' ? '' : '重试何时安全？',
+          source_status: options.radarSource ?? 'available',
         },
       });
+    }
     if (url.pathname === root + '/radar/r1/complete') {
-      completions.push(request.postDataJSON());
+      const response = request.postDataJSON();
+      completions.push(response);
+      if (options.versionedRadar) {
+        radarResponse = response.user_text;
+        radarState = 'completed';
+        return json({ state: 'submitted', published: false, suggestion_id: 'r1' });
+      }
       return json({ state: 'pending', published: false, suggestion_id: 'r1' });
     }
     return json(
@@ -771,6 +835,7 @@ async function serve(
     requests,
     decisions,
     completions,
+    advanceRadarSource: () => { currentRadarRevision += 1; },
     chats,
     submissionBodies,
     contextBodies,
@@ -875,6 +940,11 @@ test('正式候选提交只显示待复核，不冒称已公开', async ({ page 
 });
 test('项目读取限定范围，不发起全历史扫描或模型发送', async ({ page }) => {
   const calls = await serve(page);
+  await page.goto('/#/growth?view=projects');
+  await expect(page.getByRole('heading', { name: '选择已授权的工程项目' })).toBeVisible();
+  await page.getByRole('link', { name: '隔离测试项目' }).click();
+  await expect(page).toHaveURL(/view=projects&project=p1$/);
+  await expect(page.getByText('先选择一条具体提交。')).toBeVisible();
   await page.goto('/#/growth?view=projects&project=p1&commit=abc123');
   await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
   expect(calls.requests.some((url) => url.includes('scan=true'))).toBe(false);
@@ -883,11 +953,57 @@ test('项目读取限定范围，不发起全历史扫描或模型发送', async
     page.getByRole('button', { name: '职责演进图（接口待接入）' }),
   ).toBeDisabled();
 });
+
+for (const entry of ['learning', 'pending']) {
+  test(`候选入口 ${entry} 的代表提交与片段使用各自的项目和仓库`, async ({ page }) => {
+    const calls = await serve(page, { candidateEvidence: true });
+    await page.goto('/#/growth?view=' + entry);
+    await expect(page.getByRole('heading', { name: '聚合依据与来源' })).toBeVisible();
+    const first = page.getByRole('link', { name: /明确事务边界/ });
+    const second = page.getByRole('link', { name: /第二项目的队列改动/ });
+    const firstUrl = '#/growth?view=projects&project=p1&commit=abc123&binding=b1';
+    const secondUrl = '#/growth?view=projects&project=p2&commit=def456&binding=b2';
+    await expect(first).toHaveAttribute('href', firstUrl);
+    await expect(second).toHaveAttribute('href', secondUrl);
+    await page.locator('.knowledge-evidence-commit').filter({ has: first }).getByText('查看代码片段').click();
+    await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
+    await page.locator('.knowledge-evidence-commit').filter({ has: second }).getByText('查看代码片段').click();
+    await expect(page.getByText('第二仓库的队列实现', { exact: false })).toBeVisible();
+    await expect(page.getByText('不可读取的提交摘要')).toBeVisible();
+    await expect(page.getByText('此提交所属的项目当前未授权读取代码。')).toBeVisible();
+    await expect(page.getByRole('link', { name: /不可读取的提交摘要/ })).toHaveCount(0);
+    const detailRequests = () => calls.requests.filter(url => url.startsWith(root + '/commits/'));
+    expect([...new Set(detailRequests())].sort()).toEqual([
+      root + '/commits/abc123?binding_id=b1',
+      root + '/commits/def456?binding_id=b2',
+    ]);
+
+    if (entry === 'learning') {
+      await second.click();
+      await expect(page).toHaveURL(url => url.hash === secondUrl);
+      await expect(page.getByRole('heading', { name: '第二项目的队列改动' })).toBeVisible();
+      await expect(page.getByText('第二仓库的队列实现', { exact: false })).toBeVisible();
+
+      const previousRequests = detailRequests().length;
+      await page.goto('/' + secondUrl.replace('binding=b2', 'binding=expired'));
+      await expect(page.getByRole('alert')).toContainText('此提交所属的仓库当前未绑定或未授权。');
+      await expect(page.getByText('第二仓库的队列实现', { exact: false })).toHaveCount(0);
+      expect(detailRequests()).toHaveLength(previousRequests);
+    } else {
+      await first.click();
+      await expect(page).toHaveURL(url => url.hash === firstUrl);
+      await expect(page.getByRole('heading', { name: '明确事务边界' })).toBeVisible();
+      await expect(page.getByText('新的事务边界', { exact: false })).toBeVisible();
+    }
+  });
+}
 test('雷达接受后只提交真实原话，离线显示待发', async ({ page }) => {
   const calls = await serve(page);
   await page.goto('/#/growth?view=radar');
   await page.getByRole('button', { name: '查看学习建议' }).click();
   await page.getByRole('button', { name: '开始练习' }).click();
+  await page.getByText('查阅已有知识与依据').click();
+  await expect(page.getByText('已有知识证据')).toBeVisible();
   await page
     .getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' })
     .fill('我会用请求标识保证重试幂等');
@@ -928,6 +1044,54 @@ test('雷达暂缓后刷新仍能找回同一建议并继续练习', async ({ pa
   await expect(empty).toBeVisible();
   expect(calls.decisions).toEqual([{ decision: 'snooze' }, { decision: 'accept' }]);
 });
+
+test('雷达暂缓期间资料更新后仍按第 1 版练习、提交和回看', async ({ page }) => {
+  const calls = await serve(page, { versionedRadar: true });
+  await page.goto('/#/growth?view=radar');
+  const radar = page.getByRole('region', { name: '架构学习雷达' });
+  await radar.getByRole('button', { name: '查看学习建议' }).click();
+  await radar.getByRole('button', { name: '稍后', exact: true }).click();
+  await expect(radar.getByText('已移到「稍后再学」。')).toBeVisible();
+  calls.advanceRadarSource();
+  await page.reload();
+  await radar.getByRole('button', { name: '稍后再学' }).click();
+  await expect(radar.getByRole('heading', { name: '解释幂等边界' })).toHaveCount(1);
+  await radar.getByRole('button', { name: '开始练习' }).click();
+  await radar.getByText('查阅已有知识与依据').click();
+  await expect(radar.getByText('第 1 版的合成资料')).toBeVisible();
+  await expect(radar.getByText('第 2 版的合成资料')).toHaveCount(0);
+  const userText = '我会用合成的第 1 版资料解释重试条件。';
+  const answer = radar.getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' });
+  await answer.fill(userText);
+  await radar.getByRole('button', { name: '提交学习原话' }).click();
+  await expect(radar.getByText('学习原话已提交，知识条目仍待生成与复核。')).toBeVisible();
+
+  await page.reload();
+  await expect(answer).toHaveValue(userText);
+  await expect(answer).not.toBeEditable();
+  await radar.getByText('查阅已有知识与依据').click();
+  await expect(radar.getByText('第 1 版的合成资料')).toBeVisible();
+  await expect(radar.getByText('第 2 版的合成资料')).toHaveCount(0);
+  expect(calls.decisions).toEqual([{ decision: 'snooze' }, { decision: 'accept' }]);
+  expect(calls.completions).toEqual([{ user_text: userText }]);
+});
+
+for (const [radarSource, notice] of [
+  ['unknown', '当时的资料版本无法确认。'],
+  ['unavailable', '当时的资料无法读取。'],
+] as const) {
+  test(`回看旧雷达练习时保留原话和提示 ${radarSource}`, async ({ page }) => {
+    const calls = await serve(page, { radarSource });
+    await page.goto('/#/growth?view=radar&radar=r1');
+    await expect(page.getByText(notice)).toBeVisible();
+    const response = page.getByRole('textbox', { name: '用自己的话说明架构取舍或应用思路' });
+    await expect(response).toHaveValue('这是已经提交的本人原话。');
+    await expect(response).not.toBeEditable();
+    await expect(page.getByText('查阅已有知识与依据')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '提交学习原话' })).toBeDisabled();
+    expect(calls.completions).toEqual([]);
+  });
+}
 
 test('首页与学习库继续同一卡片的会话和本人草稿', async ({ page }) => {
   const calls = await serve(page, { secondCard: true });

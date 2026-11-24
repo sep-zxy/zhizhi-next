@@ -226,7 +226,11 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
 
     @staticmethod
     def _receipt(
-        connection: sqlite3.Connection, actor: Actor, operation: str, key: str, input_hash: str
+        connection: sqlite3.Connection,
+        actor: Actor,
+        operation: str,
+        key: str,
+        input_hash: str | None,
     ) -> dict[str, Any] | None:
         row = connection.execute(
             "SELECT input_hash,response FROM kp_receipts "
@@ -235,7 +239,7 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
         ).fetchone()
         if row is None:
             return None
-        if row["input_hash"] != input_hash:
+        if input_hash is not None and row["input_hash"] != input_hash:
             raise DomainError(
                 "IDEMPOTENCY_CONFLICT",
                 "Idempotency key was already used with different input",
@@ -404,6 +408,38 @@ class DomainService(TaskMethods, SourceMethods, ChangeMethods, ReviewMethods, Pu
             if entry.get(key) != catalog.get(key):
                 raise DomainError("CONTENT_CORRUPT", "Entry metadata mismatch", status_code=409)
         return entry
+
+    def get_practice_source(
+        self, entry_id: str, *, actor: Actor, revision: int | None
+    ) -> dict[str, Any]:
+        """Require current access before reading the selected practice revision."""
+        authenticated(actor, "knowledge:read")
+        with self.store.reading() as connection:
+            current = self._history_entry(connection, entry_id, actor)
+            if revision is None or current["revision"] == revision:
+                return current
+            return self._history_entry(connection, entry_id, actor, revision)
+
+    def create_radar_candidate(
+        self, payload: dict[str, Any], *, actor: Actor, identity: str
+    ) -> dict[str, Any]:
+        """Keep the first candidate for the same question and evidence across entry revisions."""
+        key = "radar-candidate:" + identity
+        try:
+            return self.create_task("radar_suggestion", payload, actor=actor, idempotency_key=key)
+        except DomainError as exc:
+            if exc.code != "IDEMPOTENCY_CONFLICT":
+                raise
+            with self.store.reading() as connection:
+                task = self._receipt(connection, actor, "create_task", key, None)
+                identity_fields = (
+                    "target_entry_ids", "proposed_exercise", "evidence_refs", "question_provenance"
+                )
+                if task is None or task["kind"] != "radar_suggestion" or any(
+                    task["payload"].get(field) != payload.get(field) for field in identity_fields
+                ):
+                    raise
+                return self._protect_read(connection, task, actor)
 
     def list_entry_versions(
         self, entry_id: str, *, actor: Actor, limit: int = 20, offset: int = 0,
