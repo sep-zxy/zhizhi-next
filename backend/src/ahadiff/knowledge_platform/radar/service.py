@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, cast
+
+from ahadiff.knowledge_platform.errors import DomainError
 
 
 class RadarService:
@@ -16,54 +18,87 @@ class RadarService:
     def read(self, suggestion_id: str, *, actor: Any) -> dict[str, Any]:
         """Restore a real accepted exercise, without inventing questions or scores."""
         from ahadiff.knowledge_platform.auth import classification_labels, classify_record
-        from ahadiff.knowledge_platform.errors import DomainError
 
         suggestion = self.domain.read_task(suggestion_id, actor=actor)
         if suggestion["kind"] != "radar_suggestion":
             raise DomainError("INVALID_INPUT", "Task is not a radar suggestion", status_code=422)
         payload = suggestion["payload"]
         state = self.domain.get_channel_state("radar:" + suggestion_id, actor=actor)
-        reference = payload.get("source_reference")
-        entry = self.domain.get_entry(
-            payload["target_entry_ids"][0], actor=actor,
-            **({"revision": reference["revision"]} if reference else {}),
+        outcome = (
+            self.domain.get_learning_outcome(state["learning_outcome_id"], actor=actor)
+            if state.get("learning_outcome_id") else None
         )
-        if reference and (entry["entry_id"] != reference["entry_id"] or
-                          entry["content_hash"] != reference["expected_content_hash"]):
-            raise DomainError("CONTENT_CONFLICT", "Pinned practice source changed", status_code=409)
-        if entry.get("deleted"):
-            raise DomainError("INVALID_STATE", "Exercise target was deleted", status_code=409)
-        result = {
+        entry_id = payload["target_entry_ids"][0]
+        suggestion_reference = payload.get("source_reference")
+        recorded_reference = (
+            outcome["payload"].get("metadata", {}).get("source_reference") if outcome else None
+        )
+        reference = suggestion_reference if suggestion_reference is not None else recorded_reference
+        if (
+            suggestion_reference is not None
+            and recorded_reference is not None
+            and suggestion_reference != recorded_reference
+        ):
+            entry, source_status = None, "unavailable"
+        else:
+            entry, source_status = self._read_source(entry_id, reference, actor=actor)
+        classifications = {"suggestion": payload, "state": state, "entry": entry, "outcome": outcome}
+        return {
             "suggestion_id": suggestion_id,
             "suggestion_state": "proposed",
             **state,
-            "classification": classify_record({"suggestion": payload, "entry": entry}),
-            "classification_labels": sorted(
-                classification_labels({"suggestion": payload, "entry": entry})
-            ),
-            "user_text": "",
+            "classification": classify_record(classifications),
+            "classification_labels": sorted(classification_labels(classifications)),
+            "user_text": outcome["payload"]["user_text"] if outcome else "",
             "practice": {
-                "entry_id": entry["entry_id"],
-                "title": entry["title"],
-                "body": entry["body"],
-                "question": payload["proposed_exercise"],
-                **({"source_reference": reference} if reference else {}),
+                "entry_id": entry_id,
+                "title": entry["title"] if entry else "",
+                "body": entry["body"] if entry else "",
+                "question": payload["proposed_exercise"] if source_status != "unavailable" else "",
+                "source_status": source_status,
+                **({"source_reference": reference} if entry else {}),
             },
         }
-        if state.get("learning_outcome_id"):
-            outcome = self.domain.get_learning_outcome(state["learning_outcome_id"], actor=actor)
-            result["user_text"] = outcome["payload"]["user_text"]
-            result["classification"] = classify_record({"practice": result, "outcome": outcome})
-            result["classification_labels"] = sorted(
-                classification_labels({"practice": result, "outcome": outcome})
-            )
-        return result
+
+    def _read_source(
+        self, entry_id: str, reference: object, *, actor: Any
+    ) -> tuple[dict[str, Any] | None, str]:
+        revision = None
+        expected_hash = None
+        if reference is not None:
+            if not isinstance(reference, dict):
+                return None, "unavailable"
+            fields = cast(dict[str, object], reference)
+            revision = fields.get("revision")
+            expected_hash = fields.get("expected_content_hash")
+            if (
+                set(fields) != {"entry_id", "revision", "expected_content_hash"}
+                or fields["entry_id"] != entry_id
+                or type(revision) is not int
+                or not 1 <= revision <= 2**53 - 1
+                or not isinstance(expected_hash, str)
+            ):
+                return None, "unavailable"
+        try:
+            entry = self.domain.get_practice_source(entry_id, actor=actor, revision=revision)
+        except DomainError as exc:
+            if exc.status_code in {403, 404} or exc.code in {"CONTENT_CORRUPT", "GIT_FAILURE"}:
+                return None, "unavailable"
+            raise
+        if reference is None:
+            return None, "unknown"
+        if (
+            entry["entry_id"] != entry_id
+            or entry["revision"] != revision
+            or entry["content_hash"] != expected_hash
+        ):
+            return None, "unavailable"
+        return entry, "available"
 
     def validate_submission(self, payload: dict[str, Any], *, actor: Any) -> dict[str, Any]:
         """Bind user facts to an accepted suggestion before any outcome is persisted."""
         from ahadiff.knowledge_platform.auth import classification_labels, classify_record
         from ahadiff.knowledge_platform.contracts import required_text, validate_payload
-        from ahadiff.knowledge_platform.errors import DomainError
 
         payload = validate_payload(payload)
         required_text(payload, "device_id", limit=256)
@@ -84,7 +119,7 @@ class RadarService:
             raise DomainError(
                 "INVALID_INPUT", "A user-authored response is required", status_code=422
             )
-        metadata = payload.get("metadata") or {}
+        metadata = cast(dict[str, Any], payload["metadata"])
         practice = self.read(metadata["radar_suggestion_id"], actor=actor)
         if practice["suggestion_state"] not in {"accepted", "completed"}:
             raise DomainError("INVALID_STATE", "Suggestion has not been accepted", status_code=409)
@@ -99,6 +134,7 @@ class RadarService:
             raise DomainError(
                 "INVALID_INPUT", "Radar completion requires its immutable session", status_code=422
             )
+        recorded = None
         if practice.get("learning_outcome_id"):
             recorded = self.domain.get_learning_outcome(
                 practice["learning_outcome_id"], actor=actor
@@ -112,6 +148,16 @@ class RadarService:
                     "This exercise already has a submitted response",
                     status_code=409,
                 )
+            reference = recorded.get("metadata", {}).get("source_reference")
+        else:
+            if practice["practice"]["source_status"] == "unavailable":
+                raise DomainError("INVALID_STATE", "当时的资料无法读取。", status_code=409)
+            reference = practice["practice"].get("source_reference")
+        if "source_reference" in metadata and metadata["source_reference"] != reference:
+            raise DomainError("CONTENT_CONFLICT", "提交所引用的资料版本与练习不一致。", status_code=409)
+        if recorded is not None:
+            return recorded
+        metadata.pop("source_reference", None)
         classifications = {
             "submitted": payload,
             "practice": practice,
@@ -143,8 +189,7 @@ class RadarService:
             "metadata": {
                 **metadata,
                 "evidence_classification": classify_record(classifications),
-                **({"source_reference": practice["practice"]["source_reference"]}
-                   if "source_reference" in practice["practice"] else {}),
+                **({"source_reference": reference} if reference is not None else {}),
                 "classification_labels": sorted(classification_labels(classifications)),
             },
         }
@@ -223,6 +268,11 @@ class RadarService:
                 ).hexdigest()
                 payload = {
                     "target_entry_ids": [entry["entry_id"]],
+                    "source_reference": {
+                        "entry_id": entry["entry_id"],
+                        "revision": entry["revision"],
+                        "expected_content_hash": entry["content_hash"],
+                    },
                     "reason": "条目明确记录了一个有来源的待验证问题。",
                     "evidence_refs": entry["evidence_refs"],
                     "relation_hypothesis": None,
@@ -234,12 +284,7 @@ class RadarService:
                 }
                 if question_records is not None and question in question_records:
                     payload["question_provenance"] = question_records[question]
-                task = self.domain.create_task(
-                    "radar_suggestion",
-                    payload,
-                    actor=actor,
-                    idempotency_key="radar-candidate:" + identity,
-                )
+                task = self.domain.create_radar_candidate(payload, actor=actor, identity=identity)
                 state = self.domain.get_channel_state("radar:" + task["task_id"], actor=actor).get(
                     "suggestion_state", "proposed"
                 )
@@ -248,7 +293,7 @@ class RadarService:
                 suggestions.append(
                     {
                         "suggestion_id": task["task_id"],
-                        **payload,
+                        **task["payload"],
                         "state": state,
                         "created_at": task["created_at"],
                     }
@@ -259,8 +304,6 @@ class RadarService:
 
     def decide(self, suggestion_id: str, decision: str, *, actor: Any) -> dict[str, Any]:
         """Accept once, preserving rejection until the evidence changes."""
-        from ahadiff.knowledge_platform.errors import DomainError
-
         if actor.kind != "user":
             raise DomainError(
                 "FORBIDDEN", "Only the user can accept a learning suggestion", status_code=403
@@ -316,8 +359,6 @@ class RadarService:
 
     def complete(self, suggestion_id: str, outcome_id: str, *, actor: Any) -> dict[str, Any]:
         """Link genuine submitted learning facts without confirming a hypothesis."""
-        from ahadiff.knowledge_platform.errors import DomainError
-
         if actor.kind != "user":
             raise DomainError(
                 "FORBIDDEN", "Only the user can complete a learning exercise", status_code=403
@@ -349,7 +390,12 @@ class RadarService:
             raise DomainError(
                 "INVALID_INPUT", "Learning outcome does not target this suggestion", status_code=422
             )
-        self.validate_submission(payload, actor=actor)
+        if previous.get("learning_outcome_id") == outcome_id:
+            return previous
+        reference = suggestion["payload"].get("source_reference")
+        recorded_reference = payload.get("metadata", {}).get("source_reference")
+        if reference is not None and recorded_reference is not None and reference != recorded_reference:
+            raise DomainError("CONTENT_CONFLICT", "Outcome source differs from the exercise", status_code=409)
         self.domain.complete_learning_task(
             previous["learning_id"],
             outcome_id,

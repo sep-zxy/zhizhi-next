@@ -117,18 +117,18 @@ def test_radar_legacy_questions_survive_provenance_upgrade_and_resolved_stays_cl
             super().__init__(document)
             self.claims = {}
 
-        def create_task(self, kind, payload, *, idempotency_key, **_kwargs):
-            previous = self.claims.get(idempotency_key)
+        def create_radar_candidate(self, payload, *, identity, **_kwargs):
+            previous = self.claims.get(identity)
             if previous:
                 assert previous["payload"] == payload
                 return previous
             task = {
                 "task_id": str(len(self.claims)),
-                "kind": kind,
+                "kind": "radar_suggestion",
                 "payload": payload,
                 "created_at": "2026-10-19",
             }
-            self.claims[idempotency_key] = task
+            self.claims[identity] = task
             return task
 
         def get_channel_state(self, *_args, **_kwargs):
@@ -139,6 +139,7 @@ def test_radar_legacy_questions_survive_provenance_upgrade_and_resolved_stays_cl
         "a",
         "架构",
         "事件溯源",
+        content_hash="a" * 64,
         classification="personal",
         metadata={"open_questions": ["旧问题", "有来源问题", "已解决问题"]},
     )

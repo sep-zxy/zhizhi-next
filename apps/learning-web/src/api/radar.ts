@@ -14,7 +14,13 @@ export interface RadarPractice {
   learning_id?: string;
   user_text?: string;
   state?: string;
-  practice?: {entry_id: string; title: string; body: string; question: string};
+  practice?: {
+    entry_id: string;
+    title: string;
+    body: string;
+    question: string;
+    source_status?: 'available' | 'unknown' | 'unavailable';
+  };
 }
 export interface RadarSubmission {
   state: 'submitted' | 'pending';

@@ -67,17 +67,21 @@ export default function RadarPracticePanel({activeId, onSelect}: {
     </>}
     {activeId && !current && !error && <p role="status">正在恢复练习…</p>}
     {current?.practice && <>
-      <h3>{current.practice.title}</h3>
-      <details><summary>查阅已有知识与依据</summary>
-        <pre style={{whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>{current.practice.body}</pre>
-      </details>
-      <p><strong>待验证问题：</strong>{current.practice.question}</p>
+      <h3>{current.practice.title || '学习练习'}</h3>
+      {current.practice.source_status === 'unknown' ? <p>当时的资料版本无法确认。</p>
+        : current.practice.source_status === 'unavailable' ? <p>当时的资料无法读取。</p>
+        : <details><summary>查阅已有知识与依据</summary>
+          <pre style={{whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>{current.practice.body}</pre>
+        </details>}
+      {current.practice.question && <p><strong>待验证问题：</strong>{current.practice.question}</p>}
       <Textarea label="用自己的话说明架构取舍或应用思路"
         description="只记录你的真实表达，不会由 AI 代写“我的理解”。"
         minRows={4} maxLength={12000} value={text}
-        disabled={busy || current.suggestion_state === 'completed'}
+        readOnly={current.suggestion_state === 'completed' || current.practice.source_status === 'unavailable'}
+        disabled={busy}
         onChange={event => setText(event.currentTarget.value)} />
-      <Button mt="sm" loading={busy} disabled={!text.trim() || current.suggestion_state === 'completed'}
+      <Button mt="sm" loading={busy} disabled={!text.trim() || current.suggestion_state === 'completed'
+        || current.practice.source_status === 'unavailable'}
         onClick={() => void act(async () => {
           const result = await submitRadarPractice(current.suggestion_id, text);
           setStatus(radarSubmissionLabel(result.state));
