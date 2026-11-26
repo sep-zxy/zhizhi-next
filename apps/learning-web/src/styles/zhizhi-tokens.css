@@ -1,0 +1,143 @@
+/*
+ * AUTO-GENERATED FILE — DO NOT EDIT DIRECTLY.
+ * Source: apps/learning-web/tokens/zhizhi.tokens.json
+ * Figma:  https://www.figma.com/design/rD3fYZVSpzQV52atQPNhky/
+ * Command: node apps/learning-web/scripts/build-tokens.mjs
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 1. Primitives（基础色阶与数值，仅供 Semantic 引用，业务组件禁止直接消费） */
+  --zz-white: #ffffff;
+  --zz-white-76: rgba(255, 255, 255, 0.76);
+  --zz-white-72: rgba(255, 255, 255, 0.72);
+  --zz-white-42: rgba(255, 255, 255, 0.42);
+  --zz-neutral-25: #f7f9f3;
+  --zz-neutral-50: #f0f2ec;
+  --zz-neutral-100: #e9ede6;
+  --zz-neutral-200: #dde3d9;
+  --zz-neutral-300: #ccd2c7;
+  --zz-neutral-400: #a7adb5;
+  --zz-neutral-500: #7d887f;
+  --zz-neutral-600: #59645b;
+  --zz-neutral-700: #464b43;
+  --zz-neutral-800: #3b3f3a;
+  --zz-neutral-850: #2b2e2a;
+  --zz-neutral-900: #262b27;
+  --zz-green-100: #e2f1d4;
+  --zz-green-200: #d4edb8;
+  --zz-green-300: #c5ee8e;
+  --zz-green-400: #b5e875;
+  --zz-green-500: #9ed95a;
+  --zz-green-700: #2d6e49;
+  --zz-green-800: #276342;
+  --zz-red-100: #f9e7e5;
+  --zz-red-700: #a23d3d;
+  --zz-amber-100: #fbf1dc;
+  --zz-amber-700: #8a5a14;
+  --zz-slate-100: #e6f1f3;
+  --zz-slate-700: #2e5963;
+
+  --zz-size-1: 4px;
+  --zz-size-2: 8px;
+  --zz-size-3: 12px;
+  --zz-size-4: 16px;
+  --zz-size-5: 20px;
+  --zz-size-6: 24px;
+  --zz-size-8: 32px;
+  --zz-size-9: 36px;
+  --zz-size-10: 40px;
+  --zz-size-11: 44px;
+  --zz-size-12: 48px;
+  --zz-size-full: 999px;
+
+  /* 2. Semantic（业务与组件唯一消费层） */
+  --zz-bg-color-showcase: var(--zz-neutral-400);
+  --zz-bg-color-page: var(--zz-neutral-50);
+  --zz-bg-color-container: var(--zz-white);
+  --zz-bg-color-container-hover: var(--zz-neutral-100);
+  --zz-bg-color-glass: var(--zz-white-76);
+  --zz-bg-color-emphasis: var(--zz-neutral-850);
+  --zz-bg-color-emphasis-hover: var(--zz-neutral-800);
+  --zz-bg-color-emphasis-inactive: var(--zz-neutral-700);
+  --zz-bg-color-disabled: var(--zz-neutral-100);
+
+  --zz-text-color-primary: var(--zz-neutral-900);
+  --zz-text-color-secondary: var(--zz-neutral-600);
+  --zz-text-color-disabled: var(--zz-neutral-500);
+  --zz-text-color-anti: var(--zz-neutral-25);
+  --zz-text-color-anti-secondary: var(--zz-neutral-300);
+
+  --zz-brand-color: var(--zz-green-800);
+  --zz-brand-color-focus: var(--zz-green-800);
+  --zz-brand-color-accent: var(--zz-green-400);
+  --zz-brand-color-accent-hover: var(--zz-green-300);
+  --zz-brand-color-accent-active: var(--zz-green-500);
+  --zz-brand-color-light: var(--zz-green-100);
+  --zz-brand-color-glow: var(--zz-green-200);
+
+  --zz-border-color-default: var(--zz-neutral-200);
+  --zz-border-color-glass: var(--zz-white-42);
+  --zz-border-color-nav-glass: var(--zz-white-72);
+
+  --zz-success-color: var(--zz-green-700);
+  --zz-success-color-light: var(--zz-green-100);
+
+  --zz-warning-color: var(--zz-amber-700);
+  --zz-warning-color-light: var(--zz-amber-100);
+
+  --zz-info-color: var(--zz-slate-700);
+  --zz-info-color-light: var(--zz-slate-100);
+
+  --zz-error-color: var(--zz-red-700);
+  --zz-error-color-light: var(--zz-red-100);
+
+  --zz-spacing-xxs: var(--zz-size-1);
+  --zz-spacing-xs: var(--zz-size-2);
+  --zz-spacing-sm: var(--zz-size-3);
+  --zz-spacing-md: var(--zz-size-4);
+  --zz-spacing-lg: var(--zz-size-5);
+  --zz-spacing-xl: var(--zz-size-6);
+  --zz-spacing-2xl: var(--zz-size-8);
+
+  --zz-radius-sm: var(--zz-size-4);
+  --zz-radius-compose: var(--zz-size-6);
+  --zz-radius-md: var(--zz-size-8);
+  --zz-radius-lg: var(--zz-size-12);
+  --zz-radius-round: var(--zz-size-full);
+
+  --zz-comp-size-s: var(--zz-size-8);
+  --zz-comp-size-stepper: var(--zz-size-9);
+  --zz-comp-size-m: var(--zz-size-10);
+  --zz-comp-size-l: var(--zz-size-11);
+  --zz-comp-size-xl: var(--zz-size-12);
+
+  /* 3. Layout, Typography & Surface Effects */
+  --zz-layout-max: 1280px;
+  --zz-layout-inset: var(--zz-spacing-xl);
+  --zz-layout-gutter: var(--zz-spacing-sm);
+  --zz-layout-rail: 288px;
+  --zz-layout-schedule: 300px;
+  --zz-layout-nav-height: var(--zz-comp-size-xl);
+
+  --zz-font-ui: "Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --zz-font-mono: "JetBrains Mono", Consolas, monospace;
+
+  --zz-bg-app-gradient: linear-gradient(168.29deg, #e8ede8 14.29%, #f5f7eb 52.14%, #cfebab 85.71%);
+  --zz-bg-nav-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.12) 38%, rgba(255, 255, 255, 0.40) 72%, rgba(255, 255, 255, 0.82) 100%);
+  --zz-shadow-panel: 0 36px 56px -20px rgba(20, 28, 20, 0.22);
+  --zz-shadow-nav-glass: 0 6px 20px -6px rgba(38, 43, 39, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --zz-shadow-card-glass: inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+  --zz-blur-glass: blur(20px);
+}
+
+/* 降级回退：不支持 backdrop-filter 时提高白底不透明度，保持墨色正文可读性 */
+@supports not ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+  .zz-card-glass {
+    background: rgba(255, 255, 255, 0.94);
+  }
+  .zz-nav-glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.94));
+  }
+}

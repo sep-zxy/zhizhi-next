@@ -1,0 +1,1285 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "$description": "知枝（Zhizhi）绿色玻璃设计系统 Design Token 总账本（W3C DTCG 格式），数据源同步自 Figma 文件 rD3fYZVSpzQV52atQPNhky。",
+  "$extensions": {
+    "com.zhizhi.figma": {
+      "fileKey": "rD3fYZVSpzQV52atQPNhky",
+      "fileUrl": "https://www.figma.com/design/rD3fYZVSpzQV52atQPNhky/",
+      "syncedAt": "2026-11-26",
+      "collections": {
+        "primitives": {
+          "id": "VariableCollectionId:16:2",
+          "name": "Zhizhi / Primitives",
+          "mode": "Base",
+          "modeId": "16:0"
+        },
+        "semantic": {
+          "id": "VariableCollectionId:16:19",
+          "name": "Zhizhi / Semantic",
+          "mode": "Light",
+          "modeId": "16:1"
+        }
+      }
+    }
+  },
+  "primitives": {
+    "palette": {
+      "$type": "color",
+      "white": {
+        "$value": "#ffffff",
+        "$description": "基础纯白",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-white",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:5",
+            "name": "palette/white",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "white-76": {
+        "$value": "rgba(255, 255, 255, 0.76)",
+        "$description": "基础 76% 纯白（玻璃卡片面层）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-white-76",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:2",
+            "name": "palette/white-76",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "white-72": {
+        "$value": "rgba(255, 255, 255, 0.72)",
+        "$description": "72% 纯白（顶部导航玻璃描边）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-white-72",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:2",
+            "name": "palette/white-72",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "white-42": {
+        "$value": "rgba(255, 255, 255, 0.42)",
+        "$description": "42% 纯白（玻璃卡片微描边）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-white-42",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:3",
+            "name": "palette/white-42",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-25": {
+        "$value": "#f7f9f3",
+        "$description": "基础反白 25（深底主文字）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-25",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:13",
+            "name": "palette/neutral-25",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-50": {
+        "$value": "#f0f2ec",
+        "$description": "基础浅灰绿 50（页面浅底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-50",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:4",
+            "name": "palette/neutral-50",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-100": {
+        "$value": "#e9ede6",
+        "$description": "基础浅灰绿 100（浅底 Hover/禁用底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-100",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:11",
+            "name": "palette/neutral-100",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-200": {
+        "$value": "#dde3d9",
+        "$description": "基础浅线 200（分割线与描边）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-200",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:8",
+            "name": "palette/neutral-200",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-300": {
+        "$value": "#ccd2c7",
+        "$description": "基础浅灰 300（深底辅助文字）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-300",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:14",
+            "name": "palette/neutral-300",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-400": {
+        "$value": "#a7adb5",
+        "$description": "基础中性灰 400（展示底板）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-400",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:3",
+            "name": "palette/neutral-400",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-500": {
+        "$value": "#7d887f",
+        "$description": "基础灰绿 500（禁用文字与图标）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-500",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:12",
+            "name": "palette/neutral-500",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-600": {
+        "$value": "#59645b",
+        "$description": "基础灰绿 600（次文字）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-600",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:7",
+            "name": "palette/neutral-600",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-700": {
+        "$value": "#464b43",
+        "$description": "基础深灰绿 700（深底未活跃点）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-700",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:15",
+            "name": "palette/neutral-700",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-800": {
+        "$value": "#3b3f3a",
+        "$description": "基础炭黑 800（深底 Hover）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-800",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:10",
+            "name": "palette/neutral-800",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-850": {
+        "$value": "#2b2e2a",
+        "$description": "基础炭黑 850（主操作与重点卡片）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-850",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:12",
+            "name": "palette/neutral-850",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "neutral-900": {
+        "$value": "#262b27",
+        "$description": "基础墨色 900（主文字）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-neutral-900",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:6",
+            "name": "palette/neutral-900",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-100": {
+        "$value": "#e2f1d4",
+        "$description": "基础浅绿 100（弱强调标签底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-100",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:11",
+            "name": "palette/green-100",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-200": {
+        "$value": "#d4edb8",
+        "$description": "基础浅绿 200（装饰光感）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-200",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:16",
+            "name": "palette/green-200",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-300": {
+        "$value": "#c5ee8e",
+        "$description": "基础嫩绿 300（强调态 Hover）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-300",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:3",
+            "name": "palette/green-300",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-400": {
+        "$value": "#b5e875",
+        "$description": "基础嫩绿 400（强调与数据）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-400",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:9",
+            "name": "palette/green-400",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-500": {
+        "$value": "#9ed95a",
+        "$description": "基础嫩绿 500（强调态 Active）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-500",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:4",
+            "name": "palette/green-500",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-700": {
+        "$value": "#2d6e49",
+        "$description": "基础绿 700（成功反馈主色）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-700",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:5",
+            "name": "palette/green-700",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "green-800": {
+        "$value": "#276342",
+        "$description": "基础深绿 800（文字强调与聚焦轮廓）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-green-800",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:10",
+            "name": "palette/green-800",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "red-100": {
+        "$value": "#f9e7e5",
+        "$description": "基础浅红 100（错误浅底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-red-100",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:18",
+            "name": "palette/red-100",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "red-700": {
+        "$value": "#a23d3d",
+        "$description": "基础红 700（错误主色）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-red-700",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:17",
+            "name": "palette/red-700",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "amber-100": {
+        "$value": "#fbf1dc",
+        "$description": "基础浅琥珀 100（警示浅底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-amber-100",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:7",
+            "name": "palette/amber-100",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "amber-700": {
+        "$value": "#8a5a14",
+        "$description": "基础琥珀 700（警示反馈主色）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-amber-700",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:6",
+            "name": "palette/amber-700",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "slate-100": {
+        "$value": "#e6f1f3",
+        "$description": "基础浅青灰 100（信息浅底）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-slate-100",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:9",
+            "name": "palette/slate-100",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "slate-700": {
+        "$value": "#2e5963",
+        "$description": "基础青灰 700（信息反馈主色）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-slate-700",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:8",
+            "name": "palette/slate-700",
+            "hiddenFromPublishing": true
+          }
+        }
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "1": {
+        "$value": "4px",
+        "$description": "基础尺寸 4px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-1",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:13",
+            "name": "size/1",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "2": {
+        "$value": "8px",
+        "$description": "基础尺寸 8px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-2",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:14",
+            "name": "size/2",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "3": {
+        "$value": "12px",
+        "$description": "基础尺寸 12px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-3",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:15",
+            "name": "size/3",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "4": {
+        "$value": "16px",
+        "$description": "基础尺寸 16px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-4",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:16",
+            "name": "size/4",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "5": {
+        "$value": "20px",
+        "$description": "基础尺寸 20px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-5",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:17",
+            "name": "size/5",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "6": {
+        "$value": "24px",
+        "$description": "基础尺寸 24px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-6",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:18",
+            "name": "size/6",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "8": {
+        "$value": "32px",
+        "$description": "基础尺寸 32px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-8",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:19",
+            "name": "size/8",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "9": {
+        "$value": "36px",
+        "$description": "基础尺寸 36px（步骤条按钮高度）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-9",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:4",
+            "name": "size/9",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "10": {
+        "$value": "40px",
+        "$description": "基础尺寸 40px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-10",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:20",
+            "name": "size/10",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "11": {
+        "$value": "44px",
+        "$description": "基础尺寸 44px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-11",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:21",
+            "name": "size/11",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "12": {
+        "$value": "48px",
+        "$description": "基础尺寸 48px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-12",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:22",
+            "name": "size/12",
+            "hiddenFromPublishing": true
+          }
+        }
+      },
+      "full": {
+        "$value": "999px",
+        "$description": "全圆角 / 胶囊数值 999px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-size-full",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:23",
+            "name": "size/full",
+            "hiddenFromPublishing": true
+          }
+        }
+      }
+    }
+  },
+  "semantic": {
+    "bg": {
+      "$type": "color",
+      "showcase-canvas": {
+        "$value": "{primitives.palette.neutral-400}",
+        "$description": "应用示例外部展示底板，不用于正文背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-showcase",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:20",
+            "name": "bg/showcase-canvas",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "page": {
+        "$value": "{primitives.palette.neutral-50}",
+        "$description": "规范与基础页面背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-page",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:21",
+            "name": "bg/page",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "container": {
+        "$value": "{primitives.palette.white}",
+        "$description": "纯白控件底面与高亮容器",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-container",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:22",
+            "name": "bg/container",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "container-hover": {
+        "$value": "{primitives.palette.neutral-100}",
+        "$description": "浅色控件与导航项 Hover 态背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-container-hover",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:24",
+            "name": "bg/container-hover",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "glass": {
+        "$value": "{primitives.palette.white-76}",
+        "$description": "常规模块卡片 76% 白色半透明面层",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-glass",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:36",
+            "name": "bg/glass",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "emphasis": {
+        "$value": "{primitives.palette.neutral-850}",
+        "$description": "炭黑重点容器、主操作按钮与选中导航底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-emphasis",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:29",
+            "name": "bg/emphasis",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "emphasis-hover": {
+        "$value": "{primitives.palette.neutral-800}",
+        "$description": "炭黑主按钮与深色控件 Hover 态背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-emphasis-hover",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:25",
+            "name": "bg/emphasis-hover",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "emphasis-inactive": {
+        "$value": "{primitives.palette.neutral-700}",
+        "$description": "深色热力图未活跃点与次级深色块",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-emphasis-inactive",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:32",
+            "name": "bg/emphasis-inactive",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "disabled": {
+        "$value": "{primitives.palette.neutral-100}",
+        "$description": "禁用态容器与输入框背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-bg-color-disabled",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:29",
+            "name": "bg/disabled",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      }
+    },
+    "text": {
+      "$type": "color",
+      "primary": {
+        "$value": "{primitives.palette.neutral-900}",
+        "$description": "主要标题、正文与图标色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-text-color-primary",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:23",
+            "name": "text/primary",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "secondary": {
+        "$value": "{primitives.palette.neutral-600}",
+        "$description": "辅助说明、占位符与次级图标",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-text-color-secondary",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:24",
+            "name": "text/secondary",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "disabled": {
+        "$value": "{primitives.palette.neutral-500}",
+        "$description": "禁用态文字与图标色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-text-color-disabled",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:30",
+            "name": "text/disabled",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "anti": {
+        "$value": "{primitives.palette.neutral-25}",
+        "$description": "深色容器上的主要反白文字与图标",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-text-color-anti",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:30",
+            "name": "text/anti",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "anti-secondary": {
+        "$value": "{primitives.palette.neutral-300}",
+        "$description": "深色容器上的辅助说明文字",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-text-color-anti-secondary",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:31",
+            "name": "text/anti-secondary",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL"]
+          }
+        }
+      }
+    },
+    "brand": {
+      "$type": "color",
+      "primary": {
+        "$value": "{primitives.palette.green-800}",
+        "$description": "深绿品牌主色，用于文字强调与聚焦轮廓",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:27",
+            "name": "brand/primary",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "focus": {
+        "$value": "{primitives.palette.green-800}",
+        "$description": "键盘聚焦 2px 深绿轮廓色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-focus",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:28",
+            "name": "brand/focus",
+            "scopes": ["STROKE_COLOR"]
+          }
+        }
+      },
+      "accent": {
+        "$value": "{primitives.palette.green-400}",
+        "$description": "嫩绿强调色，用于引导按钮、进度与图表（勿用于浅底小字）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-accent",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:26",
+            "name": "brand/accent",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "accent-hover": {
+        "$value": "{primitives.palette.green-300}",
+        "$description": "嫩绿强调按钮 Hover 态背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-accent-hover",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:26",
+            "name": "brand/accent-hover",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "accent-active": {
+        "$value": "{primitives.palette.green-500}",
+        "$description": "嫩绿强调按钮 Active 按压态背景",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-accent-active",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:27",
+            "name": "brand/accent-active",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "light": {
+        "$value": "{primitives.palette.green-100}",
+        "$description": "浅绿标签与弱强调底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-light",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:28",
+            "name": "brand/light",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      },
+      "glow": {
+        "$value": "{primitives.palette.green-200}",
+        "$description": "装饰性浅绿光感与高光层次",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-brand-color-glow",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:33",
+            "name": "brand/glow",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "EFFECT_COLOR"]
+          }
+        }
+      }
+    },
+    "border": {
+      "$type": "color",
+      "default": {
+        "$value": "{primitives.palette.neutral-200}",
+        "$description": "浅底分割线与默认描边",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-border-color-default",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:25",
+            "name": "border/default",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "glass": {
+        "$value": "{primitives.palette.white-42}",
+        "$description": "常规玻璃卡片 42% 白边缘描边",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-border-color-glass",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:6",
+            "name": "border/glass",
+            "scopes": ["STROKE_COLOR"]
+          }
+        }
+      },
+      "nav-glass": {
+        "$value": "{primitives.palette.white-72}",
+        "$description": "顶部胶囊导航玻璃外框 72% 白描边",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-border-color-nav-glass",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:5",
+            "name": "border/nav-glass",
+            "scopes": ["STROKE_COLOR"]
+          }
+        }
+      }
+    },
+    "success": {
+      "$type": "color",
+      "default": {
+        "$value": "{primitives.palette.green-700}",
+        "$description": "成功反馈文字、图标与状态色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-success-color",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:31",
+            "name": "success/default",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "light": {
+        "$value": "{primitives.palette.green-100}",
+        "$description": "成功反馈浅底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-success-color-light",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:32",
+            "name": "success/light",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      }
+    },
+    "warning": {
+      "$type": "color",
+      "default": {
+        "$value": "{primitives.palette.amber-700}",
+        "$description": "警示提醒文字、图标与边框色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-warning-color",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:33",
+            "name": "warning/default",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "light": {
+        "$value": "{primitives.palette.amber-100}",
+        "$description": "警示提醒浅底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-warning-color-light",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:34",
+            "name": "warning/light",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      }
+    },
+    "info": {
+      "$type": "color",
+      "default": {
+        "$value": "{primitives.palette.slate-700}",
+        "$description": "信息提示文字与图标色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-info-color",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:35",
+            "name": "info/default",
+            "scopes": ["SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "light": {
+        "$value": "{primitives.palette.slate-100}",
+        "$description": "信息提示浅底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-info-color-light",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:36",
+            "name": "info/light",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      }
+    },
+    "error": {
+      "$type": "color",
+      "default": {
+        "$value": "{primitives.palette.red-700}",
+        "$description": "错误文字、图标与错误边框",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-error-color",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:34",
+            "name": "error/default",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"]
+          }
+        }
+      },
+      "light": {
+        "$value": "{primitives.palette.red-100}",
+        "$description": "错误提示与异常反馈浅底色",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-error-color-light",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:35",
+            "name": "error/light",
+            "scopes": ["FRAME_FILL", "SHAPE_FILL"]
+          }
+        }
+      }
+    },
+    "spacing": {
+      "$type": "dimension",
+      "xxs": {
+        "$value": "{primitives.size.1}",
+        "$description": "极小间距 4px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-xxs",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:37",
+            "name": "spacing/xxs",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "xs": {
+        "$value": "{primitives.size.2}",
+        "$description": "小间距 8px（图标与文案间距）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-xs",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:38",
+            "name": "spacing/xs",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "sm": {
+        "$value": "{primitives.size.3}",
+        "$description": "标准沟槽 12px（主工作台卡片沟槽）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-sm",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:39",
+            "name": "spacing/sm",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "md": {
+        "$value": "{primitives.size.4}",
+        "$description": "中等间距 16px（控件水平内边距）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-md",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:40",
+            "name": "spacing/md",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "lg": {
+        "$value": "{primitives.size.5}",
+        "$description": "较大间距 20px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-lg",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:41",
+            "name": "spacing/lg",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "xl": {
+        "$value": "{primitives.size.6}",
+        "$description": "大间距 24px（模块卡片内边距）",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-xl",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:42",
+            "name": "spacing/xl",
+            "scopes": ["GAP"]
+          }
+        }
+      },
+      "2xl": {
+        "$value": "{primitives.size.8}",
+        "$description": "区块间距 32px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-spacing-2xl",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:43",
+            "name": "spacing/2xl",
+            "scopes": ["GAP"]
+          }
+        }
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "sm": {
+        "$value": "{primitives.size.4}",
+        "$description": "内部内容单元圆角 16px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-radius-sm",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:44",
+            "name": "radius/sm",
+            "scopes": ["CORNER_RADIUS"]
+          }
+        }
+      },
+      "compose": {
+        "$value": "{primitives.size.6}",
+        "$description": "AI 对话输入框圆角 24px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-radius-compose",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:7",
+            "name": "radius/compose",
+            "scopes": ["CORNER_RADIUS"]
+          }
+        }
+      },
+      "md": {
+        "$value": "{primitives.size.8}",
+        "$description": "常规模块卡片圆角 32px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-radius-md",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:45",
+            "name": "radius/md",
+            "scopes": ["CORNER_RADIUS"]
+          }
+        }
+      },
+      "lg": {
+        "$value": "{primitives.size.12}",
+        "$description": "产品主面板容器圆角 48px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-radius-lg",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:46",
+            "name": "radius/lg",
+            "scopes": ["CORNER_RADIUS"]
+          }
+        }
+      },
+      "round": {
+        "$value": "{primitives.size.full}",
+        "$description": "胶囊按钮、导航与圆形控件圆角 999px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-radius-round",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:16:47",
+            "name": "radius/round",
+            "scopes": ["CORNER_RADIUS"]
+          }
+        }
+      }
+    },
+    "comp": {
+      "$type": "dimension",
+      "size-s": {
+        "$value": "{primitives.size.8}",
+        "$description": "紧凑控件高度 32px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-comp-size-s",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:37",
+            "name": "comp/size-s",
+            "scopes": ["WIDTH_HEIGHT"]
+          }
+        }
+      },
+      "size-stepper": {
+        "$value": "{primitives.size.9}",
+        "$description": "学习步骤条高度 36px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-comp-size-stepper",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:63:8",
+            "name": "comp/size-stepper",
+            "scopes": ["WIDTH_HEIGHT"]
+          }
+        }
+      },
+      "size-m": {
+        "$value": "{primitives.size.10}",
+        "$description": "标准导航与圆形入口高度 40px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-comp-size-m",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:38",
+            "name": "comp/size-m",
+            "scopes": ["WIDTH_HEIGHT"]
+          }
+        }
+      },
+      "size-l": {
+        "$value": "{primitives.size.11}",
+        "$description": "主按钮与输入框高度 44px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-comp-size-l",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:39",
+            "name": "comp/size-l",
+            "scopes": ["WIDTH_HEIGHT"]
+          }
+        }
+      },
+      "size-xl": {
+        "$value": "{primitives.size.12}",
+        "$description": "顶部胶囊导航容器高度 48px",
+        "$extensions": {
+          "com.zhizhi.cssVar": "--zz-comp-size-xl",
+          "com.zhizhi.figma": {
+            "variableId": "VariableID:54:40",
+            "name": "comp/size-xl",
+            "scopes": ["WIDTH_HEIGHT"]
+          }
+        }
+      }
+    }
+  },
+  "layout": {
+    "$type": "dimension",
+    "max": {
+      "$value": "1280px",
+      "$description": "统一桌面主面板宽度",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-max"
+      }
+    },
+    "inset": {
+      "$value": "{semantic.spacing.xl}",
+      "$description": "主面板四边统一内边距",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-inset"
+      }
+    },
+    "gutter": {
+      "$value": "{semantic.spacing.sm}",
+      "$description": "所有模块卡片沟槽",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-gutter"
+      }
+    },
+    "rail": {
+      "$value": "288px",
+      "$description": "右侧常驻可折叠 AI 助手栏宽度",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-rail"
+      }
+    },
+    "schedule": {
+      "$value": "300px",
+      "$description": "首页左侧「今日学习」列宽度",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-schedule"
+      }
+    },
+    "nav-height": {
+      "$value": "{semantic.comp.size-xl}",
+      "$description": "顶部主导航容器高度",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-layout-nav-height"
+      }
+    }
+  },
+  "typography": {
+    "ui": {
+      "$type": "fontFamily",
+      "$value": ["Inter", "Noto Sans SC", "Microsoft YaHei", "sans-serif"],
+      "$description": "界面默认字体栈",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-font-ui"
+      }
+    },
+    "mono": {
+      "$type": "fontFamily",
+      "$value": ["JetBrains Mono", "Consolas", "monospace"],
+      "$description": "等宽代码字体栈",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-font-mono"
+      }
+    }
+  },
+  "surface": {
+    "bg-app-gradient": {
+      "$type": "gradient",
+      "$value": "linear-gradient(168.29deg, #e8ede8 14.29%, #f5f7eb 52.14%, #cfebab 85.71%)",
+      "$description": "主面板 3 段柔和绿渐变（Figma Paint Style：Zhizhi / 主面板渐变）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-bg-app-gradient",
+        "com.zhizhi.figma": {
+          "styleId": "S:a86800f1a55fcd894ad5e15823cee01b8c04ce29,",
+          "styleName": "Zhizhi / 主面板渐变"
+        }
+      }
+    },
+    "bg-nav-glass": {
+      "$type": "gradient",
+      "$value": "linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.12) 38%, rgba(255, 255, 255, 0.40) 72%, rgba(255, 255, 255, 0.82) 100%)",
+      "$description": "顶部主导航 4 段竖向高光玻璃渐变（Figma Paint Style：Zhizhi / 顶部导航渐变）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-bg-nav-glass",
+        "com.zhizhi.figma": {
+          "styleId": "S:7490f2ca064ef8d1f782b4ec4ec1e3156737755a,",
+          "styleName": "Zhizhi / 顶部导航渐变"
+        }
+      }
+    },
+    "shadow-panel": {
+      "$type": "shadow",
+      "$value": "0 36px 56px -20px rgba(20, 28, 20, 0.22)",
+      "$description": "主面板外投影（Figma Effect Style：Zhizhi / 浮起的主面板）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-shadow-panel",
+        "com.zhizhi.figma": {
+          "styleId": "S:d1cbeb25469d681222f1f2ef19b1cee876f3a5dd,",
+          "styleName": "Zhizhi / 浮起的主面板"
+        }
+      }
+    },
+    "shadow-nav-glass": {
+      "$type": "shadow",
+      "$value": "0 6px 20px -6px rgba(38, 43, 39, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+      "$description": "顶部主导航条玻璃投影与顶部内高光（Figma Effect Style：Zhizhi / 顶部导航玻璃）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-shadow-nav-glass",
+        "com.zhizhi.figma": {
+          "styleId": "S:b33c09fb5a70f297a55c99dcd245248dc6fe42cc,",
+          "styleName": "Zhizhi / 顶部导航玻璃"
+        }
+      }
+    },
+    "shadow-card-glass": {
+      "$type": "shadow",
+      "$value": "inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 0 0 1px rgba(255, 255, 255, 0.42)",
+      "$description": "常规玻璃卡片顶部内高光与边缘微描边（Figma Effect Style：Zhizhi / 柔和玻璃）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-shadow-card-glass",
+        "com.zhizhi.figma": {
+          "styleId": "S:512668cb87f4f619b6a65bdb39b6caee18aff893,",
+          "styleName": "Zhizhi / 柔和玻璃"
+        }
+      }
+    },
+    "blur-glass": {
+      "$type": "blur",
+      "$value": "blur(20px)",
+      "$description": "常规玻璃卡片与顶部主导航背景模糊半径（20px）",
+      "$extensions": {
+        "com.zhizhi.cssVar": "--zz-blur-glass",
+        "com.zhizhi.figma": {
+          "styleId": "S:512668cb87f4f619b6a65bdb39b6caee18aff893,",
+          "styleName": "Zhizhi / 柔和玻璃"
+        }
+      }
+    }
+  }
+}
